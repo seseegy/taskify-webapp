@@ -1,5 +1,6 @@
 import { useQuery } from '@powersync/react';
 import {
+  BellRing,
   CloudAlert,
   HardDrive,
   LogOut,
@@ -22,6 +23,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { useDatabase } from '@/db/database-context';
 import { useAuth, useUser } from '@/features/auth/auth-context';
 import { useLockStore } from '@/features/lock/lock-store';
+import { NotificationSettings } from '@/features/notifications/NotificationSettings';
 import { useTheme, type ThemePreference } from '@/features/theme/theme-context';
 import { cn } from '@/lib/utils';
 import { PinSettings } from './PinSettings';
@@ -39,6 +41,9 @@ export function SettingsPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <AppearanceSection />
         <SecuritySection />
+        <Section icon={BellRing} title="Notifikasi pengingat" gradient="bg-gradient-journal">
+          <NotificationSettings />
+        </Section>
         <SyncSection />
         <AccountSection />
       </div>

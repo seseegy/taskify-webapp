@@ -27,7 +27,7 @@ const SQL = `
       WHERE deleted_at IS NULL AND parent_id IS NULL AND due_date = ?1
         AND status = 'done')                                                AS tasks_today_done,
     (SELECT COUNT(*) FROM tasks
-      WHERE deleted_at IS NULL AND due_date < ?1
+      WHERE deleted_at IS NULL AND parent_id IS NULL AND due_date < ?1
         AND status IN ('todo', 'in_progress'))                              AS tasks_overdue,
     (SELECT COALESCE(SUM(amount), 0) FROM transactions
       WHERE deleted_at IS NULL AND kind = 'expense' AND occurred_on = ?1)   AS expense_today,

@@ -13,7 +13,9 @@ import { Link } from 'react-router';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ActivityDots } from '@/features/calendar/ActivityDots';
 import { buildWeek } from '@/features/calendar/calendar-utils';
-import { EMPTY_DAY, useCalendarActivity } from '@/features/calendar/useCalendarActivity';
+import { EMPTY_DAY } from '@/features/calendar/useCalendarActivity';
+import { useDayActivity } from '@/features/calendar/useDayActivity';
+import { FocusCard } from './FocusCard';
 import { formatLocalDate, greeting } from '@/lib/date';
 import { formatIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
@@ -111,7 +113,10 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <RoadmapCard />
+      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+        <FocusCard today={today} />
+        <RoadmapCard />
+      </div>
     </div>
   );
 }
@@ -164,7 +169,7 @@ function StatCard({
 
 function WeekStrip({ today }: { today: string }) {
   const week = buildWeek(today);
-  const { byDay } = useCalendarActivity(week[0]!, week[6]!);
+  const { byDay } = useDayActivity(week[0]!, week[6]!);
 
   return (
     <Card className="animate-fade-up">
@@ -207,7 +212,7 @@ function WeekStrip({ today }: { today: string }) {
 
 const ROADMAP = [
   { done: true, label: 'Fondasi: login, kunci PIN, database offline, sinkronisasi' },
-  { done: false, label: 'Tugas + Kalender (berulang, subtask, pengingat)' },
+  { done: true, label: 'Tugas + Kalender (berulang, subtask, pengingat)' },
   { done: false, label: 'Keuangan (dompet, kategori, anggaran, hutang)' },
   { done: false, label: 'Jurnal + mood' },
   { done: false, label: 'Quick capture, tag & tautan silang, pencarian global' },

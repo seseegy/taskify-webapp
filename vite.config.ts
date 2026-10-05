@@ -52,6 +52,8 @@ export default defineConfig({
         // mc-* = varian SQLCipher (enkripsi) yang tidak dipakai → jangan di-precache (±3,7 MB)
         globIgnores: ['**/mc-wa-sqlite*'],
         navigateFallback: '/index.html',
+        // Handler push & klik notifikasi (public/push-handler.js)
+        importScripts: ['push-handler.js'],
         cleanupOutdatedCaches: true,
       },
       devOptions: {

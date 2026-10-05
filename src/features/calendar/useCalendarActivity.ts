@@ -34,22 +34,16 @@ interface Row {
 }
 
 /**
- * Agregasi SEMUA modul per hari dalam satu query (UNION ALL) → inti "kalender sebagai pusat".
+ * Agregasi modul NON-tugas per hari dalam satu query (UNION ALL). Tugas (termasuk kejadian
+ * berulang virtual) digabungkan oleh useDayActivity → pakai hook itu di UI.
  * Reaktif: otomatis berjalan ulang saat salah satu tabel berubah (lokal maupun dari sync).
  *
  * Catatan:
- *  - Data yang punya tanggal lokal (due_date, entry_date, occurred_on) dipakai apa adanya.
+ *  - Data yang punya tanggal lokal (entry_date, occurred_on) dipakai apa adanya.
  *  - Vault (snippet, project, file) tidak punya tanggal lokal → created_at UTC dikonversi ke WIB.
- *  - Kejadian tugas berulang (rrule) di masa depan diekspansi di sisi client (tahap 2).
  */
 const SQL = `
-  SELECT due_date AS day, 'task' AS kind, COUNT(*) AS count,
-         SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END) AS done, 0 AS amount
-    FROM tasks
-   WHERE deleted_at IS NULL AND status <> 'cancelled' AND due_date BETWEEN ?1 AND ?2
-   GROUP BY due_date
-  UNION ALL
-  SELECT entry_date, 'journal', COUNT(*), 0, 0
+  SELECT entry_date AS day, 'journal' AS kind, COUNT(*) AS count, 0 AS done, 0 AS amount
     FROM journal_entries
    WHERE deleted_at IS NULL AND entry_date BETWEEN ?1 AND ?2
    GROUP BY entry_date

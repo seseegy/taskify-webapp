@@ -86,6 +86,52 @@ export const SQLITE_TZ_MODIFIER = '+7 hours';
 /** Timestamp ISO UTC untuk kolom created_at/updated_at/deleted_at. */
 export const nowIso = () => new Date().toISOString();
 
+const WIB_OFFSET_MS = 7 * 3600_000;
+
+/**
+ * Parse timestamp dari DB. PowerSync mengirim timestamptz sebagai
+ * '2026-10-05 07:00:00Z' (spasi, bukan 'T'), sedangkan tulisan lokal memakai ISO.
+ */
+export function parseTimestamp(value: string): Date {
+  return new Date(value.includes('T') ? value : value.replace(' ', 'T'));
+}
+
+/** Tanggal + jam lokal WIB → ISO UTC. Tanpa jam = 00:00. */
+export function localDateTimeToIso(date: LocalDate, time: string | null = null): string {
+  const [y, m, d] = date.split('-').map(Number);
+  const [hh, mm] = (time ?? '00:00').split(':').map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d!, hh!, mm!) - WIB_OFFSET_MS).toISOString();
+}
+
+/** ISO UTC → { date, time } dalam WIB. */
+export function isoToLocal(value: string): { date: LocalDate; time: string } {
+  const { year, month, day, hour, minute } = zonedParts(parseTimestamp(value));
+  return { date: `${year}-${pad(month)}-${pad(day)}`, time: `${pad(hour)}:${pad(minute)}` };
+}
+
+/** Selisih hari kalender (b − a). */
+export function diffLocalDays(a: LocalDate, b: LocalDate): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400_000);
+}
+
+/** 'HH:MM:SS' / 'HH:MM' → 'HH:MM' */
+export const shortTime = (time: string | null | undefined) => (time ? time.slice(0, 5) : '');
+
+/** Normalisasi input jam → 'HH:MM:00' (sama dengan format kolom `time` Postgres). */
+export const toDbTime = (time: string | null | undefined) =>
+  time ? `${time.slice(0, 5)}:00` : null;
+
+/** Label relatif: "Hari ini", "Besok", "Kemarin", "Rab, 8 Okt", "8 Okt 2027". */
+export function relativeDayLabel(date: LocalDate, today: LocalDate = todayLocal()): string {
+  const diff = diffLocalDays(today, date);
+  if (diff === 0) return 'Hari ini';
+  if (diff === 1) return 'Besok';
+  if (diff === -1) return 'Kemarin';
+  if (date.slice(0, 4) !== today.slice(0, 4)) return formatLocalDate(date, 'd MMM yyyy');
+  if (diff > 1 && diff < 7) return formatLocalDate(date, 'EEEE');
+  return formatLocalDate(date, 'EEE, d MMM');
+}
+
 function pad(n: number) {
   return String(n).padStart(2, '0');
 }

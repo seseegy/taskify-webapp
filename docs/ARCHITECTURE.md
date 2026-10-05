@@ -37,7 +37,10 @@ src/
   features/<modul>/  Halaman, hook query, komponen khusus modul
   lib/            env, supabase client, tanggal WIB, uang IDR, id
   styles/         Design system (lihat DESIGN.md)
-supabase/migrations/   Skema Postgres, RLS, publication, seed
+supabase/migrations/   Skema Postgres, RLS, publication, seed, pengingat
+supabase/functions/    Edge Function send-reminders (Deno)
+supabase/sql/          SQL manual berisi secret (jadwal cron)
+scripts/               generate-vapid-keys.mjs
 powersync/sync-config.yaml   Sync Streams
 ```
 
@@ -81,6 +84,27 @@ PUT berurutan pada tabel yang sama digabung menjadi satu `upsert` massal.
 
 `features/calendar/useCalendarActivity.ts` menjalankan satu query `UNION ALL` atas tugas, jurnal, transaksi, dan vault untuk rentang tanggal, lalu mengelompokkannya per hari. Query ini reaktif: modul baru cukup menambahkan cabang `UNION ALL` agar otomatis muncul di Kalender & Beranda.
 
+## Tugas berulang (model bergulir)
+
+- `tasks.rrule` berisi RRULE (RFC 5545) dengan BY* eksplisit, misalnya `FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TH`. Lihat `features/tasks/recurrence.ts`.
+- Dalam satu seri (`series_id`) hanya **satu baris aktif** yang membawa `rrule`.
+- Saat dicentang: baris itu menjadi riwayat (`done`, `rrule = null`), lalu baris baru dibuat untuk kejadian berikutnya. Subtask ikut disalin dalam keadaan belum selesai, dan `remind_at` digeser sejumlah hari yang sama. Kalau tugas sudah lama terlambat, kejadian berikutnya melompat ke mulai hari ini.
+- Kejadian masa depan di Kalender bersifat **virtual** (dihitung dari rrule, tidak disimpan) dan ditandai ikon 🔁.
+- Semua operasi multi-baris dibungkus transaksi, dan bisa **Diurungkan** lewat toast.
+
+## Pengingat
+
+```
+tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-reminders
+                                                   ├─ claim_due_reminders()  (klaim atomik, log (task_id, remind_at))
+                                                   └─ Web Push (VAPID, aes128gcm) ──► push_subscriptions
+```
+
+- `push_subscriptions` dan `task_reminder_log` **tidak disinkron** PowerSync. Langganan push ditulis langsung lewat supabase-js (mengaktifkan notifikasi memang butuh online), sedangkan log hanya diakses server.
+- Mengubah `remind_at` menghasilkan kunci log baru, jadi pengingat baru tetap terkirim, tanpa ada yang terkirim dobel.
+- Langganan yang kedaluwarsa (404/410) otomatis dihapus.
+- Service worker (Workbox) memuat `public/push-handler.js`. Klik notifikasi membuka `/tugas?task=<id>`, dan `AppShell` membuka panel detail tugas itu.
+
 ## Keamanan
 
 - RLS `owner_*` di semua tabel + `FORCE ROW LEVEL SECURITY`; `anon` tidak punya akses.
@@ -95,7 +119,7 @@ Migrasi diuji di Postgres (PGlite): RLS antar-user, constraint, trigger seed, pu
 | Tahap | Isi                                                                                        | Status |
 | ----- | ------------------------------------------------------------------------------------------ | ------ |
 | 1     | Fondasi: skema, RLS, sync, login, PIN, PWA, design system, Beranda & Kalender bulanan      | ✅     |
-| 2     | Tugas + Kalender (list, subtask, RRULE, minggu/agenda, pengingat Web Push)                 |        |
+| 2     | Tugas + Kalender (list, subtask, RRULE, minggu/agenda, pengingat Web Push)                 | ✅     |
 | 3     | Keuangan (CRUD transaksi, input "25rb", anggaran, berulang, hutang, ekspor CSV)            |        |
 | 4     | Jurnal (markdown, mood, "hari ini di masa lalu")                                           |        |
 | 5     | Quick capture, tag & tautan silang, pencarian global FTS5, Sampah                          |        |

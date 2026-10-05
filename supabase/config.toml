@@ -387,6 +387,11 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# Dipanggil pg_cron (header x-cron-secret) & dari aplikasi untuk tes (JWT user).
+# Verifikasi dilakukan manual di dalam fungsi, jadi JWT gateway dimatikan.
+[functions.send-reminders]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
