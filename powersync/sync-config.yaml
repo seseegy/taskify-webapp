@@ -1,0 +1,45 @@
+# =============================================================================
+# PowerSync Sync Streams — Taskify
+# =============================================================================
+# Deploy: PowerSync Dashboard → instance → Sync Streams → tempel isi file ini → Deploy
+# (atau via CLI: `powersync deploy sync-config`, lihat docs/SETUP.md).
+#
+# Taskify = 1 akun pribadi, jadi SEMUA data milik user disinkron ke perangkat agar
+# aplikasi berfungsi penuh saat offline. Satu stream dengan banyak query → jumlah
+# bucket tetap kecil (lihat batas bucket di dokumentasi PowerSync).
+#
+# Prioritas: data kecil yang dibutuhkan layar pertama (pengaturan, dompet, kategori,
+# list, tag) disinkron lebih dulu (priority 1), sisanya menyusul (priority 2).
+#
+# Kolom `user_id` bertipe uuid di Postgres, dibandingkan dengan `auth.user_id()`
+# (claim `sub` dari JWT Supabase).
+# =============================================================================
+config:
+  edition: 3
+
+streams:
+  essentials:
+    auto_subscribe: true
+    priority: 1
+    queries:
+      - SELECT * FROM user_settings WHERE user_id = auth.user_id()
+      - SELECT * FROM wallets WHERE user_id = auth.user_id()
+      - SELECT * FROM categories WHERE user_id = auth.user_id()
+      - SELECT * FROM task_lists WHERE user_id = auth.user_id()
+      - SELECT * FROM tags WHERE user_id = auth.user_id()
+
+  user_data:
+    auto_subscribe: true
+    priority: 2
+    queries:
+      - SELECT * FROM taggings WHERE user_id = auth.user_id()
+      - SELECT * FROM entity_links WHERE user_id = auth.user_id()
+      - SELECT * FROM tasks WHERE user_id = auth.user_id()
+      - SELECT * FROM journal_entries WHERE user_id = auth.user_id()
+      - SELECT * FROM debts WHERE user_id = auth.user_id()
+      - SELECT * FROM recurring_transactions WHERE user_id = auth.user_id()
+      - SELECT * FROM transactions WHERE user_id = auth.user_id()
+      - SELECT * FROM budgets WHERE user_id = auth.user_id()
+      - SELECT * FROM snippets WHERE user_id = auth.user_id()
+      - SELECT * FROM code_projects WHERE user_id = auth.user_id()
+      - SELECT * FROM attachments WHERE user_id = auth.user_id()
