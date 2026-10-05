@@ -1,6 +1,10 @@
 import { CodeXml, Settings } from 'lucide-react';
-import { NavLink, Outlet } from 'react-router';
+import { useEffect } from 'react';
+import { NavLink, Outlet, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
+import { Toaster } from '@/components/ui/Toaster';
+import { TaskDetailSheet } from '@/features/tasks/components/TaskDetailSheet';
+import { useTaskSheet } from '@/features/tasks/task-sheet-store';
 import { cn } from '@/lib/utils';
 import { Logo } from './Logo';
 import { SyncStatus } from './SyncStatus';
@@ -12,6 +16,7 @@ import { UpdatePrompt } from './UpdatePrompt';
  *  - < lg (HP): header atas + bottom nav dengan Kalender di tengah
  */
 export function AppShell() {
+  useTaskDeepLink();
   return (
     <div className="min-h-dvh lg:flex">
       <Sidebar />
@@ -25,8 +30,29 @@ export function AppShell() {
 
       <BottomNav />
       <UpdatePrompt />
+      <TaskDetailSheet />
+      <Toaster />
     </div>
   );
+}
+
+/** `?task=<id>` (mis. dari klik notifikasi pengingat) → buka panel detail tugas. */
+function useTaskDeepLink() {
+  const [params, setParams] = useSearchParams();
+  const open = useTaskSheet((s) => s.open);
+  const taskId = params.get('task');
+
+  useEffect(() => {
+    if (!taskId) return;
+    open(taskId);
+    setParams(
+      (p) => {
+        p.delete('task');
+        return p;
+      },
+      { replace: true },
+    );
+  }, [taskId, open, setParams]);
 }
 
 function Sidebar() {

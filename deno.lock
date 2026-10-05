@@ -1,0 +1,77 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@negrel/http-ece@0.7.0": "0.7.0",
+    "jsr:@negrel/webpush@0.5.0": "0.5.0",
+    "jsr:@std/bytes@1": "1.0.6",
+    "jsr:@std/encoding@1": "1.0.11"
+  },
+  "jsr": {
+    "@negrel/http-ece@0.7.0": {
+      "integrity": "068e61ba6f52da5454051a283cc19621607f8dd6e74d55c01bb365b8c6644076",
+      "dependencies": [
+        "jsr:@std/bytes",
+        "jsr:@std/encoding"
+      ]
+    },
+    "@negrel/webpush@0.5.0": {
+      "integrity": "919ed5bf4d676923667c5278093f36ffb2efe7fe2f155b6d32723ea3b73fa693",
+      "dependencies": [
+        "jsr:@negrel/http-ece",
+        "jsr:@std/bytes",
+        "jsr:@std/encoding"
+      ]
+    },
+    "@std/bytes@1.0.6": {
+      "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
+    },
+    "@std/encoding@1.0.11": {
+      "integrity": "e7cef2f0b3153bccc17431e7c864a1de03a4b6d9647389c43e08aaa775d37385"
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@eslint/js@^10.0.1",
+        "npm:@fontsource-variable/plus-jakarta-sans@^5.3.0",
+        "npm:@journeyapps/wa-sqlite@^2.0.6",
+        "npm:@powersync/drizzle-driver@0.8",
+        "npm:@powersync/react@^2.0.2",
+        "npm:@powersync/web@^2.4.2",
+        "npm:@supabase/supabase-js@^2.117.2",
+        "npm:@tailwindcss/vite@^4.3.3",
+        "npm:@types/node@^26.6.4",
+        "npm:@types/react-dom@^19.3.0",
+        "npm:@types/react@^19.3.0",
+        "npm:@vite-pwa/assets-generator@2",
+        "npm:@vitejs/plugin-react@^6.1.1",
+        "npm:class-variance-authority@~0.7.1",
+        "npm:clsx@^2.1.1",
+        "npm:date-fns@^4.4.0",
+        "npm:drizzle-orm@~0.45.3",
+        "npm:eslint-plugin-react-hooks@^7.1.1",
+        "npm:eslint-plugin-react-refresh@~0.5.7",
+        "npm:eslint@^10.12.0",
+        "npm:globals@^17.13.0",
+        "npm:lucide-react@^1.52.0",
+        "npm:prettier-plugin-tailwindcss@~0.8.1",
+        "npm:prettier@^3.9.9",
+        "npm:react-dom@^19.3.0",
+        "npm:react-router@^8.4.0",
+        "npm:react@^19.3.0",
+        "npm:rrule@^2.8.1",
+        "npm:supabase@^2.119.0",
+        "npm:tailwind-merge@^3.7.0",
+        "npm:tailwindcss@^4.3.3",
+        "npm:typescript-eslint@^8.71.0",
+        "npm:typescript@~6.0.3",
+        "npm:uuid@^14.0.2",
+        "npm:vite-plugin-pwa@2",
+        "npm:vite-plugin-wasm@^3.6.0",
+        "npm:vite@^8.3.2",
+        "npm:workbox-window@^7.4.1",
+        "npm:zustand@^5.0.15"
+      ]
+    }
+  }
+}

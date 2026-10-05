@@ -18,6 +18,8 @@
     "format:check": "prettier --check .",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check",
     "pwa:icons": "pwa-assets-generator",
+    "vapid:generate": "node scripts/generate-vapid-keys.mjs",
+    "fn:deploy": "supabase functions deploy send-reminders --no-verify-jwt",
     "db:new": "supabase migration new",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked --schema public > src/lib/supabase.types.ts"

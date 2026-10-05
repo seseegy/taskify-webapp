@@ -22,4 +22,6 @@ export const env = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
   supabaseKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? '',
   powersyncUrl: import.meta.env.VITE_POWERSYNC_URL ?? '',
+  /** Opsional: tanpa ini fitur notifikasi pengingat dinonaktifkan */
+  vapidPublicKey: import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '',
 };

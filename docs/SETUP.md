@@ -112,19 +112,76 @@ Routing SPA otomatis ditangani Cloudflare Pages (tanpa `404.html` → fallback k
 Buka URL Pages di **Chrome** → menu ⋮ → **Install app** / **Tambahkan ke layar utama**.
 Lalu di Taskify: **Pengaturan → Penyimpanan persisten → Aktifkan** dan, jika mau, **Aktifkan PIN**.
 
+## 7. Pengingat (notifikasi Web Push)
+
+Alur: **pg_cron** (tiap menit) → Edge Function **`send-reminders`** → Web Push ke perangkatmu.
+
+### 7.1 Jalankan migrasi baru
+
+`pnpm db:push`, atau jalankan `supabase/migrations/20261006000100_reminders.sql` di SQL Editor.
+
+### 7.2 Buat kunci VAPID
+
+```bash
+pnpm vapid:generate
+```
+
+Output-nya berisi 3 hal:
+
+1. `VITE_VAPID_PUBLIC_KEY=…` → tambahkan ke `.env.local` **dan** ke environment variables Cloudflare Pages. Ini kunci publik, aman.
+2. Perintah `supabase secrets set VAPID_KEYS_JSON=…`, `CRON_SECRET=…`, dan `VAPID_SUBJECT=…` → ini **rahasia**, jangan di-commit.
+3. Nilai `CRON_SECRET` juga dipakai lagi di langkah 7.4.
+
+### 7.3 Deploy Edge Function
+
+```bash
+npx supabase login
+npx supabase link --project-ref <project-ref>
+# jalankan 3 perintah "secrets set" dari langkah 7.2
+pnpm fn:deploy        # = supabase functions deploy send-reminders --no-verify-jwt
+```
+
+Kalau Docker tidak terpasang, tambahkan `--use-api`.
+**Tanpa CLI:** di Dashboard buka **Edge Functions → Deploy a new function → Via Editor**, beri nama `send-reminders`, lalu tempel isi `supabase/functions/send-reminders/index.ts`. Setelah itu matikan **Verify JWT** di pengaturan fungsi, dan isi 3 secret di **Edge Functions → Secrets**.
+
+### 7.4 Jadwalkan cron
+
+Buka `supabase/sql/schedule-reminders.sql`, ganti `<project-ref>` dan `<CRON_SECRET…>`, lalu jalankan di **SQL Editor**.
+
+### 7.5 Aktifkan di perangkat
+
+1. Pakai versi yang sudah di-deploy (atau `pnpm build && pnpm preview`). Service worker **tidak aktif** di `pnpm dev`.
+2. Di Android: **install** Taskify dulu dari Chrome (lihat langkah 6).
+3. Buka **Pengaturan → Notifikasi pengingat → Aktifkan notifikasi**, lalu tekan **Kirim notifikasi uji**.
+4. Buat tugas dengan jam dan pengingat "Saat jatuh tempo" sekitar 2 menit dari sekarang, lalu tunggu notifikasinya.
+
+Cek kalau tidak muncul:
+
+```sql
+select * from cron.job_run_details order by start_time desc limit 5;          -- cron jalan?
+select status_code, content from net._http_response order by id desc limit 5; -- respons fungsi
+```
+
+Log fungsi ada di **Edge Functions → send-reminders → Logs**.
+
+> Kuota: cron tiap menit ≈ 43 ribu panggilan/bulan, masih jauh di bawah batas free tier (500 ribu). Pengingat yang terlambat lebih dari 24 jam (misalnya karena project ter-pause) tidak dikirim.
+
 ---
 
 ## Troubleshooting
 
-| Gejala                                  | Penyebab & solusi                                                                    |
-| --------------------------------------- | ------------------------------------------------------------------------------------ |
-| Layar "Konfigurasi belum lengkap"       | `.env.local` belum diisi / server dev belum di-restart                               |
-| Status macet di _Menyinkron…_           | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3) |
-| Error `PSYNC_S2101` di console          | Client Auth PowerSync belum dicentang _Use Supabase Auth_                            |
-| Error `PSYNC_S2105` (aud)               | Tambahkan audience `authenticated` di Client Auth                                    |
-| Upload gagal `42501 permission denied`  | Migrasi 2 (grant) belum dijalankan                                                   |
-| Pengaturan menampilkan "Ditolak server" | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`        |
-| Login "Tidak bisa terhubung"            | Login pertama butuh internet; setelah itu aplikasi jalan offline                     |
+| Gejala                                   | Penyebab & solusi                                                                      |
+| ---------------------------------------- | -------------------------------------------------------------------------------------- |
+| Layar "Konfigurasi belum lengkap"        | `.env.local` belum diisi / server dev belum di-restart                                 |
+| Status macet di _Menyinkron…_            | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)   |
+| Error `PSYNC_S2101` di console           | Client Auth PowerSync belum dicentang _Use Supabase Auth_                              |
+| Error `PSYNC_S2105` (aud)                | Tambahkan audience `authenticated` di Client Auth                                      |
+| Upload gagal `42501 permission denied`   | Migrasi 2 (grant) belum dijalankan                                                     |
+| Pengaturan menampilkan "Ditolak server"  | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`          |
+| Login "Tidak bisa terhubung"             | Login pertama butuh internet; setelah itu aplikasi jalan offline                       |
+| Notifikasi "Belum tersedia"              | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                       |
+| Notifikasi uji "Edge Function gagal"     | Fungsi belum di-deploy, atau Verify JWT masih menyala                                  |
+| Uji berhasil tapi pengingat tidak datang | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi |
 
 ## Perawatan rutin
 
