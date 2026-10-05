@@ -1,0 +1,245 @@
+/* =============================================================================
+   Taskify Design System
+   -----------------------------------------------------------------------------
+   Prinsip: TIDAK ADA latar polos. Latar = mesh gradient + tekstur noise halus,
+   permukaan = kaca (glassmorphism) semi-transparan, aksi utama = gradasi brand.
+   Setiap modul punya gradasi aksen sendiri agar mudah dikenali di kalender.
+   Detail & panduan pemakaian: docs/DESIGN.md
+   ============================================================================= */
+@import 'tailwindcss';
+@import '@fontsource-variable/plus-jakarta-sans';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* -----------------------------------------------------------------------------
+   Token (dipetakan ke utility Tailwind: text-fg, bg-surface, border-line, dst.)
+   ----------------------------------------------------------------------------- */
+@theme {
+  --font-sans: 'Plus Jakarta Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, 'JetBrains Mono', 'Fira Code', monospace;
+
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-surface-strong: var(--surface-strong);
+  --color-line: var(--line);
+  --color-primary: var(--primary);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  /* Aksen modul (warna solid untuk titik kalender, ikon, dll.) */
+  --color-mod-tasks: #8b5cf6;
+  --color-mod-journal: #f59e0b;
+  --color-mod-finance: #10b981;
+  --color-mod-vault: #06b6d4;
+  --color-mod-calendar: #6366f1;
+
+  --radius-card: 1.25rem;
+
+  --animate-blob: blob 22s ease-in-out infinite alternate;
+  --animate-fade-up: fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  @keyframes blob {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(6%, -4%, 0) scale(1.08);
+    }
+    100% {
+      transform: translate3d(-4%, 5%, 0) scale(0.96);
+    }
+  }
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Nilai token per tema
+   ----------------------------------------------------------------------------- */
+:root {
+  /* Terang: "Aurora pagi" — lavender, peach, langit, mint */
+  --fg: #1e1b4b;
+  --muted: #5b5a7a;
+  --surface: rgb(255 255 255 / 0.55);
+  --surface-strong: rgb(255 255 255 / 0.78);
+  --line: rgb(99 102 241 / 0.16);
+  --primary: #6d28d9;
+  --danger: #e11d48;
+  --success: #059669;
+  --warning: #d97706;
+
+  --backdrop-base: linear-gradient(135deg, #ede9fe 0%, #fce7f3 45%, #e0f2fe 100%);
+  --blob-1: #c4b5fd;
+  --blob-2: #fbcfe8;
+  --blob-3: #a5f3fc;
+  --blob-4: #fde68a;
+  --blob-opacity: 0.7;
+  --glass-shadow: 0 8px 32px -8px rgb(76 29 149 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.7);
+  --noise-opacity: 0.05;
+}
+
+.dark {
+  /* Gelap: "Nebula malam" — indigo pekat, ungu, teal, magenta */
+  --fg: #ede9fe;
+  --muted: #a5a3c9;
+  --surface: rgb(30 27 75 / 0.42);
+  --surface-strong: rgb(30 27 75 / 0.72);
+  --line: rgb(167 139 250 / 0.16);
+  --primary: #a78bfa;
+  --danger: #fb7185;
+  --success: #34d399;
+  --warning: #fbbf24;
+
+  --backdrop-base: linear-gradient(140deg, #0f0c29 0%, #24124a 45%, #0b2540 100%);
+  --blob-1: #6d28d9;
+  --blob-2: #be185d;
+  --blob-3: #0e7490;
+  --blob-4: #4338ca;
+  --blob-opacity: 0.45;
+  --glass-shadow: 0 8px 32px -8px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --noise-opacity: 0.07;
+}
+
+/* -----------------------------------------------------------------------------
+   Utility kustom
+   ----------------------------------------------------------------------------- */
+
+/* Latar aplikasi: mesh gradient + blob bergerak pelan + noise */
+@utility app-backdrop {
+  position: relative;
+  isolation: isolate;
+  background: var(--backdrop-base);
+  color: var(--fg);
+
+  &::before {
+    content: '';
+    position: fixed;
+    inset: -20%;
+    z-index: -2;
+    background:
+      radial-gradient(38% 38% at 12% 18%, var(--blob-1), transparent 70%),
+      radial-gradient(34% 34% at 88% 12%, var(--blob-2), transparent 70%),
+      radial-gradient(40% 40% at 80% 88%, var(--blob-3), transparent 70%),
+      radial-gradient(30% 30% at 18% 85%, var(--blob-4), transparent 70%);
+    opacity: var(--blob-opacity);
+    filter: blur(40px);
+    animation: var(--animate-blob);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: var(--noise-opacity);
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+}
+
+/* Permukaan kaca */
+@utility glass {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+}
+
+@utility glass-strong {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(24px) saturate(170%);
+  -webkit-backdrop-filter: blur(24px) saturate(170%);
+}
+
+/* Gradasi brand & per modul */
+@utility bg-gradient-brand {
+  background-image: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+}
+@utility bg-gradient-tasks {
+  background-image: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+}
+@utility bg-gradient-journal {
+  background-image: linear-gradient(135deg, #f59e0b 0%, #f43f5e 100%);
+}
+@utility bg-gradient-finance {
+  background-image: linear-gradient(135deg, #10b981 0%, #0ea5e9 100%);
+}
+@utility bg-gradient-vault {
+  background-image: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+}
+@utility bg-gradient-calendar {
+  background-image: linear-gradient(135deg, #6366f1 0%, #38bdf8 100%);
+}
+@utility bg-gradient-settings {
+  background-image: linear-gradient(135deg, #64748b 0%, #8b5cf6 100%);
+}
+
+@utility text-gradient-brand {
+  background-image: linear-gradient(120deg, #6366f1, #a855f7 45%, #ec4899);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* Kilau tipis di tepi atas elemen bergradasi (tombol, ikon modul) */
+@utility shine {
+  position: relative;
+  overflow: hidden;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgb(255 255 255 / 0.28), transparent 55%);
+    pointer-events: none;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Dasar
+   ----------------------------------------------------------------------------- */
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    text-size-adjust: 100%;
+  }
+  body {
+    @apply app-backdrop min-h-dvh font-sans antialiased;
+  }
+  ::selection {
+    background: rgb(168 85 247 / 0.35);
+  }
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+  /* Scrollbar tipis */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(139 92 246 / 0.35) transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
