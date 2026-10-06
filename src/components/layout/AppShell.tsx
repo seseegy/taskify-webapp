@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import { NavLink, Outlet, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { Toaster } from '@/components/ui/Toaster';
+import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
+import { useRecurringProcessor } from '@/features/finance/finance-actions';
 import { TaskDetailSheet } from '@/features/tasks/components/TaskDetailSheet';
 import { useTaskSheet } from '@/features/tasks/task-sheet-store';
 import { cn } from '@/lib/utils';
@@ -17,6 +19,7 @@ import { UpdatePrompt } from './UpdatePrompt';
  */
 export function AppShell() {
   useTaskDeepLink();
+  useRecurringProcessor();
   return (
     <div className="min-h-dvh lg:flex">
       <Sidebar />
@@ -31,6 +34,7 @@ export function AppShell() {
       <BottomNav />
       <UpdatePrompt />
       <TaskDetailSheet />
+      <TransactionSheet />
       <Toaster />
     </div>
   );

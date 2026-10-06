@@ -15,7 +15,8 @@ export interface TodaySummary {
 
 /**
  * Ringkasan Beranda dalam satu query reaktif.
- * Saldo total = saldo awal semua dompet + pemasukan − pengeluaran
+ * Statistik mengabaikan transaksi hutang/piutang (debt_id). Saldo total tetap menghitung semuanya:
+ * saldo awal semua dompet + pemasukan − pengeluaran
  * (transfer antar dompet saling meniadakan, jadi tidak dihitung).
  */
 const SQL = `
@@ -30,12 +31,12 @@ const SQL = `
       WHERE deleted_at IS NULL AND parent_id IS NULL AND due_date < ?1
         AND status IN ('todo', 'in_progress'))                              AS tasks_overdue,
     (SELECT COALESCE(SUM(amount), 0) FROM transactions
-      WHERE deleted_at IS NULL AND kind = 'expense' AND occurred_on = ?1)   AS expense_today,
+      WHERE deleted_at IS NULL AND debt_id IS NULL AND kind = 'expense' AND occurred_on = ?1)   AS expense_today,
     (SELECT COALESCE(SUM(amount), 0) FROM transactions
-      WHERE deleted_at IS NULL AND kind = 'expense'
+      WHERE deleted_at IS NULL AND debt_id IS NULL AND kind = 'expense'
         AND occurred_on BETWEEN ?2 AND ?1)                                  AS expense_month,
     (SELECT COALESCE(SUM(amount), 0) FROM transactions
-      WHERE deleted_at IS NULL AND kind = 'income'
+      WHERE deleted_at IS NULL AND debt_id IS NULL AND kind = 'income'
         AND occurred_on BETWEEN ?2 AND ?1)                                  AS income_month,
     (SELECT COALESCE(SUM(initial_balance), 0) FROM wallets WHERE deleted_at IS NULL)
       + (SELECT COALESCE(SUM(CASE kind WHEN 'income' THEN amount

@@ -105,6 +105,18 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 - Langganan yang kedaluwarsa (404/410) otomatis dihapus.
 - Service worker (Workbox) memuat `public/push-handler.js`. Klik notifikasi membuka `/tugas?task=<id>`, dan `AppShell` membuka panel detail tugas itu.
 
+## Keuangan
+
+- Saldo dompet = saldo awal + pemasukan − pengeluaran − transfer keluar + transfer masuk (dihitung di SQL, tidak disimpan).
+- **Statistik** (ringkasan, per kategori, anggaran, Beranda) mengabaikan transfer dan transaksi hutang/piutang (`debt_id` terisi), karena keduanya perpindahan uang, bukan belanja atau pendapatan. Saldo tetap menghitung semuanya.
+- Dompet yang sudah punya transaksi hanya bisa **diarsipkan**, tidak dihapus. Kategori yang dihapus tetap tampil namanya di riwayat.
+- **Transaksi berulang** (`recurring_transactions`): `next_run_on` menunjuk kejadian yang belum dicatat.
+  - `auto_post = 1`: dicatat otomatis oleh `useRecurringProcessor` (AppShell) setelah sync pertama selesai.
+  - `auto_post = 0`: muncul di kartu "Jatuh tempo" dengan tombol Catat/Lewati.
+  - ID transaksi hasil seri = UUID deterministik dari `recurring_id + tanggal`, jadi dua perangkat yang memproses saat offline tidak menghasilkan transaksi dobel.
+- **Hutang/piutang**: perpindahan uang ke/dari dompet bersifat opsional, dan transaksinya juga ber-ID deterministik (`debt-open`, `debt-settle`) sehingga "Batal lunas" dan hapus bisa tepat sasaran.
+- Ekspor CSV memakai pemisah `;` + BOM UTF-8 (cocok untuk Excel Indonesia).
+
 ## Keamanan
 
 - RLS `owner_*` di semua tabel + `FORCE ROW LEVEL SECURITY`; `anon` tidak punya akses.
@@ -120,7 +132,7 @@ Migrasi diuji di Postgres (PGlite): RLS antar-user, constraint, trigger seed, pu
 | ----- | ------------------------------------------------------------------------------------------ | ------ |
 | 1     | Fondasi: skema, RLS, sync, login, PIN, PWA, design system, Beranda & Kalender bulanan      | ✅     |
 | 2     | Tugas + Kalender (list, subtask, RRULE, minggu/agenda, pengingat Web Push)                 | ✅     |
-| 3     | Keuangan (CRUD transaksi, input "25rb", anggaran, berulang, hutang, ekspor CSV)            |        |
+| 3     | Keuangan (CRUD transaksi, input "25rb", anggaran, berulang, hutang, ekspor CSV)            | ✅     |
 | 4     | Jurnal (markdown, mood, "hari ini di masa lalu")                                           |        |
 | 5     | Quick capture, tag & tautan silang, pencarian global FTS5, Sampah                          |        |
 | 6     | Vault: snippet + zip ke R2 (Edge Function presign, lihat isi zip, versi, SHA-256)          |        |
