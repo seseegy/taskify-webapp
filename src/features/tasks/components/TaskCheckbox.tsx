@@ -56,10 +56,12 @@ export function TaskCheckbox({
       }}
       className={cn(
         box,
-        // Lingkaran tetap kecil, tapi area ketuk diperluas via ::before: 44px (md) / 36px (sm,
-        // = tinggi minimum baris ringkas agar tidak tumpang tindih). WCAG 2.5.8 butuh ≥ 24px.
+        // Lingkaran tetap kecil, tapi area ketuk diperluas via ::before. ::before diposisikan relatif
+        // ke padding box (border-2 memakan 2px tiap sisi), jadi inset dihitung dari sana:
+        // md 20 + 2×12 = 44px; sm 16 + 2×10 = 36px (= tinggi minimum baris ringkas, tidak
+        // tumpang tindih). WCAG 2.5.8 mensyaratkan ≥ 24px.
         'group relative flex shrink-0 items-center justify-center rounded-full border-2 transition before:absolute before:content-[""] active:scale-90',
-        size === 'sm' ? 'before:-inset-2' : 'before:-inset-2.5',
+        size === 'sm' ? 'before:-inset-2.5' : 'before:-inset-3',
         checked
           ? 'shine border-transparent bg-gradient-tasks text-white shadow-md shadow-violet-500/30'
           : RING[priority],
