@@ -2,6 +2,7 @@ import { CalendarDays, Clock, Flag, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { relativeDayLabel, todayLocal, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
+import { useTagActions } from '@/features/tags/tag-actions';
 import { parseQuickAdd } from '../quick-parse';
 import { useTaskActions } from '../task-actions';
 import { PRIORITIES } from '../task-utils';
@@ -20,6 +21,7 @@ interface Props {
  */
 export function QuickAdd({ defaultDate = null, listId = null, placeholder, className }: Props) {
   const actions = useTaskActions();
+  const tagActions = useTagActions();
   const [value, setValue] = useState('');
   const today = todayLocal();
   const parsed = value.trim() ? parseQuickAdd(value, today) : null;
@@ -28,13 +30,14 @@ export function QuickAdd({ defaultDate = null, listId = null, placeholder, class
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!parsed?.title) return;
-    await actions.create({
+    const id = await actions.create({
       title: parsed.title,
       due_date: date,
       due_time: parsed.due_time ?? null,
       priority: parsed.priority ?? 0,
       list_id: listId,
     });
+    if (parsed.tags?.length) await tagActions.addByName('task', id, parsed.tags);
     setValue('');
   };
 
@@ -61,7 +64,7 @@ export function QuickAdd({ defaultDate = null, listId = null, placeholder, class
           </button>
         )}
       </div>
-      {parsed && (date || parsed.due_time || parsed.priority) && (
+      {parsed && (date || parsed.due_time || parsed.priority || parsed.tags?.length) && (
         <div className="flex flex-wrap gap-2 pt-1.5 pb-0.5 pl-9 text-xs font-semibold text-primary">
           {date && (
             <span className="inline-flex items-center gap-1">
@@ -78,6 +81,9 @@ export function QuickAdd({ defaultDate = null, listId = null, placeholder, class
               <Flag className="size-3.5" /> {PRIORITIES[parsed.priority]?.label}
             </span>
           ) : null}
+          {parsed.tags?.map((t) => (
+            <span key={t}>#{t}</span>
+          ))}
         </div>
       )}
     </form>

@@ -127,6 +127,19 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 - "Hari ini di masa lalu" = tanggal & bulan yang sama di tahun sebelumnya, plus tepat 1 bulan lalu. Streak tidak putus sebelum kamu sempat menulis hari ini.
 - Ekspor: satu file Markdown berisi semua catatan.
 
+## Pencarian, catat cepat, tag & tautan
+
+- **Pencarian global** memakai SQLite **FTS5** lokal (`db/search-index.ts`). Trigger pada tabel internal PowerSync `ps_data__<tabel>` memperbarui `search_index` untuk setiap perubahan, baik lokal maupun hasil sync. Item di Sampah dikeluarkan dari indeks. Naikkan `INDEX_VERSION` untuk membangun ulang. Tanpa FTS5, otomatis memakai LIKE.
+- **Command palette** (Ctrl/⌘+K, `/`, atau tombol cari) menggabungkan hasil pencarian, tag, perintah, dan **catat cepat** (`features/capture/parse-capture.ts`):
+  - Ada nominal (`25rb`, `Rp 50.000`, `+5jt`) → transaksi. Masuk jika diawali `+` atau ada kata seperti gaji/bonus. Kategori ditebak dari kata kunci; `kemarin` mengatur tanggal.
+  - Awalan `j:` → jurnal. Selain itu → tugas (memakai parser input cepat tugas).
+  - `#tag` dikenali di semua jenis. Tab mengganti jenis simpan.
+  - Catat cepat didahulukan hanya jika ada sinyal jelas (nominal, waktu, prioritas, tag, `j:`). Teks biasa menampilkan hasil pencarian dulu.
+- **Tag** (`tags`/`taggings`): nama dinormalisasi (huruf kecil, `-`); keunikan dijaga di aplikasi, bukan constraint DB. Halaman `/tag/:id` menampilkan item lintas modul.
+- **Tautan** (`entity_links`) ditampilkan dua arah. "Catat sebagai transaksi" dari tugas membuat transaksi yang tertaut (dan mengisi `task_id`).
+- **Sampah** (`/sampah`) menggabungkan tugas, jurnal, dan transaksi. Item lebih dari 30 hari dihapus permanen otomatis setelah sync awal. Hapus permanen juga membersihkan tag & tautan (`db/refs.ts`), karena keduanya tidak punya foreign key.
+- `Sheet` memfokuskan elemen ber-`data-autofocus` setelah `showModal()` (yang jika tidak akan memfokuskan tombol Tutup).
+
 ## Keamanan
 
 - RLS `owner_*` di semua tabel + `FORCE ROW LEVEL SECURITY`; `anon` tidak punya akses.
@@ -144,6 +157,6 @@ Migrasi diuji di Postgres (PGlite): RLS antar-user, constraint, trigger seed, pu
 | 2     | Tugas + Kalender (list, subtask, RRULE, minggu/agenda, pengingat Web Push)                 | ✅     |
 | 3     | Keuangan (CRUD transaksi, input "25rb", anggaran, berulang, hutang, ekspor CSV)            | ✅     |
 | 4     | Jurnal (markdown, mood, "hari ini di masa lalu")                                           | ✅     |
-| 5     | Quick capture, tag & tautan silang, pencarian global FTS5, Sampah                          |        |
+| 5     | Quick capture, tag & tautan silang, pencarian global FTS5, Sampah                          | ✅     |
 | 6     | Vault: snippet + zip ke R2 (Edge Function presign, lihat isi zip, versi, SHA-256)          |        |
 | 7     | Dashboard review, heatmap, GitHub Action keep-alive + backup `pg_dump` ke R2, Share Target |        |

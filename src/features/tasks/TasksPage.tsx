@@ -28,6 +28,7 @@ import {
   type LocalDate,
 } from '@/lib/date';
 import { cn } from '@/lib/utils';
+import { useTagMap } from '@/features/tags/tag-actions';
 import { ListDialog } from './components/ListDialog';
 import { QuickAdd } from './components/QuickAdd';
 import { TaskRow } from './components/TaskRow';
@@ -260,6 +261,7 @@ function TaskViewContent({
 }) {
   const { data: rows, isLoading } = useTaskViewRows(view, today);
   const progress = useSubtaskProgress();
+  const tagMap = useTagMap('task');
   const actions = useTaskActions();
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists]);
   const inList = isListView(view);
@@ -345,6 +347,7 @@ function TaskViewContent({
                     today={today}
                     onToggle={(task) => void actions.toggle(task)}
                     progress={progress.get(t.id)}
+                    tags={tagMap.get(t.id)}
                     list={t.list_id ? listById.get(t.list_id) : undefined}
                     showList={!inList}
                     // Grup per hari sudah menampilkan tanggal di judulnya

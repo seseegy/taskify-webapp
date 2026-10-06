@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { TransactionKind } from '@/db/schema';
+import type { EntityRef } from '@/features/entities/entities';
 import type { LocalDate } from '@/lib/date';
 
 export interface TxSheetDefaults {
@@ -7,6 +8,9 @@ export interface TxSheetDefaults {
   date?: LocalDate;
   walletId?: string;
   categoryId?: string;
+  title?: string;
+  /** Tautkan transaksi baru ke entitas ini (mis. tugas "Bayar hosting") */
+  linkTo?: EntityRef;
 }
 
 /** Form transaksi global (dibuka dari Keuangan, Kalender, Beranda). */

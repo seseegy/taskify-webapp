@@ -1,11 +1,14 @@
-import { CodeXml, Settings } from 'lucide-react';
+import { CodeXml, Search, Settings } from 'lucide-react';
 import { useEffect } from 'react';
 import { NavLink, Outlet, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { Toaster } from '@/components/ui/Toaster';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
 import { useRecurringProcessor } from '@/features/finance/finance-actions';
+import { CommandPalette } from '@/features/search/CommandPalette';
+import { usePalette } from '@/features/search/palette-store';
 import { TaskDetailSheet } from '@/features/tasks/components/TaskDetailSheet';
+import { useTrashPurge } from '@/features/trash/trash-actions';
 import { useTaskSheet } from '@/features/tasks/task-sheet-store';
 import { cn } from '@/lib/utils';
 import { Logo } from './Logo';
@@ -20,6 +23,7 @@ import { UpdatePrompt } from './UpdatePrompt';
 export function AppShell() {
   useTaskDeepLink();
   useRecurringProcessor();
+  useTrashPurge();
   return (
     <div className="min-h-dvh lg:flex">
       <Sidebar />
@@ -35,6 +39,7 @@ export function AppShell() {
       <UpdatePrompt />
       <TaskDetailSheet />
       <TransactionSheet />
+      <CommandPalette />
       <Toaster />
     </div>
   );
@@ -63,7 +68,8 @@ function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 flex-col p-4 lg:flex">
       <div className="flex h-full flex-col rounded-3xl p-4 glass">
-        <Logo withText className="mb-8 px-2 pt-2" />
+        <Logo withText className="mb-6 px-2 pt-2" />
+        <SearchButton />
         <nav className="flex flex-1 flex-col gap-1" aria-label="Navigasi utama">
           {NAV_ITEMS.map((item) => (
             <NavLink
@@ -110,6 +116,14 @@ function MobileHeader() {
       <div className="flex items-center justify-between rounded-2xl px-3 py-2 glass">
         <Logo size="sm" withText />
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            aria-label="Cari & catat cepat"
+            onClick={() => usePalette.getState().show()}
+            className="flex size-9 items-center justify-center rounded-full text-muted glass hover:text-fg"
+          >
+            <Search className="size-4" />
+          </button>
           <SyncStatus compact />
           <HeaderLink to="/vault" label="Vault Kode" icon={CodeXml} />
           <HeaderLink to="/pengaturan" label="Pengaturan" icon={Settings} />
@@ -193,5 +207,23 @@ function BottomNav() {
         })}
       </div>
     </nav>
+  );
+}
+
+function SearchButton() {
+  const show = usePalette((s) => s.show);
+  const mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
+  return (
+    <button
+      type="button"
+      onClick={() => show()}
+      className="mb-5 flex w-full items-center gap-2 rounded-2xl px-3 py-2.5 text-left text-sm text-muted glass transition hover:text-fg"
+    >
+      <Search className="size-4" />
+      <span className="flex-1">Cari & catat cepat</span>
+      <kbd className="rounded-md border border-line px-1.5 text-[10px] font-bold">
+        {mac ? '⌘' : 'Ctrl'} K
+      </kbd>
+    </button>
   );
 }

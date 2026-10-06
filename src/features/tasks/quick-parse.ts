@@ -13,6 +13,7 @@ export interface QuickParse {
   due_date?: LocalDate;
   due_time?: string; // 'HH:MM'
   priority?: number;
+  tags?: string[];
 }
 
 const DAY_NAMES: Record<string, number> = {
@@ -37,6 +38,14 @@ export function parseQuickAdd(input: string, today: LocalDate): QuickParse {
     const m = text.match(re);
     if (m && fn(m)) text = text.replace(m[0], ' ');
   };
+
+  // Tag: #kerja
+  const tags: string[] = [];
+  text = text.replace(/\s#([\p{L}\p{N}_-]+)/gu, (_, t: string) => {
+    tags.push(t.toLowerCase());
+    return ' ';
+  });
+  if (tags.length) result.tags = tags;
 
   // Prioritas: !1 !2 !3
   take(/\s!([1-3])(?=\s)/, (m) => ((result.priority = Number(m[1])), true));

@@ -9,12 +9,13 @@ interface Props {
   children: ReactNode;
   footer?: ReactNode;
   /** 'side' = panel kanan di desktop / bottom sheet di HP. 'center' = dialog kecil. */
-  variant?: 'side' | 'center';
+  variant?: 'side' | 'center' | 'palette';
   className?: string;
 }
 
 /**
  * Panel modal berbasis <dialog> native → fokus terkunci, Esc menutup, aksesibel.
+ * Tandai input dengan `data-autofocus` agar difokuskan saat dibuka.
  * Klik di luar panel (backdrop) juga menutup.
  */
 export function Sheet({
@@ -31,7 +32,11 @@ export function Sheet({
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
-    if (open && !dialog.open) dialog.showModal();
+    if (open && !dialog.open) {
+      dialog.showModal();
+      // showModal() memfokuskan elemen pertama (tombol Tutup). Pindahkan ke input yang ditandai.
+      requestAnimationFrame(() => dialog.querySelector<HTMLElement>('[data-autofocus]')?.focus());
+    }
     if (!open && dialog.open) dialog.close();
   }, [open]);
 
@@ -50,7 +55,9 @@ export function Sheet({
         'm-0 max-h-none max-w-none bg-transparent p-0 text-fg backdrop:bg-indigo-950/40 backdrop:backdrop-blur-sm',
         variant === 'side'
           ? 'inset-x-0 top-auto bottom-0 w-full sm:inset-y-0 sm:right-0 sm:left-auto sm:h-dvh sm:w-[440px]'
-          : 'inset-0 m-auto w-[min(92vw,420px)]',
+          : variant === 'palette'
+            ? 'inset-x-0 top-[8dvh] mx-auto w-[min(94vw,640px)]'
+            : 'inset-0 m-auto w-[min(92vw,420px)]',
       )}
     >
       {open && (

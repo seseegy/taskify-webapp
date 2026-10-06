@@ -58,7 +58,7 @@ function ListDialogInner({ open, onClose, list, onCreated, onDeleted }: Props) {
             id="list-name"
             value={name}
             maxLength={80}
-            autoFocus
+            data-autofocus
             placeholder="mis. Kerja, Rumah, Belanja"
             onChange={(e) => setName(e.target.value)}
           />
