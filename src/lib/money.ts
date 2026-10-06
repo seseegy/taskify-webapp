@@ -70,3 +70,18 @@ export function parseIDR(input: string): number | null {
   if (!Number.isFinite(value) || value < 0) return null;
   return Math.round(value * multiplier);
 }
+
+/**
+ * True jika input tampak sedang diketik menuju format valid, mis. "25r" (→ "25rb") atau
+ * "1,5ju" (→ "1,5juta"). Dipakai agar error tidak berkedip/diumumkan di tengah mengetik.
+ */
+export function isIncompleteIDR(input: string): boolean {
+  const raw = input
+    .trim()
+    .toLowerCase()
+    .replace(/^rp\.?\s*/, '');
+  const match = raw.match(/^[\d.,\s]*\d[\d.,\s]*\s*([a-z]+)$/);
+  if (!match) return false;
+  const typed = match[1]!;
+  return Object.keys(SUFFIX).some((s) => s !== typed && s.startsWith(typed));
+}
