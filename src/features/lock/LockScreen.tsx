@@ -93,6 +93,27 @@ export function LockScreen() {
     }
   };
 
+  // Cadangan: jika tidak ada elemen yang berfokus (mis. baru tampil / klik di latar), digit dari
+  // keyboard fisik tetap diterima seperti sebelumnya, lalu fokus dikembalikan ke kolom PIN.
+  useEffect(() => {
+    const onWindowKey = (e: globalThis.KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const active = document.activeElement;
+      if (active && active !== document.body) return;
+      if (/^\d$/.test(e.key)) {
+        e.preventDefault();
+        press(e.key as (typeof KEYS)[number]);
+        inputRef.current?.focus({ preventScroll: true });
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        press('del');
+        inputRef.current?.focus({ preventScroll: true });
+      }
+    };
+    window.addEventListener('keydown', onWindowKey);
+    return () => window.removeEventListener('keydown', onWindowKey);
+  });
+
   const secondsLeft = cooling ? Math.ceil((cooldownUntil - now) / 1000) : 0;
   const attemptsLeft = LOCK_MAX_ATTEMPTS - failedAttempts;
   const visibleMessage = cooling
@@ -114,6 +135,10 @@ export function LockScreen() {
       aria-labelledby={titleId}
       aria-busy={checking}
       onKeyDown={onKeyDown}
+      // Klik di latar (bukan tombol) → kembalikan fokus ke kolom PIN
+      onPointerUp={(e) => {
+        if (!(e.target as HTMLElement).closest('button')) inputRef.current?.focus();
+      }}
       className="app-backdrop fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 p-6"
     >
       <div className="flex flex-col items-center gap-3 text-center">

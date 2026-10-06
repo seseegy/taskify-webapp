@@ -28,10 +28,10 @@ export function LockGate({ children }: { children: ReactNode }) {
   }, [locked]);
   useEffect(() => {
     if (wasLocked.current && !locked) {
-      requestAnimationFrame(() => {
-        const el = lastFocus.current;
-        if (el?.isConnected) el.focus({ preventScroll: true });
-      });
+      // Effect berjalan setelah commit: konten sudah tidak `inert`, jadi fokus bisa langsung
+      // dipulihkan (tanpa rAF yang bisa tertunda di tab yang tidak terlihat).
+      const el = lastFocus.current;
+      if (el?.isConnected) el.focus({ preventScroll: true });
     }
     wasLocked.current = locked;
   }, [locked]);
