@@ -1,4 +1,5 @@
 import { RouterProvider } from 'react-router/dom';
+import { AppErrorBoundary } from '@/components/layout/AppErrorBoundary';
 import { SetupRequired } from '@/components/layout/SetupRequired';
 import { SplashScreen } from '@/components/layout/SplashScreen';
 import { PowerSyncProvider } from '@/db/PowerSyncProvider';
@@ -16,15 +17,17 @@ import { router } from './router';
  */
 export function App() {
   return (
-    <ThemeProvider>
-      {isEnvReady ? (
-        <AuthProvider>
-          <AuthGate />
-        </AuthProvider>
-      ) : (
-        <SetupRequired />
-      )}
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <ThemeProvider>
+        {isEnvReady ? (
+          <AuthProvider>
+            <AuthGate />
+          </AuthProvider>
+        ) : (
+          <SetupRequired />
+        )}
+      </ThemeProvider>
+    </AppErrorBoundary>
   );
 }
 

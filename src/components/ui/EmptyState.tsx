@@ -10,6 +10,8 @@ interface Props {
   gradient?: string;
   children?: ReactNode;
   className?: string;
+  /** Tingkat judul; pakai 'h1' bila ini isi utama halaman (mis. 404, error). */
+  as?: 'h1' | 'h2' | 'h3';
 }
 
 export function EmptyState({
@@ -19,6 +21,7 @@ export function EmptyState({
   gradient = 'bg-gradient-brand',
   children,
   className,
+  as: Heading = 'h3',
 }: Props) {
   return (
     <div className={cn('flex flex-col items-center px-6 py-12 text-center', className)}>
@@ -33,7 +36,7 @@ export function EmptyState({
           <Icon className="size-8" />
         </div>
       </div>
-      <h3 className="text-lg font-bold">{title}</h3>
+      <Heading className="text-lg font-bold">{title}</Heading>
       {description && <p className="mt-1.5 max-w-sm text-sm text-muted">{description}</p>}
       {children && <div className="mt-5">{children}</div>}
     </div>
