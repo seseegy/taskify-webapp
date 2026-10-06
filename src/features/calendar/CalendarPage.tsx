@@ -7,7 +7,7 @@ import {
   List,
   NotebookPen,
 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -34,9 +34,11 @@ import {
   ACTIVITY_LEGEND,
   buildMonthGrid,
   buildWeek,
+  describeActivity,
   firstOfMonth,
   shiftMonth,
   WEEKDAY_LABELS,
+  WEEKDAY_NAMES,
 } from './calendar-utils';
 import { DayTaskList } from './DayTaskList';
 import { EMPTY_DAY, type DayActivity } from './useCalendarActivity';
@@ -104,7 +106,9 @@ export function CalendarPage() {
       >
         <Card className="min-w-0 animate-fade-up p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-bold capitalize">{heading}</h2>
+            <h2 aria-live="polite" className="text-lg font-bold capitalize">
+              {heading}
+            </h2>
             <div className="flex items-center gap-1.5">
               <Button
                 variant="secondary"
@@ -185,6 +189,14 @@ export function CalendarPage() {
 }
 
 // ---------------------------------------------------------------------------- Bulan
+/**
+ * Grid tanggal bulanan mengikuti pola ARIA "date grid":
+ *  - role grid → row → gridcell/columnheader (struktur valid)
+ *  - roving tabindex: hanya tanggal terpilih yang masuk urutan Tab (bukan 35–42 Tab stop)
+ *  - ←/→ ±1 hari, ↑/↓ ±1 minggu, Home/End awal/akhir minggu, PageUp/PageDown ±1 bulan
+ *    (Shift+PageUp/PageDown ±1 tahun). Berpindah = memilih tanggal, sama seperti klik.
+ *  - label tiap sel memuat tanggal lengkap + ringkasan aktivitas; hari ini → aria-current="date"
+ */
 function MonthGrid({
   cells,
   byDay,
@@ -198,68 +210,163 @@ function MonthGrid({
   selected: LocalDate;
   onSelect: (date: LocalDate) => void;
 }) {
+  const gridRef = useRef<HTMLDivElement>(null);
+  /** Tanggal yang harus difokuskan setelah grid dirender ulang (mis. pindah bulan). */
+  const pendingFocus = useRef<LocalDate | null>(null);
+  const weeks = useMemo(
+    () => Array.from({ length: cells.length / 7 }, (_, w) => cells.slice(w * 7, w * 7 + 7)),
+    [cells],
+  );
+
+  const focusDate = (date: LocalDate) =>
+    gridRef.current?.querySelector<HTMLElement>(`[data-date="${date}"]`)?.focus();
+
+  useEffect(() => {
+    const date = pendingFocus.current;
+    if (!date) return;
+    pendingFocus.current = null;
+    focusDate(date);
+  }, [selected, cells]);
+
+  const moveTo = (date: LocalDate) => {
+    if (date === selected) return focusDate(date);
+    pendingFocus.current = date;
+    onSelect(date); // bulan bisa berganti → fokus dipindah di effect di atas
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const current = (e.target as HTMLElement).closest<HTMLElement>('[data-date]')?.dataset.date;
+    if (!current || e.altKey || e.ctrlKey || e.metaKey) return;
+    const idx = cells.findIndex((c) => c.date === current);
+    const rowStart = idx - (idx % 7);
+    let next: LocalDate | null = null;
+    switch (e.key) {
+      case 'ArrowLeft':
+        next = addLocalDays(current, -1);
+        break;
+      case 'ArrowRight':
+        next = addLocalDays(current, 1);
+        break;
+      case 'ArrowUp':
+        next = addLocalDays(current, -7);
+        break;
+      case 'ArrowDown':
+        next = addLocalDays(current, 7);
+        break;
+      case 'Home':
+        next = cells[rowStart]!.date;
+        break;
+      case 'End':
+        next = cells[rowStart + 6]!.date;
+        break;
+      case 'PageUp':
+        next = shiftMonth(current, e.shiftKey ? -12 : -1);
+        break;
+      case 'PageDown':
+        next = shiftMonth(current, e.shiftKey ? 12 : 1);
+        break;
+    }
+    if (!next) return;
+    e.preventDefault();
+    moveTo(next);
+  };
+
   return (
     <>
-      <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-muted">
-        {WEEKDAY_LABELS.map((d, i) => (
-          <div key={d} className={cn('py-2', i === 6 && 'text-danger/80')}>
-            {d}
+      <div
+        ref={gridRef}
+        role="grid"
+        aria-label="Kalender bulanan"
+        onKeyDown={onKeyDown}
+        className="space-y-1"
+      >
+        <div
+          role="row"
+          className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-muted"
+        >
+          {WEEKDAY_LABELS.map((d, i) => (
+            <div
+              key={d}
+              role="columnheader"
+              aria-label={WEEKDAY_NAMES[i]}
+              className={cn('py-2', i === 6 && 'text-danger/80')}
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+        {weeks.map((week) => (
+          <div key={week[0]!.date} role="row" className="grid grid-cols-7 gap-1">
+            {week.map((cell, i) => {
+              const activity = byDay.get(cell.date) ?? EMPTY_DAY;
+              const isToday = cell.date === today;
+              const isSelected = cell.date === selected;
+              const open = activity.tasks - activity.tasksDone;
+              const summary = describeActivity(activity);
+              return (
+                <div key={cell.date} role="gridcell" aria-selected={isSelected}>
+                  <button
+                    type="button"
+                    data-date={cell.date}
+                    tabIndex={isSelected ? 0 : -1}
+                    aria-current={isToday ? 'date' : undefined}
+                    aria-label={`${formatLocalDate(cell.date, 'EEEE, d MMMM yyyy')}${isToday ? ', hari ini' : ''}${summary ? `. ${summary}` : '. Tidak ada aktivitas'}`}
+                    onClick={() => onSelect(cell.date)}
+                    className={cn(
+                      'relative flex aspect-square w-full flex-col items-center justify-start gap-1 rounded-xl p-1 pt-1.5 text-sm transition sm:aspect-[1.1] sm:items-start sm:p-2',
+                      !cell.inMonth && 'opacity-40',
+                      isSelected ? 'ring-2 glass-strong ring-primary/50' : 'hover:bg-surface',
+                      i === 6 && !isToday && 'text-danger/80',
+                    )}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'flex size-7 items-center justify-center rounded-full font-semibold',
+                        isToday && 'shine bg-gradient-calendar text-white shadow-md',
+                      )}
+                    >
+                      {cell.day}
+                    </span>
+                    {activity.mood && (
+                      <span
+                        className="absolute top-1.5 right-1.5 hidden sm:block"
+                        aria-hidden="true"
+                      >
+                        <MoodIcon mood={activity.mood} className="size-4" />
+                      </span>
+                    )}
+                    <ActivityDots activity={activity} className="sm:pl-1" decorative />
+                    {open > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="hidden pl-1 text-[10px] font-semibold text-mod-tasks sm:block"
+                      >
+                        {open} tugas
+                      </span>
+                    )}
+                    {activity.expense > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="hidden truncate pl-1 text-[10px] font-semibold text-danger sm:block"
+                      >
+                        −{formatIDRCompact(activity.expense)}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1" role="grid" aria-label="Kalender bulanan">
-        {cells.map((cell, i) => {
-          const activity = byDay.get(cell.date) ?? EMPTY_DAY;
-          const isToday = cell.date === today;
-          const isSelected = cell.date === selected;
-          const open = activity.tasks - activity.tasksDone;
-          return (
-            <button
-              key={cell.date}
-              type="button"
-              role="gridcell"
-              aria-selected={isSelected}
-              aria-label={formatLocalDate(cell.date, 'EEEE, d MMMM yyyy')}
-              onClick={() => onSelect(cell.date)}
-              className={cn(
-                'relative flex aspect-square flex-col items-center justify-start gap-1 rounded-xl p-1 pt-1.5 text-sm transition sm:aspect-[1.1] sm:items-start sm:p-2',
-                !cell.inMonth && 'opacity-40',
-                isSelected ? 'ring-2 glass-strong ring-primary/50' : 'hover:bg-surface',
-                i % 7 === 6 && !isToday && 'text-danger/80',
-              )}
-            >
-              <span
-                className={cn(
-                  'flex size-7 items-center justify-center rounded-full font-semibold',
-                  isToday && 'shine bg-gradient-calendar text-white shadow-md',
-                )}
-              >
-                {cell.day}
-              </span>
-              {activity.mood && (
-                <span className="absolute top-1.5 right-1.5 hidden sm:block">
-                  <MoodIcon mood={activity.mood} className="size-4" />
-                </span>
-              )}
-              <ActivityDots activity={activity} className="sm:pl-1" />
-              {open > 0 && (
-                <span className="hidden pl-1 text-[10px] font-semibold text-mod-tasks sm:block">
-                  {open} tugas
-                </span>
-              )}
-              {activity.expense > 0 && (
-                <span className="hidden truncate pl-1 text-[10px] font-semibold text-danger sm:block">
-                  −{formatIDRCompact(activity.expense)}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      <p className="sr-only">
+        Gunakan tombol panah untuk berpindah hari, Page Up dan Page Down untuk berpindah bulan.
+      </p>
       <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted">
         {ACTIVITY_LEGEND.map((l) => (
           <span key={l.label} className="flex items-center gap-1.5">
-            <span className={cn('size-2 rounded-full', l.className)} />
+            <span className={cn('size-2 rounded-full', l.className)} aria-hidden="true" />
             {l.label}
           </span>
         ))}
@@ -294,6 +401,7 @@ function WeekView({
         return (
           <section
             key={day}
+            aria-label={formatLocalDate(day, 'EEEE, d MMMM')}
             className={cn(
               'rounded-2xl p-2 transition',
               day === selected ? 'ring-2 glass-strong ring-primary/40' : 'bg-surface/60',
@@ -301,6 +409,8 @@ function WeekView({
           >
             <button
               type="button"
+              aria-pressed={day === selected}
+              aria-current={isToday ? 'date' : undefined}
               onClick={() => onSelect(day)}
               className="flex w-full items-center gap-3 rounded-xl px-1 py-1 text-left"
             >
