@@ -1,5 +1,5 @@
-# Header untuk Cloudflare Pages (file ini disalin apa adanya ke root situs).
-# Dokumentasi: https://developers.cloudflare.com/pages/configuration/headers/
+# Header untuk Cloudflare Workers static assets (file ini disalin apa adanya ke root situs).
+# Dokumentasi: https://developers.cloudflare.com/workers/static-assets/headers/
 
 # CSP catatan:
 #  - 'wasm-unsafe-eval' wajib: wa-sqlite mengompilasi WASM saat runtime.

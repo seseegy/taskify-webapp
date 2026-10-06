@@ -1,0 +1,5 @@
+# pnpm 11 memblokir build script dependensi secara default dan membaca izinnya dari file ini.
+# Keduanya milik wrangler (deploy ke Cloudflare Workers) dan memang perlu kompilasi biner.
+allowBuilds:
+  esbuild: true
+  workerd: true

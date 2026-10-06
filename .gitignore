@@ -4,6 +4,9 @@ dist
 dev-dist
 *.tsbuildinfo
 
+# wrangler (cache & state lokal)
+.wrangler
+
 # env (jangan pernah commit kredensial)
 .env
 .env.local

@@ -2,12 +2,12 @@
 
 Ikuti berurutan. Total ±30 menit. Semua layanan memakai **free tier**.
 
-| Layanan          | Untuk apa                                                 |
-| ---------------- | --------------------------------------------------------- |
-| Supabase         | Auth (login), Postgres (sumber kebenaran data)            |
-| PowerSync Cloud  | Sinkronisasi Postgres ↔ SQLite di browser (offline-first) |
-| Cloudflare Pages | Hosting web app                                           |
-| Cloudflare R2    | File zip/struk (tahap 6, belum perlu sekarang)            |
+| Layanan            | Untuk apa                                                 |
+| ------------------ | --------------------------------------------------------- |
+| Supabase           | Auth (login), Postgres (sumber kebenaran data)            |
+| PowerSync Cloud    | Sinkronisasi Postgres ↔ SQLite di browser (offline-first) |
+| Cloudflare Workers | Hosting web app (static assets)                           |
+| Cloudflare R2      | File zip/struk (tahap 6, belum perlu sekarang)            |
 
 ---
 
@@ -95,17 +95,26 @@ pnpm dev                     # http://localhost:5173
 Login → status di sidebar berubah dari _Menghubungkan…_ → _Menyinkron…_ → **Tersinkron**.
 Halaman Keuangan/Beranda memakai dompet hasil seed, jadi saldo `Rp 0` berarti sync berhasil.
 
-## 5. Deploy ke Cloudflare Pages
+## 5. Deploy ke Cloudflare Workers
 
 1. Push repo ke GitHub.
-2. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git** → pilih `taskify-webapp`.
-3. Build settings:
+2. Cloudflare dashboard → **Workers & Pages → Create → Workers → Connect to Git** → pilih `taskify-webapp`.
+3. Build configuration:
    - Build command: `pnpm build`
-   - Output directory: `dist`
-   - Environment variables: 3 variabel `VITE_*` dari `.env.local`, plus `NODE_VERSION=22`
-4. Setelah deploy, tambahkan URL `https://<nama>.pages.dev` ke Supabase **Authentication → URL Configuration** (Site URL & Redirect URLs).
+   - Deploy command: `npx wrangler deploy`
+   - Root directory: `/`
+   - Environment variables: 4 variabel `VITE_*` dari `.env.local`, plus `NODE_VERSION=22`
+4. Setelah deploy, tambahkan URL `https://<nama>.<subdomain>.workers.dev` ke:
+   - Supabase **Authentication → URL Configuration** (Site URL & Redirect URLs)
+   - **CORS policy** bucket `taskify-files` (§8.2) — tanpa ini upload Vault gagal di produksi
 
-Routing SPA otomatis ditangani Cloudflare Pages (tanpa `404.html` → fallback ke `index.html`).
+Konfigurasi deploy ada di [`wrangler.jsonc`](../wrangler.jsonc): isi `dist/` disajikan sebagai
+static assets, dan `not_found_handling: "single-page-application"` membuat rute `/tugas`,
+`/keuangan`, dan lainnya tetap bekerja saat dibuka langsung (ditangani react-router di klien).
+
+> `pnpm-workspace.yaml` memuat `allowBuilds` untuk `esbuild` & `workerd` — pnpm 11 memblokir
+> build script dependensi secara default, dan wrangler membutuhkan keduanya. Tanpa itu, deploy
+> gagal dengan `ERR_PNPM_IGNORED_BUILDS`.
 
 ### Header keamanan
 
@@ -125,7 +134,7 @@ Tempel hasilnya ke `script-src` di `public/_headers`.
 
 ## 6. Install di HP Android
 
-Buka URL Pages di **Chrome** → menu ⋮ → **Install app** / **Tambahkan ke layar utama**.
+Buka URL aplikasi di **Chrome** → menu ⋮ → **Install app** / **Tambahkan ke layar utama**.
 Lalu di Taskify: **Pengaturan → Penyimpanan persisten → Aktifkan** dan, jika mau, **Aktifkan PIN**.
 
 ## 7. Pengingat (notifikasi Web Push)
@@ -144,7 +153,7 @@ pnpm vapid:generate
 
 Output-nya berisi 3 hal:
 
-1. `VITE_VAPID_PUBLIC_KEY=…` → tambahkan ke `.env.local` **dan** ke environment variables Cloudflare Pages. Ini kunci publik, aman.
+1. `VITE_VAPID_PUBLIC_KEY=…` → tambahkan ke `.env.local` **dan** ke environment variables Cloudflare Workers. Ini kunci publik, aman.
 2. Perintah `supabase secrets set VAPID_KEYS_JSON=…`, `CRON_SECRET=…`, dan `VAPID_SUBJECT=…` → ini **rahasia**, jangan di-commit.
 3. Nilai `CRON_SECRET` juga dipakai lagi di langkah 7.4.
 
@@ -200,7 +209,7 @@ Bucket → **Settings → CORS policy → Add/Edit**, lalu tempel (ganti domain 
     "AllowedOrigins": [
       "http://localhost:5173",
       "http://localhost:4173",
-      "https://<nama>.pages.dev"
+      "https://<nama>.<subdomain>.workers.dev"
     ],
     "AllowedMethods": ["GET", "PUT", "HEAD"],
     "AllowedHeaders": ["content-type"],

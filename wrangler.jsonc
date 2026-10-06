@@ -1,0 +1,18 @@
+{
+  // Konfigurasi deploy ke Cloudflare Workers (static assets).
+  // Taskify adalah PWA statis — tidak ada kode server, hanya isi folder dist/.
+  // Sengaja ditulis manual (bukan hasil generate `wrangler deploy`) agar terlacak di git.
+  // Lihat docs/SETUP.md §5.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "taskify-webapp",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // Rute aplikasi (/tugas, /keuangan, …) ditangani react-router di sisi klien,
+    // jadi path yang tidak cocok file apa pun harus dilayani index.html.
+    "not_found_handling": "single-page-application",
+  },
+  "observability": {
+    "enabled": true,
+  },
+}
