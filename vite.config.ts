@@ -33,6 +33,37 @@ export default defineConfig({
         theme_color: '#1e1b4b',
         background_color: '#0f0c29',
         categories: ['productivity', 'finance', 'lifestyle'],
+        // "Bagikan ke Taskify" dari aplikasi lain (Android/Chrome, PWA terpasang)
+        share_target: {
+          action: '/bagikan',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [
+              {
+                name: 'files',
+                accept: [
+                  'image/*',
+                  'application/pdf',
+                  'application/zip',
+                  '.zip',
+                  'text/*',
+                  '.md',
+                  '.json',
+                  '.ts',
+                  '.tsx',
+                  '.js',
+                  '.py',
+                  '.sql',
+                  '.sh',
+                ],
+              },
+            ],
+          },
+        },
         icons: [
           { src: 'pwa-64x64.png', sizes: '64x64', type: 'image/png' },
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
@@ -52,8 +83,8 @@ export default defineConfig({
         // mc-* = varian SQLCipher (enkripsi) yang tidak dipakai → jangan di-precache (±3,7 MB)
         globIgnores: ['**/mc-wa-sqlite*'],
         navigateFallback: '/index.html',
-        // Handler push & klik notifikasi (public/push-handler.js)
-        importScripts: ['push-handler.js'],
+        // Push, klik notifikasi & Share Target (public/sw-extra.js)
+        importScripts: ['sw-extra.js'],
         cleanupOutdatedCaches: true,
       },
       devOptions: {

@@ -31,6 +31,11 @@ export function JournalPage() {
   const entriId = params.get('entri');
   const baru = DATE_RE.test(params.get('baru') ?? '') ? params.get('baru')! : null;
   const tanggal = DATE_RE.test(params.get('tanggal') ?? '') ? params.get('tanggal')! : null;
+  const template = reflectionTemplate(
+    params.get('templat'),
+    params.get('dari'),
+    params.get('sampai'),
+  );
 
   const [search, setSearch] = useState('');
   const [mood, setMood] = useState<number | null>(null);
@@ -41,7 +46,13 @@ export function JournalPage() {
   const onDate = useEntriesOnDate(tanggal ?? '');
   const selected = useJournalEntry(entriId);
 
-  let editor: { key: string; entry?: JournalEntry; draftDate: LocalDate } | null = null;
+  let editor: {
+    key: string;
+    entry?: JournalEntry;
+    draftDate: LocalDate;
+    draftTitle?: string;
+    draftContent?: string;
+  } | null = null;
   if (entriId) {
     const alias = aliases[entriId];
     if (selected)
@@ -49,7 +60,7 @@ export function JournalPage() {
     // Baru saja dibuat dari draf & belum terbaca dari DB → editor tetap terpasang
     else if (alias) editor = { key: alias.key, draftDate: alias.date };
   } else if (baru) {
-    editor = { key: `draft:${baru}`, draftDate: baru };
+    editor = { key: `draft:${baru}${template ? ':t' : ''}`, draftDate: baru, ...template };
   } else if (tanggal) {
     const last = onDate.at(-1);
     editor = last
@@ -119,6 +130,8 @@ export function JournalPage() {
                 key={editor.key}
                 entry={editor.entry}
                 draftDate={editor.draftDate}
+                draftTitle={editor.draftTitle}
+                draftContent={editor.draftContent}
                 onCreated={onCreated}
                 onBack={() => go(null)}
               />
@@ -359,4 +372,31 @@ function EntryItem({
       </span>
     </button>
   );
+}
+
+/** Templat refleksi dari halaman Review: ?templat=review-minggu|review-bulan&dari=&sampai= */
+function reflectionTemplate(kind: string | null, from: string | null, to: string | null) {
+  if (!kind?.startsWith('review-') || !from || !to || !DATE_RE.test(from) || !DATE_RE.test(to))
+    return null;
+  const monthly = kind === 'review-bulan';
+  const label = monthly
+    ? formatLocalDate(from, 'MMMM yyyy')
+    : `${formatLocalDate(from, 'd MMM')} – ${formatLocalDate(to, 'd MMM yyyy')}`;
+  return {
+    draftTitle: `Refleksi ${monthly ? 'bulan' : 'minggu'} ${label}`,
+    draftContent: [
+      '### Yang berjalan baik',
+      '- ',
+      '',
+      '### Yang bisa diperbaiki',
+      '- ',
+      '',
+      '### Pelajaran',
+      '- ',
+      '',
+      `### Fokus ${monthly ? 'bulan' : 'minggu'} depan`,
+      '- [ ] ',
+      '',
+    ].join('\n'),
+  };
 }

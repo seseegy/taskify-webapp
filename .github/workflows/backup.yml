@@ -1,0 +1,51 @@
+# Backup mingguan database Supabase ke Cloudflare R2 (lihat docs/SETUP.md §9)
+name: Backup database
+
+on:
+  schedule:
+    - cron: '0 19 * * 0' # Minggu 19:00 UTC = Senin 02:00 WIB
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Periksa secret
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$R2_BACKUP_BUCKET" ]; then
+            echo "::error::Secret SUPABASE_DB_URL / R2_BACKUP_BUCKET belum diisi (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+
+      - name: Siapkan pg_dump 17
+        # pg_dump harus versi ≥ server Supabase; image resmi postgres:17 dijalankan lewat Docker
+        run: |
+          docker pull --quiet postgres:17-alpine
+          printf '#!/bin/sh\nexec docker run --rm -i postgres:17-alpine pg_dump "$@"\n' | sudo tee /usr/local/bin/pg_dump17 >/dev/null
+          sudo chmod +x /usr/local/bin/pg_dump17
+          pg_dump17 --version
+
+      - name: Backup ke R2
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_BACKUP_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_BACKUP_SECRET_ACCESS_KEY }}
+          R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          BACKUP_KEEP: '12'
+          PG_DUMP: pg_dump17
+        run: bash scripts/backup.sh

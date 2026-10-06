@@ -233,6 +233,88 @@ Vault → **Project** → buat project → tarik file zip. Isi zip dicek dulu (`
 
 > Kuota gratis R2: 10 GB penyimpanan, unduhan (egress) gratis. Pemakaian tampil di halaman Vault.
 
+## 9. Backup & keep-alive (GitHub Actions)
+
+Dua workflow di `.github/workflows/`:
+
+| Workflow        | Jadwal                         | Fungsi                                                                                     |
+| --------------- | ------------------------------ | ------------------------------------------------------------------------------------------ |
+| `keepalive.yml` | tiap 2 hari, 01:17 UTC         | Query ringan ke Postgres supaya project free tier tidak di-pause                           |
+| `backup.yml`    | Senin 02:00 WIB (Minggu 19:00) | `pg_dump` skema `public` + data `auth.users`, enkripsi, unggah ke R2 (`scripts/backup.sh`) |
+
+Backup **tidak** menyertakan isi file R2 (zip, foto). Itu sudah tersimpan di R2 sendiri. Yang di-backup adalah semua data aplikasi, termasuk metadata lampiran.
+
+### 9.1 Bucket & token khusus backup
+
+Pisahkan dari bucket aplikasi, supaya token aplikasi yang bocor tidak bisa menghapus backup, dan sebaliknya.
+
+1. R2 → **Create bucket** → mis. `taskify-backups` (tidak publik, CORS tidak perlu).
+2. **Manage R2 API Tokens → Create API token** → _Object Read & Write_, hanya bucket `taskify-backups`. Catat Access Key ID & Secret.
+
+### 9.2 Connection string database
+
+Supabase Dashboard → **Connect** → **Session pooler** (IPv4; runner GitHub tidak mendukung IPv6, jadi koneksi _Direct_ tidak bisa). Bentuknya:
+
+```
+postgresql://postgres.<ref>:<password-db>@aws-0-<region>.pooler.supabase.com:5432/postgres
+```
+
+Pakai port **5432** (session), bukan 6543 (transaction), karena `pg_dump` butuh mode session.
+
+### 9.3 Passphrase enkripsi
+
+Backup berisi jurnal & data keuangan, jadi **selalu isi passphrase**. Buat yang kuat, lalu simpan di password manager. Tanpa passphrase ini, backup tidak bisa dibuka.
+
+```bash
+openssl rand -base64 32
+```
+
+### 9.4 Isi GitHub secrets
+
+Repo → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret                        | Isi                                    |
+| ----------------------------- | -------------------------------------- |
+| `SUPABASE_DB_URL`             | connection string §9.2                 |
+| `R2_ACCOUNT_ID`               | Account ID Cloudflare (sama dengan §8) |
+| `R2_BACKUP_BUCKET`            | `taskify-backups`                      |
+| `R2_BACKUP_ACCESS_KEY_ID`     | Access Key ID token §9.1               |
+| `R2_BACKUP_SECRET_ACCESS_KEY` | Secret Access Key token §9.1           |
+| `BACKUP_PASSPHRASE`           | passphrase §9.3                        |
+
+Lalu **Actions → Backup database → Run workflow** sekali untuk mencoba, dan cek ada file `backups/taskify-<waktu>.tar.gz.enc` di bucket. Lakukan hal yang sama untuk **Keep-alive Supabase**. Hanya 12 arsip terbaru yang disimpan (±3 bulan).
+
+> GitHub menonaktifkan workflow terjadwal di repo yang tidak ada commit selama 60 hari. Kamu akan dapat email peringatan; cukup klik **Enable workflow** di tab Actions.
+
+### 9.5 Restore
+
+Unduh arsip dari R2, lalu:
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in taskify-XXXX.tar.gz.enc -out backup.tar.gz
+tar -xzf backup.tar.gz          # → public.dump, auth_users.dump, manifest.txt
+```
+
+Ke **project Supabase baru** (atau yang sudah dikosongkan):
+
+1. Jalankan semua migrasi (§2.3). Ini membuat tabel, RLS, grant, dan publication PowerSync.
+2. Ubah dump jadi SQL berisi data saja, lalu muat dengan trigger dimatikan (supaya trigger seed user baru tidak membuat kategori dobel):
+
+   ```bash
+   pg_restore --data-only --no-owner -f auth.sql auth_users.dump
+   pg_restore --data-only --no-owner -f public.sql public.dump
+   psql "$SUPABASE_DB_URL" --single-transaction -v ON_ERROR_STOP=1 \
+     -c 'SET session_replication_role = replica' -f auth.sql -f public.sql
+   ```
+
+3. Ulangi §2.4 (role PowerSync), §7.4 & §8.5 (jadwal cron & secret Vault), lalu arahkan PowerSync & `.env` ke project baru.
+
+Pakai `pg_restore`/`psql` versi 17 (sama dengan versi saat backup, lihat `manifest.txt`).
+
+### 9.6 Ekspor manual
+
+Selain backup otomatis, **Pengaturan → Data, tag & Sampah → Ekspor semua data (JSON)** mengunduh semua tabel dari database lokal perangkat. Ini juga bekerja offline.
+
 ---
 
 ## Troubleshooting
@@ -251,8 +333,12 @@ Vault → **Project** → buat project → tarik file zip. Isi zip dicek dulu (`
 | Upload gagal "periksa koneksi atau CORS" | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)               |
 | "Edge Function gagal" saat upload        | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah         |
 | Uji berhasil tapi pengingat tidak datang | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi |
+| Backup gagal "Network is unreachable"    | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)        |
+| Backup gagal "server version mismatch"   | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`  |
+| "Bagikan" tidak menampilkan Taskify      | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                  |
 
 ## Perawatan rutin
 
-- **Supabase free tier di-pause setelah 7 hari tanpa aktivitas.** Selama kamu memakai aplikasi, ini tidak terjadi. Workflow keep-alive + backup otomatis direncanakan di tahap 7.
+- **Supabase free tier di-pause setelah 7 hari tanpa aktivitas.** Workflow keep-alive (§9) mencegahnya. Cek tab Actions sesekali; workflow yang gagal mengirim email.
+- **Uji restore** sesekali (mis. tiap 3 bulan) ke project percobaan. Backup yang belum pernah di-restore belum terbukti.
 - Menambah tabel tersinkron: buat migrasi baru (tabel + RLS + `alter publication powersync add table`), tambahkan query di `sync-config.yaml`, tambahkan tabel Drizzle di `src/db/schema.ts`.

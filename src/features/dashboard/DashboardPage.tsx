@@ -1,6 +1,6 @@
 import {
   ArrowRight,
-  CircleCheckBig,
+  Flame,
   CodeXml,
   ListChecks,
   NotebookPen,
@@ -10,10 +10,11 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Button } from '@/components/ui/Button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useTxSheet } from '@/features/finance/tx-sheet-store';
+import { ActivityHeatmap } from '@/features/review/ActivityHeatmap';
 import { ActivityDots } from '@/features/calendar/ActivityDots';
 import { buildWeek } from '@/features/calendar/calendar-utils';
 import { EMPTY_DAY } from '@/features/calendar/useCalendarActivity';
@@ -122,7 +123,7 @@ export function DashboardPage() {
 
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <FocusCard today={today} />
-        <RoadmapCard />
+        <ActivityCard />
       </div>
     </div>
   );
@@ -217,40 +218,25 @@ function WeekStrip({ today }: { today: string }) {
   );
 }
 
-const ROADMAP = [
-  { done: true, label: 'Fondasi: login, kunci PIN, database offline, sinkronisasi' },
-  { done: true, label: 'Tugas + Kalender (berulang, subtask, pengingat)' },
-  { done: true, label: 'Keuangan (dompet, kategori, anggaran, hutang)' },
-  { done: true, label: 'Jurnal + mood' },
-  { done: true, label: 'Quick capture, tag & tautan silang, pencarian global' },
-  { done: true, label: 'Vault: snippet kode & arsip zip (Cloudflare R2)' },
-];
-
-function RoadmapCard() {
+function ActivityCard() {
+  const navigate = useNavigate();
   return (
     <Card className="animate-fade-up">
       <CardHeader>
         <div>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" /> Peta jalan Taskify
+            <Flame className="size-4 text-fuchsia-500" /> Jejak aktivitas
           </CardTitle>
-          <CardDescription>Dibangun bertahap, satu modul sekali jalan</CardDescription>
+          <CardDescription>16 minggu terakhir</CardDescription>
         </div>
+        <Link
+          to="/review"
+          className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+        >
+          Review <ArrowRight className="size-4" />
+        </Link>
       </CardHeader>
-      <ol className="space-y-2">
-        {ROADMAP.map((item, i) => (
-          <li key={item.label} className="flex items-center gap-3 text-sm">
-            {item.done ? (
-              <CircleCheckBig className="size-5 shrink-0 text-success" />
-            ) : (
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-line text-[10px] font-bold text-muted">
-                {i + 1}
-              </span>
-            )}
-            <span className={item.done ? 'font-semibold' : 'text-muted'}>{item.label}</span>
-          </li>
-        ))}
-      </ol>
+      <ActivityHeatmap weeks={16} onSelect={(d) => navigate(`/kalender?tanggal=${d}`)} />
     </Card>
   );
 }

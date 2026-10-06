@@ -143,7 +143,11 @@ async function cleanup() {
       key: decodeXml(m[1]!.match(/<Key>([\s\S]*?)<\/Key>/)?.[1] ?? ''),
       modified: Date.parse(m[1]!.match(/<LastModified>([\s\S]*?)<\/LastModified>/)?.[1] ?? ''),
     }));
-    const old = objects.filter((o) => o.key && Date.now() - o.modified > 2 * 86400_000);
+    // Hanya key berformat lampiran (<user>/<lampiran>/<file>). Objek lain di bucket
+    // (mis. backups/…) TIDAK pernah disentuh.
+    const old = objects.filter(
+      (o) => KEY_RE.test(o.key) && Date.now() - o.modified > 2 * 86400_000,
+    );
     if (old.length) {
       const { data: known, error: e3 } = await admin.rpc('attachment_keys', {
         p_keys: old.map((o) => o.key),
