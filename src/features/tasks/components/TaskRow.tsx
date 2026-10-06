@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import type { Progress } from '../task-queries';
 import { useTaskSheet } from '../task-sheet-store';
 import { listColor } from '../task-utils';
+import { TagChip } from '@/features/tags/TagPicker';
 import { TaskCheckbox } from './TaskCheckbox';
 
 interface Props {
@@ -21,6 +22,7 @@ interface Props {
   virtualDate?: LocalDate;
   compact?: boolean;
   trailing?: ReactNode;
+  tags?: { id: string; name: string; color: string | null }[];
 }
 
 export function TaskRow({
@@ -34,6 +36,7 @@ export function TaskRow({
   virtualDate,
   compact,
   trailing,
+  tags,
 }: Props) {
   const openSheet = useTaskSheet((s) => s.open);
   const done = task.status === 'done';
@@ -95,6 +98,8 @@ export function TaskRow({
       </span>,
     );
   }
+
+  for (const t of tags ?? []) meta.push(<TagChip key={`tag-${t.id}`} tag={t} size="sm" />);
 
   return (
     <div

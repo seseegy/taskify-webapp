@@ -2,13 +2,14 @@
  * Semua operasi tulis modul Tugas. Menulis ke SQLite lokal → otomatis masuk antrean sync.
  * Operasi multi-baris dibungkus transaksi agar konsisten (dan ter-upload sebagai satu unit).
  */
-import { and, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { useMemo } from 'react';
 import { toast } from '@/components/ui/toast-store';
 import { useDatabase } from '@/db/database-context';
 import { softDeleted, touch, withMeta } from '@/db/mutations';
 import { taskLists, tasks, type Task, type TaskStatus } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
+import { destroyEntities } from '@/features/trash/trash-actions';
 import {
   diffLocalDays,
   nowIso,
@@ -157,10 +158,8 @@ export function useTaskActions() {
       /** Hapus permanen (subtask ikut). Tidak bisa diurungkan. */
       async destroy(ids: string[]) {
         if (ids.length === 0) return;
-        await db.transaction(async (tx) => {
-          await tx.delete(tasks).where(inArray(tasks.parent_id, ids));
-          await tx.delete(tasks).where(inArray(tasks.id, ids));
-        });
+        // Bersama subtask, tag & tautan
+        await destroyEntities(db, 'task', ids);
       },
 
       async emptyTrash() {

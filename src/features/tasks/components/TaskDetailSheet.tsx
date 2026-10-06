@@ -4,12 +4,15 @@ import {
   BellRing,
   CalendarDays,
   Flag,
+  Hash,
+  Link2,
   ListTree,
   NotebookText,
   Repeat,
   RotateCcw,
   Tag,
   Trash2,
+  Wallet,
   X,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -18,6 +21,9 @@ import { Select, Textarea } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
 import { Sheet } from '@/components/ui/Sheet';
 import type { Task } from '@/db/schema';
+import { useTxSheet } from '@/features/finance/tx-sheet-store';
+import { LinksPanel } from '@/features/links/LinksPanel';
+import { TagPicker } from '@/features/tags/TagPicker';
 import { localeId, parseTimestamp, shortTime, todayLocal } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { buildRule, parseRule } from '../recurrence';
@@ -52,6 +58,7 @@ export function TaskDetailSheet() {
 
 function TaskForm({ task }: { task: Task }) {
   const actions = useTaskActions();
+  const createTx = useTxSheet((s) => s.create);
   const lists = useTaskLists();
   const save = (patch: TaskPatch) => void actions.update(task.id, patch);
   const done = task.status === 'done';
@@ -225,6 +232,30 @@ function TaskForm({ task }: { task: Task }) {
         <Field icon={ListTree} label="Subtask">
           <SubtaskList parent={task} />
         </Field>
+      )}
+
+      {!task.parent_id && (
+        <>
+          <Field icon={Hash} label="Tag">
+            <TagPicker type="task" entityId={task.id} />
+          </Field>
+          <Field icon={Link2} label="Tautan">
+            <LinksPanel type="task" id={task.id} />
+            <button
+              type="button"
+              onClick={() =>
+                createTx({
+                  title: task.title,
+                  date: task.due_date ?? undefined,
+                  linkTo: { type: 'task', id: task.id },
+                })
+              }
+              className="mt-1 flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-sm font-semibold text-mod-finance hover:bg-surface"
+            >
+              <Wallet className="size-4" /> Catat sebagai transaksi
+            </button>
+          </Field>
+        </>
       )}
 
       <Field icon={NotebookText} label="Catatan">

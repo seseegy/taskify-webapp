@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/Input';
 import type { JournalEntry } from '@/db/schema';
 import { formatLocalDate, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
+import { LinksPanel } from '@/features/links/LinksPanel';
+import { TagPicker } from '@/features/tags/TagPicker';
 import { useJournalActions, type JournalPatch } from '../journal-actions';
 import { wordCount } from '../journal-utils';
 import { MarkdownEditor } from './MarkdownEditor';
@@ -205,6 +207,21 @@ export function JournalEditor({ entry, draftDate, onCreated, onBack }: Props) {
         }}
       />
       <p className="text-right text-xs text-muted">{wordCount(content)} kata</p>
+
+      {savedId ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <p className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">Tag</p>
+            <TagPicker type="journal_entry" entityId={savedId} />
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">Tautan</p>
+            <LinksPanel type="journal_entry" id={savedId} />
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-muted">Tag & tautan tersedia setelah catatan tersimpan.</p>
+      )}
     </div>
   );
 }

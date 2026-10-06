@@ -427,7 +427,7 @@ function DebtForm({ onClose }: { onClose: () => void }) {
           id="d-who"
           value={counterparty}
           maxLength={100}
-          autoFocus
+          data-autofocus
           onChange={(e) => setCounterparty(e.target.value)}
         />
       </div>

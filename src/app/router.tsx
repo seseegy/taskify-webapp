@@ -5,7 +5,9 @@ import { DashboardPage } from '@/features/dashboard/DashboardPage';
 import { FinancePage } from '@/features/finance/FinancePage';
 import { JournalPage } from '@/features/journal/JournalPage';
 import { SettingsPage } from '@/features/settings/SettingsPage';
+import { TagPage } from '@/features/tags/TagPage';
 import { TasksPage } from '@/features/tasks/TasksPage';
+import { TrashPage } from '@/features/trash/TrashPage';
 import { VaultPage } from '@/features/vault/VaultPage';
 import { NotFoundPage } from './NotFoundPage';
 
@@ -21,6 +23,8 @@ export const router = createBrowserRouter([
       { path: 'keuangan', element: <FinancePage /> },
       { path: 'vault', element: <VaultPage /> },
       { path: 'pengaturan', element: <SettingsPage /> },
+      { path: 'tag/:id', element: <TagPage /> },
+      { path: 'sampah', element: <TrashPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

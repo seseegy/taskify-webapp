@@ -80,7 +80,7 @@ function WalletForm({
           id="w-name"
           value={name}
           maxLength={60}
-          autoFocus
+          data-autofocus
           placeholder="mis. BCA, GoPay, Dompet"
           onChange={(e) => setName(e.target.value)}
         />
@@ -214,7 +214,7 @@ function CategoryForm({
             id="c-name"
             value={name}
             maxLength={60}
-            autoFocus
+            data-autofocus
             onChange={(e) => setName(e.target.value)}
           />
         </div>

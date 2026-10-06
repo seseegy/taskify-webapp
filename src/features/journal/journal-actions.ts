@@ -1,10 +1,11 @@
-import { and, eq, isNotNull } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { useMemo } from 'react';
 import { toast } from '@/components/ui/toast-store';
 import { useDatabase } from '@/db/database-context';
 import { softDeleted, touch, withMeta } from '@/db/mutations';
 import { journalEntries } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
+import { destroyEntities } from '@/features/trash/trash-actions';
 import type { LocalDate } from '@/lib/date';
 
 export interface JournalPatch {
@@ -50,11 +51,17 @@ export function useJournalActions() {
         });
       },
       restore,
-      async destroy(id: string) {
-        await db.delete(journalEntries).where(eq(journalEntries.id, id));
-      },
+      destroy: (id: string) => destroyEntities(db, 'journal_entry', [id]),
       async emptyTrash() {
-        await db.delete(journalEntries).where(and(isNotNull(journalEntries.deleted_at)));
+        const rows = await db
+          .select({ id: journalEntries.id })
+          .from(journalEntries)
+          .where(isNotNull(journalEntries.deleted_at));
+        await destroyEntities(
+          db,
+          'journal_entry',
+          rows.map((r) => r.id),
+        );
       },
     };
   }, [db, userId]);

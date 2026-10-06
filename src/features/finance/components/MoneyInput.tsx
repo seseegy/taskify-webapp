@@ -54,7 +54,7 @@ export function MoneyInput({
         <input
           id={id}
           value={text}
-          autoFocus={autoFocus}
+          data-autofocus={autoFocus ? '' : undefined}
           inputMode="decimal"
           autoComplete="off"
           placeholder={placeholder}

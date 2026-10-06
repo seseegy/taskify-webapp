@@ -222,7 +222,7 @@ const ROADMAP = [
   { done: true, label: 'Tugas + Kalender (berulang, subtask, pengingat)' },
   { done: true, label: 'Keuangan (dompet, kategori, anggaran, hutang)' },
   { done: true, label: 'Jurnal + mood' },
-  { done: false, label: 'Quick capture, tag & tautan silang, pencarian global' },
+  { done: true, label: 'Quick capture, tag & tautan silang, pencarian global' },
   { done: false, label: 'Vault: snippet kode & arsip zip (Cloudflare R2)' },
 ];
 

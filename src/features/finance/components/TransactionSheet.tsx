@@ -9,6 +9,10 @@ import { toast } from '@/components/ui/toast-store';
 import type { TransactionKind } from '@/db/schema';
 import { shortTime, todayLocal } from '@/lib/date';
 import { cn } from '@/lib/utils';
+import { ENTITY_META } from '@/features/entities/entities';
+import { useLinkActions } from '@/features/links/link-actions';
+import { LinksPanel } from '@/features/links/LinksPanel';
+import { TagPicker } from '@/features/tags/TagPicker';
 import { useFinanceActions } from '../finance-actions';
 import { useCategories, useTransaction, useWallets, type TxRow } from '../finance-queries';
 import { useTxSheet, type TxSheetDefaults } from '../tx-sheet-store';
@@ -46,6 +50,7 @@ function TxForm({
   onDone: () => void;
 }) {
   const actions = useFinanceActions();
+  const linkActions = useLinkActions();
   const { wallets: all } = useWallets(true);
   const wallets = all.filter((w) => w.is_archived === 0);
   // Saat mengedit, dompet arsip yang dipakai transaksi tetap muncul di pilihan
@@ -67,7 +72,7 @@ function TxForm({
   const [toWalletId, setToWalletId] = useState(tx?.to_wallet_id ?? '');
   const [date, setDate] = useState(tx?.occurred_on ?? defaults.date ?? todayLocal());
   const [time, setTime] = useState(shortTime(tx?.occurred_time));
-  const [title, setTitle] = useState(tx?.title ?? '');
+  const [title, setTitle] = useState(tx?.title ?? defaults.title ?? '');
   const [note, setNote] = useState(tx?.note ?? '');
   const [saving, setSaving] = useState(false);
 
@@ -95,9 +100,13 @@ function TxForm({
         occurred_time: time || null,
         title,
         note,
+        task_id: tx ? tx.task_id : defaults.linkTo?.type === 'task' ? defaults.linkTo.id : null,
       };
       if (tx) await actions.updateTx(tx.id, input);
-      else await actions.createTx(input);
+      else {
+        const id = await actions.createTx(input);
+        if (defaults.linkTo) await linkActions.link(defaults.linkTo, { type: 'transaction', id });
+      }
       localStorage.setItem(LAST_WALLET_KEY, walletId);
       toast(tx ? 'Transaksi diperbarui' : 'Transaksi dicatat', { tone: 'success' });
       onDone();
@@ -233,6 +242,24 @@ function TxForm({
           className="min-h-16"
         />
       </div>
+
+      {tx && (
+        <>
+          <div>
+            <Label>Tag</Label>
+            <TagPicker type="transaction" entityId={tx.id} />
+          </div>
+          <div>
+            <Label>Tautan</Label>
+            <LinksPanel type="transaction" id={tx.id} />
+          </div>
+        </>
+      )}
+      {!tx && defaults.linkTo && (
+        <p className="rounded-xl bg-primary/10 px-3 py-2 text-xs font-semibold text-primary">
+          Akan ditautkan ke {ENTITY_META[defaults.linkTo.type].label.toLowerCase()} asal.
+        </p>
+      )}
 
       {tx?.debt_id && (
         <p className="rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning">

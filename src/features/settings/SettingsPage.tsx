@@ -1,6 +1,8 @@
 import { useQuery } from '@powersync/react';
 import {
   BellRing,
+  Hash,
+  Trash2,
   CloudAlert,
   HardDrive,
   LogOut,
@@ -24,6 +26,9 @@ import { useDatabase } from '@/db/database-context';
 import { useAuth, useUser } from '@/features/auth/auth-context';
 import { useLockStore } from '@/features/lock/lock-store';
 import { NotificationSettings } from '@/features/notifications/NotificationSettings';
+import { useAllTags } from '@/features/tags/tag-actions';
+import { TagChip } from '@/features/tags/TagPicker';
+import { Link } from 'react-router';
 import { useTheme, type ThemePreference } from '@/features/theme/theme-context';
 import { cn } from '@/lib/utils';
 import { PinSettings } from './PinSettings';
@@ -45,6 +50,7 @@ export function SettingsPage() {
           <NotificationSettings />
         </Section>
         <SyncSection />
+        <DataSection />
         <AccountSection />
       </div>
     </>
@@ -240,4 +246,27 @@ function usePendingUploads() {
   }, [powerSync]);
 
   return count;
+}
+
+function DataSection() {
+  const tags = useAllTags();
+  return (
+    <Section icon={Hash} title="Tag & Sampah" gradient="bg-gradient-brand">
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {tags.length === 0 ? (
+          <p className="text-sm text-muted">
+            Belum ada tag. Ketik #nama saat menambah tugas atau di Cari &amp; catat cepat.
+          </p>
+        ) : (
+          tags.map((t) => <TagChip key={t.id} tag={t} />)
+        )}
+      </div>
+      <Link
+        to="/sampah"
+        className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-surface"
+      >
+        <Trash2 className="size-4" /> Buka Sampah
+      </Link>
+    </Section>
+  );
 }
