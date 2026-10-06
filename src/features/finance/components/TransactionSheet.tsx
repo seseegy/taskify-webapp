@@ -1,6 +1,7 @@
 import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
+import { FieldError } from '@/components/ui/FieldError';
 import { Select, Textarea } from '@/components/ui/Field';
 import { Input, Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
@@ -8,6 +9,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { toast } from '@/components/ui/toast-store';
 import type { TransactionKind } from '@/db/schema';
 import { shortTime, todayLocal } from '@/lib/date';
+import { focusField } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 import { AttachmentList } from '@/features/attachments/AttachmentList';
 import { ENTITY_META } from '@/features/entities/entities';
@@ -76,6 +78,7 @@ function TxForm({
   const [title, setTitle] = useState(tx?.title ?? defaults.title ?? '');
   const [note, setNote] = useState(tx?.note ?? '');
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<{ amount?: string; wallet?: string; toWallet?: string }>({});
 
   const categoryList = useCategories(kind === 'income' ? 'income' : 'expense');
   const categories = kind === 'transfer' ? [] : categoryList;
@@ -87,8 +90,15 @@ function TxForm({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!amount || amount <= 0) return toast('Isi nominal terlebih dahulu', { tone: 'danger' });
-    if (!walletId) return toast('Pilih dompet', { tone: 'danger' });
+    const next: typeof errors = {};
+    if (!amount || amount <= 0) next.amount = 'Isi nominal terlebih dahulu';
+    if (!walletId) next.wallet = 'Pilih dompet';
+    if (kind === 'transfer' && !toWalletId) next.toWallet = 'Pilih dompet tujuan';
+    setErrors(next);
+    if (next.amount || next.wallet || next.toWallet) {
+      return focusField(next.amount ? 'tx-amount' : next.wallet ? 'tx-wallet' : 'tx-to');
+    }
+    if (!amount) return; // penyempit tipe; kasus kosong sudah ditangani di atas
     setSaving(true);
     try {
       const input = {
@@ -142,7 +152,11 @@ function TxForm({
         <MoneyInput
           id="tx-amount"
           value={amount}
-          onChange={setAmount}
+          onChange={(v) => {
+            setAmount(v);
+            if (v) setErrors((e) => ({ ...e, amount: undefined }));
+          }}
+          error={errors.amount}
           size="lg"
           autoFocus={!tx}
           tone={kind}
@@ -180,18 +194,37 @@ function TxForm({
       <div className={cn('grid gap-3', kind === 'transfer' && 'grid-cols-2')}>
         <div>
           <Label htmlFor="tx-wallet">{kind === 'transfer' ? 'Dari' : 'Dompet'}</Label>
-          <Select id="tx-wallet" value={walletId} onChange={(e) => setWalletId(e.target.value)}>
+          <Select
+            id="tx-wallet"
+            value={walletId}
+            aria-invalid={!!errors.wallet || undefined}
+            aria-describedby={errors.wallet ? 'tx-wallet-err' : undefined}
+            onChange={(e) => {
+              setWalletId(e.target.value);
+              setErrors((er) => ({ ...er, wallet: undefined }));
+            }}
+          >
             {walletOptions.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name}
               </option>
             ))}
           </Select>
+          <FieldError id="tx-wallet-err">{errors.wallet}</FieldError>
         </div>
         {kind === 'transfer' && (
           <div>
             <Label htmlFor="tx-to">Ke</Label>
-            <Select id="tx-to" value={toWalletId} onChange={(e) => setToWalletId(e.target.value)}>
+            <Select
+              id="tx-to"
+              value={toWalletId}
+              aria-invalid={!!errors.toWallet || undefined}
+              aria-describedby={errors.toWallet ? 'tx-to-err' : undefined}
+              onChange={(e) => {
+                setToWalletId(e.target.value);
+                setErrors((er) => ({ ...er, toWallet: undefined }));
+              }}
+            >
               <option value="">Pilih…</option>
               {walletOptions
                 .filter((w) => w.id !== walletId)
@@ -201,6 +234,7 @@ function TxForm({
                   </option>
                 ))}
             </Select>
+            <FieldError id="tx-to-err">{errors.toWallet}</FieldError>
           </div>
         )}
       </div>
@@ -298,7 +332,7 @@ function TxForm({
         ) : (
           <span />
         )}
-        <Button type="submit" loading={saving} disabled={!amount}>
+        <Button type="submit" loading={saving}>
           {tx ? 'Simpan' : 'Catat'}
         </Button>
       </div>

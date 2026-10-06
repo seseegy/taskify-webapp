@@ -18,6 +18,9 @@ interface Props {
   /** due_date tugas; pengulangan butuh tanggal mulai */
   anchor: LocalDate;
   onChange: (rule: string | null) => void;
+  /** id untuk kontrol pertama (pilihan pola) — dipakai form induk untuk fokus & pesan error */
+  id?: string;
+  'aria-describedby'?: string;
 }
 
 const FREQ_OPTIONS: { value: RecurrenceFreq; label: string; unit?: string }[] = [
@@ -29,7 +32,13 @@ const FREQ_OPTIONS: { value: RecurrenceFreq; label: string; unit?: string }[] = 
   { value: 'yearly', label: 'Tahunan', unit: 'tahun' },
 ];
 
-export function RecurrenceEditor({ rule, anchor, onChange }: Props) {
+export function RecurrenceEditor({
+  rule,
+  anchor,
+  onChange,
+  id,
+  'aria-describedby': describedBy,
+}: Props) {
   const state = parseRule(rule);
   const unit = FREQ_OPTIONS.find((o) => o.value === state.freq)?.unit;
 
@@ -48,7 +57,9 @@ export function RecurrenceEditor({ rule, anchor, onChange }: Props) {
   return (
     <div className="space-y-3">
       <Select
+        id={id}
         aria-label="Pengulangan"
+        aria-describedby={describedBy}
         value={state.freq}
         onChange={(e) => apply({ freq: e.target.value as RecurrenceFreq, interval: 1, byDay: [] })}
       >

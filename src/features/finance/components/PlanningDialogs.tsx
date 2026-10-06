@@ -1,6 +1,7 @@
 import { Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
+import { FieldError } from '@/components/ui/FieldError';
 import { Select, Textarea } from '@/components/ui/Field';
 import { Input, Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
@@ -10,6 +11,7 @@ import type { TransactionKind } from '@/db/schema';
 import { RecurrenceEditor } from '@/features/tasks/components/RecurrenceEditor';
 import { buildRule, describeRule } from '@/features/tasks/recurrence';
 import { todayLocal, type LocalDate } from '@/lib/date';
+import { focusField } from '@/lib/focus';
 import { useFinanceActions } from '../finance-actions';
 import {
   useCategories,
@@ -72,9 +74,14 @@ function BudgetForm({
   const [categoryId, setCategoryId] = useState(budget ? (budget.category_id ?? '') : '');
   const [amount, setAmount] = useState<number | null>(budget?.amount ?? null);
   const [alertPct, setAlertPct] = useState(budget?.alert_pct ?? 80);
+  const [amountError, setAmountError] = useState<string>();
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!amount) {
+      setAmountError('Isi batas anggaran per bulan');
+      return focusField('b-amount');
+    }
     try {
       await actions.saveBudget({
         id: budget?.id,
@@ -111,7 +118,16 @@ function BudgetForm({
       </div>
       <div>
         <Label htmlFor="b-amount">Batas per bulan</Label>
-        <MoneyInput id="b-amount" value={amount} onChange={setAmount} autoFocus />
+        <MoneyInput
+          id="b-amount"
+          value={amount}
+          onChange={(v) => {
+            setAmount(v);
+            if (v) setAmountError(undefined);
+          }}
+          error={amountError}
+          autoFocus
+        />
       </div>
       <div>
         <Label htmlFor="b-alert">Peringatan saat terpakai {alertPct}%</Label>
@@ -142,9 +158,7 @@ function BudgetForm({
         ) : (
           <span />
         )}
-        <Button type="submit" disabled={!amount}>
-          Simpan
-        </Button>
+        <Button type="submit">Simpan</Button>
       </div>
     </form>
   );
@@ -192,11 +206,19 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
   );
   const [autoPost, setAutoPost] = useState(item ? item.auto_post === 1 : false);
   const [note, setNote] = useState(item?.note ?? '');
+  const [errors, setErrors] = useState<{ title?: string; amount?: string; rrule?: string }>({});
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!rrule) return toast('Pilih pola pengulangan', { tone: 'danger' });
-    if (!title.trim()) return toast('Isi nama', { tone: 'danger' });
+    const next: typeof errors = {};
+    if (!title.trim()) next.title = 'Isi nama transaksi berulang';
+    if (!amount) next.amount = 'Isi nominal';
+    if (!rrule) next.rrule = 'Pilih pola pengulangan';
+    setErrors(next);
+    if (next.title || next.amount || next.rrule) {
+      return focusField(next.title ? 'r-title' : next.amount ? 'r-amount' : 'r-rule');
+    }
+    if (!rrule) return; // (sudah divalidasi di atas; untuk penyempitan tipe)
     const until = rrule.match(/UNTIL=(\d{4})(\d{2})(\d{2})/);
     try {
       await actions.saveRecurring({
@@ -242,12 +264,27 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
           value={title}
           maxLength={120}
           placeholder="mis. Netflix, Listrik, Gaji"
-          onChange={(e) => setTitle(e.target.value)}
+          aria-invalid={!!errors.title || undefined}
+          aria-describedby={errors.title ? 'r-title-err' : undefined}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            if (e.target.value.trim()) setErrors((er) => ({ ...er, title: undefined }));
+          }}
         />
+        <FieldError id="r-title-err">{errors.title}</FieldError>
       </div>
       <div>
         <Label htmlFor="r-amount">Nominal</Label>
-        <MoneyInput id="r-amount" value={amount} onChange={setAmount} tone={kind} />
+        <MoneyInput
+          id="r-amount"
+          value={amount}
+          onChange={(v) => {
+            setAmount(v);
+            if (v) setErrors((er) => ({ ...er, amount: undefined }));
+          }}
+          error={errors.amount}
+          tone={kind}
+        />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -315,9 +352,17 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
         />
       </div>
       <div>
-        <Label>Pengulangan</Label>
-        <RecurrenceEditor rule={rrule} anchor={startOn} onChange={setRrule} />
-        {!rrule && <p className="mt-1 text-xs text-danger">Pilih pola pengulangan.</p>}
+        <Label htmlFor="r-rule">Pengulangan</Label>
+        <RecurrenceEditor
+          id="r-rule"
+          rule={rrule}
+          anchor={startOn}
+          onChange={setRrule}
+          aria-describedby={!rrule || errors.rrule ? 'r-rule-err' : undefined}
+        />
+        <FieldError id="r-rule-err">
+          {errors.rrule ?? (!rrule ? 'Pilih pola pengulangan' : undefined)}
+        </FieldError>
       </div>
       <label className="flex cursor-pointer items-start gap-3 rounded-xl p-3 glass">
         <input
@@ -365,9 +410,7 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
         ) : (
           <span />
         )}
-        <Button type="submit" disabled={!amount || !title.trim()}>
-          Simpan
-        </Button>
+        <Button type="submit">Simpan</Button>
       </div>
     </form>
   );
@@ -391,9 +434,17 @@ function DebtForm({ onClose }: { onClose: () => void }) {
   const [dueDate, setDueDate] = useState('');
   const [note, setNote] = useState('');
   const [walletId, setWalletId] = useState('');
+  const [errors, setErrors] = useState<{ who?: string; amount?: string }>({});
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    const next: typeof errors = {};
+    if (!counterparty.trim()) {
+      next.who = direction === 'lent' ? 'Isi nama peminjam' : 'Isi nama pemberi pinjaman';
+    }
+    if (!amount) next.amount = 'Isi nominal';
+    setErrors(next);
+    if (next.who || next.amount) return focusField(next.who ? 'd-who' : 'd-amount');
     try {
       await actions.createDebt({
         direction,
@@ -428,12 +479,26 @@ function DebtForm({ onClose }: { onClose: () => void }) {
           value={counterparty}
           maxLength={100}
           data-autofocus
-          onChange={(e) => setCounterparty(e.target.value)}
+          aria-invalid={!!errors.who || undefined}
+          aria-describedby={errors.who ? 'd-who-err' : undefined}
+          onChange={(e) => {
+            setCounterparty(e.target.value);
+            if (e.target.value.trim()) setErrors((er) => ({ ...er, who: undefined }));
+          }}
         />
+        <FieldError id="d-who-err">{errors.who}</FieldError>
       </div>
       <div>
         <Label htmlFor="d-amount">Nominal</Label>
-        <MoneyInput id="d-amount" value={amount} onChange={setAmount} />
+        <MoneyInput
+          id="d-amount"
+          value={amount}
+          onChange={(v) => {
+            setAmount(v);
+            if (v) setErrors((er) => ({ ...er, amount: undefined }));
+          }}
+          error={errors.amount}
+        />
       </div>
       <div>
         <Label htmlFor="d-due">Jatuh tempo (opsional)</Label>
@@ -465,9 +530,7 @@ function DebtForm({ onClose }: { onClose: () => void }) {
         />
       </div>
       <div className="flex justify-end">
-        <Button type="submit" disabled={!amount || !counterparty.trim()}>
-          Simpan
-        </Button>
+        <Button type="submit">Simpan</Button>
       </div>
     </form>
   );
