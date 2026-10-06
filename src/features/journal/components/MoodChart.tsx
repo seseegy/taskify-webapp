@@ -18,12 +18,6 @@ export function MoodChart({ points }: { points: MoodPoint[] }) {
   points.forEach((p, i) => {
     if (p.mood === null) {
       if (current) segments.push(current);
-
-      // Penghubung tipis antar titik yang terpisah hari kosong
-      const bridge = points
-        .map((p, i) => (p.mood === null ? null : `${x(i).toFixed(1)},${y(p.mood).toFixed(1)}`))
-        .filter(Boolean)
-        .join(' ');
       current = '';
     } else {
       current += `${current ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.mood).toFixed(1)}`;
