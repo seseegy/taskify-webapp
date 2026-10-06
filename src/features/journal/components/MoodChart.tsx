@@ -80,6 +80,16 @@ export function MoodChart({ points }: { points: MoodPoint[] }) {
           opacity={0.6}
         />
       )}
+      {bridge && (
+        <polyline
+          points={bridge}
+          fill="none"
+          stroke="url(#moodLine)"
+          strokeWidth={1.5}
+          strokeDasharray="3 4"
+          opacity={0.6}
+        />
+      )}
       {segments.map((d, i) => (
         <path
           key={i}
