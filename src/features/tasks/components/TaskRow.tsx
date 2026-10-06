@@ -1,5 +1,5 @@
 import { BellRing, CalendarDays, Clock, ListTree, NotebookText, Repeat } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import type { Task, TaskList } from '@/db/schema';
 import { relativeDayLabel, shortTime, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
@@ -39,6 +39,7 @@ export function TaskRow({
   tags,
 }: Props) {
   const openSheet = useTaskSheet((s) => s.open);
+  const metaId = useId();
   const done = task.status === 'done';
   const cancelled = task.status === 'cancelled';
   const date = virtualDate ?? task.due_date;
@@ -51,7 +52,8 @@ export function TaskRow({
         key="date"
         className={overdue ? 'text-danger' : date === today ? 'text-primary' : undefined}
       >
-        <CalendarDays /> {relativeDayLabel(date, today)}
+        <CalendarDays /> {overdue && <span className="sr-only">Terlambat: </span>}
+        {relativeDayLabel(date, today)}
       </Chip>,
     );
   if (task.due_time)
@@ -62,26 +64,30 @@ export function TaskRow({
     );
   if (task.rrule || virtualDate)
     meta.push(
-      <Chip key="rep">
+      <Chip key="rep" title="Berulang">
         <Repeat />
+        <span className="sr-only">Berulang</span>
       </Chip>,
     );
   if (task.remind_at && !done)
     meta.push(
-      <Chip key="bell">
+      <Chip key="bell" title="Ada pengingat">
         <BellRing />
+        <span className="sr-only">Ada pengingat</span>
       </Chip>,
     );
   if (progress && progress.total > 0)
     meta.push(
       <Chip key="sub" className={progress.done === progress.total ? 'text-success' : undefined}>
         <ListTree /> {progress.done}/{progress.total}
+        <span className="sr-only"> subtask selesai</span>
       </Chip>,
     );
   if (task.notes?.trim())
     meta.push(
-      <Chip key="notes">
+      <Chip key="notes" title="Ada catatan">
         <NotebookText />
+        <span className="sr-only">Ada catatan</span>
       </Chip>,
     );
   if (showList && list) {
@@ -102,15 +108,13 @@ export function TaskRow({
   for (const t of tags ?? []) meta.push(<TagChip key={`tag-${t.id}`} tag={t} size="sm" />);
 
   return (
+    // Baris BUKAN role="button": berisi checkbox & tombol lain, dan kontrol interaktif tidak boleh
+    // bersarang di dalam button. Jalur keyboard/pembaca layar = tombol judul di bawah; onClick
+    // pada baris hanya kemudahan untuk pointer (mouse/sentuh).
     <div
-      role="button"
-      tabIndex={0}
       onClick={() => openSheet(task.id)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') openSheet(task.id);
-      }}
       className={cn(
-        'group flex w-full cursor-pointer items-start gap-3 rounded-2xl text-left transition hover:bg-surface focus-visible:bg-surface',
+        'group flex w-full cursor-pointer items-start gap-3 rounded-2xl text-left transition focus-within:bg-surface hover:bg-surface',
         compact ? 'px-2 py-2' : 'px-3 py-2.5',
         virtualDate && 'opacity-75',
       )}
@@ -126,16 +130,26 @@ export function TaskRow({
         />
       </span>
       <span className="min-w-0 flex-1">
-        <span
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-describedby={meta.length > 0 ? metaId : undefined}
+          onClick={(e) => {
+            e.stopPropagation();
+            openSheet(task.id);
+          }}
           className={cn(
-            'block text-sm font-semibold break-words',
+            'block w-full cursor-pointer rounded-md text-left text-sm font-semibold break-words',
             (done || cancelled) && 'text-muted line-through decoration-primary/40 decoration-2',
           )}
         >
           {task.title}
-        </span>
+        </button>
         {meta.length > 0 && (
-          <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted">
+          <span
+            id={metaId}
+            className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted"
+          >
             {meta}
           </span>
         )}
@@ -145,9 +159,21 @@ export function TaskRow({
   );
 }
 
-function Chip({ children, className }: { children: ReactNode; className?: string }) {
+function Chip({
+  children,
+  className,
+  title,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** Tooltip untuk pengguna mouse; teks `sr-only` di dalam anak tetap wajib untuk pembaca layar */
+  title?: string;
+}) {
   return (
-    <span className={cn('inline-flex items-center gap-1 font-medium [&_svg]:size-3.5', className)}>
+    <span
+      title={title}
+      className={cn('inline-flex items-center gap-1 font-medium [&_svg]:size-3.5', className)}
+    >
       {children}
     </span>
   );
