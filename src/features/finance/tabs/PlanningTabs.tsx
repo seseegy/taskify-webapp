@@ -187,7 +187,15 @@ export function RecurringTab() {
                           : 'text-muted',
                     )}
                   >
+                    {r.kind === 'income' ? '+' : r.kind === 'expense' ? '−' : ''}
                     {formatIDR(r.amount)}
+                    <span className="sr-only">
+                      {r.kind === 'income'
+                        ? ' (pemasukan)'
+                        : r.kind === 'expense'
+                          ? ' (pengeluaran)'
+                          : ' (transfer)'}
+                    </span>
                   </span>
                 </button>
                 <Button
