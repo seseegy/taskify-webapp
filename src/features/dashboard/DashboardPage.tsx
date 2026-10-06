@@ -4,13 +4,16 @@ import {
   CodeXml,
   ListChecks,
   NotebookPen,
+  Plus,
   Sparkles,
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
+import { Button } from '@/components/ui/Button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { useTxSheet } from '@/features/finance/tx-sheet-store';
 import { ActivityDots } from '@/features/calendar/ActivityDots';
 import { buildWeek } from '@/features/calendar/calendar-utils';
 import { EMPTY_DAY } from '@/features/calendar/useCalendarActivity';
@@ -23,6 +26,7 @@ import { useTodaySummary } from './useTodaySummary';
 
 export function DashboardPage() {
   const { summary, today } = useTodaySummary();
+  const createTx = useTxSheet((st) => st.create);
   const s = summary;
 
   return (
@@ -94,6 +98,9 @@ export function DashboardPage() {
               <CardTitle>Saldo total</CardTitle>
               <CardDescription>Semua dompet</CardDescription>
             </div>
+            <Button size="sm" onClick={() => createTx()}>
+              <Plus /> Catat
+            </Button>
           </CardHeader>
           <p className="text-gradient-brand text-3xl font-extrabold tracking-tight">
             {s ? formatIDR(s.balance) : '–'}
@@ -213,7 +220,7 @@ function WeekStrip({ today }: { today: string }) {
 const ROADMAP = [
   { done: true, label: 'Fondasi: login, kunci PIN, database offline, sinkronisasi' },
   { done: true, label: 'Tugas + Kalender (berulang, subtask, pengingat)' },
-  { done: false, label: 'Keuangan (dompet, kategori, anggaran, hutang)' },
+  { done: true, label: 'Keuangan (dompet, kategori, anggaran, hutang)' },
   { done: false, label: 'Jurnal + mood' },
   { done: false, label: 'Quick capture, tag & tautan silang, pencarian global' },
   { done: false, label: 'Vault: snippet kode & arsip zip (Cloudflare R2)' },

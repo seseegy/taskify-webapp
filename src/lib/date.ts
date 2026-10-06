@@ -109,6 +109,26 @@ export function isoToLocal(value: string): { date: LocalDate; time: string } {
   return { date: `${year}-${pad(month)}-${pad(day)}`, time: `${pad(hour)}:${pad(minute)}` };
 }
 
+/** 'YYYY-MM-01' bulan dari tanggal lokal. */
+export const monthStart = (date: LocalDate): LocalDate => `${date.slice(0, 7)}-01`;
+
+/** Tanggal terakhir bulan dari tanggal lokal. */
+export function monthEnd(date: LocalDate): LocalDate {
+  const [y, m] = date.split('-').map(Number);
+  const last = new Date(Date.UTC(y!, m!, 0)).getUTCDate();
+  return `${date.slice(0, 7)}-${pad(last)}`;
+}
+
+/** Geser bulan: addMonthsLocal('2026-10-01', -1) → '2026-09-01' (selalu tgl 1). */
+export function addMonthsLocal(date: LocalDate, amount: number): LocalDate {
+  const [y, m] = date.split('-').map(Number);
+  const d = new Date(Date.UTC(y!, m! - 1 + amount, 1));
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-01`;
+}
+
+/** Jumlah hari dalam bulan. */
+export const daysInMonth = (date: LocalDate) => Number(monthEnd(date).slice(8));
+
 /** Selisih hari kalender (b − a). */
 export function diffLocalDays(a: LocalDate, b: LocalDate): number {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400_000);

@@ -6,8 +6,6 @@ import {
   CodeXml,
   List,
   NotebookPen,
-  TrendingDown,
-  TrendingUp,
 } from 'lucide-react';
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
@@ -16,6 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardDescription, CardTitle } from '@/components/ui/Card';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { TaskList } from '@/db/schema';
+import { DayTransactions } from '@/features/finance/components/DayTransactions';
 import { QuickAdd } from '@/features/tasks/components/QuickAdd';
 import { useTaskLists } from '@/features/tasks/task-queries';
 import { dayGroupLabel } from '@/features/tasks/task-utils';
@@ -26,7 +25,7 @@ import {
   todayLocal,
   type LocalDate,
 } from '@/lib/date';
-import { formatIDR, formatIDRCompact } from '@/lib/money';
+import { formatIDRCompact } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { ActivityDots } from './ActivityDots';
 import {
@@ -418,18 +417,6 @@ function DayPanel({
       value: activity.journal ? `${activity.journal} catatan` : 'Belum menulis',
     },
     {
-      icon: TrendingDown,
-      gradient: 'bg-linear-to-br from-rose-500 to-orange-500',
-      label: 'Pengeluaran',
-      value: formatIDR(activity.expense),
-    },
-    {
-      icon: TrendingUp,
-      gradient: 'bg-gradient-finance',
-      label: 'Pemasukan',
-      value: formatIDR(activity.income),
-    },
-    {
       icon: CodeXml,
       gradient: 'bg-gradient-vault',
       label: 'Vault',
@@ -461,6 +448,10 @@ function DayPanel({
         className="mb-2"
       />
       <DayTaskList items={items} today={today} lists={lists} compact empty="Tidak ada tugas." />
+
+      <div className="mt-5">
+        <DayTransactions date={date} />
+      </div>
 
       <h3 className="mt-5 mb-2 text-xs font-bold tracking-wide text-muted uppercase">Modul lain</h3>
       <ul className="space-y-2.5">
