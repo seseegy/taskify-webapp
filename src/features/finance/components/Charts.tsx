@@ -1,3 +1,6 @@
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRef, useState, type KeyboardEvent } from 'react';
+import { Button } from '@/components/ui/Button';
 import { addLocalDays, daysInMonth, formatLocalDate, type LocalDate } from '@/lib/date';
 import { formatIDR, formatIDRCompact } from '@/lib/money';
 import { paletteOf } from '@/lib/palette';
@@ -68,7 +71,16 @@ export function CategoryDonut({
   );
 }
 
-/** Batang pengeluaran harian dalam satu bulan. */
+/**
+ * Batang pengeluaran harian dalam satu bulan.
+ *
+ * Aksesibilitas:
+ * - Satu Tab stop (roving tabindex); ←/→/Home/End berpindah hari. Setiap batang punya
+ *   nama lengkap ("Senin, 5 Oktober: Rp 25.000").
+ * - Batang sempit di HP (±7px), jadi ketuk = pilih hari; detail tampil di bawah grafik dengan
+ *   tombol ‹ › dan "Lihat di kalender" berukuran ≥ 40px (kontrol setara, WCAG 2.5.8).
+ * - Nilai tidak lagi hanya ada di tooltip hover.
+ */
 export function DailyBars({
   month,
   totals,
@@ -78,23 +90,82 @@ export function DailyBars({
   month: LocalDate;
   totals: Map<LocalDate, { expense: number; income: number }>;
   today: LocalDate;
+  /** Dipanggil dari tombol "Lihat di kalender" untuk hari yang dipilih */
   onSelect?: (day: LocalDate) => void;
 }) {
   const days = Array.from({ length: daysInMonth(month) }, (_, i) => addLocalDays(month, i));
-  const max = Math.max(1, ...days.map((d) => totals.get(d)?.expense ?? 0));
+  const expenseOf = (d: LocalDate) => totals.get(d)?.expense ?? 0;
+  const max = Math.max(1, ...days.map(expenseOf));
+
+  // Hari default: hari ini (jika di bulan ini), selain itu hari dengan pengeluaran terbesar
+  const todayInMonth = days.includes(today);
+  const peakDay = days.reduce((best, d) => (expenseOf(d) > expenseOf(best) ? d : best), days[0]!);
+  const defaultDay = todayInMonth ? today : peakDay;
+
+  // Pilihan disimpan bersama bulannya → otomatis kembali ke default saat bulan diganti
+  const [picked, setPicked] = useState<LocalDate | null>(null);
+  const selected = picked && days.includes(picked) ? picked : defaultDay;
+  const selectedIdx = days.indexOf(selected);
+  const [announcement, setAnnouncement] = useState('');
+  const barRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const describe = (d: LocalDate) => {
+    const v = expenseOf(d);
+    const name = formatLocalDate(d, 'EEEE, d MMMM');
+    const suffix = d === today ? ' (hari ini)' : '';
+    return `${name}${suffix}: ${v > 0 ? formatIDR(v) : 'tidak ada pengeluaran'}`;
+  };
+
+  /** Pindah pilihan. `focusBar` = dari keyboard di grafik; selain itu umumkan lewat live region. */
+  const moveTo = (idx: number, focusBar: boolean) => {
+    const day = days[Math.min(days.length - 1, Math.max(0, idx))]!;
+    setPicked(day);
+    if (focusBar) barRefs.current[days.indexOf(day)]?.focus();
+    else setAnnouncement(describe(day));
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    const next =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown'
+        ? selectedIdx + 1
+        : e.key === 'ArrowLeft' || e.key === 'ArrowUp'
+          ? selectedIdx - 1
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? days.length - 1
+              : null;
+    if (next === null) return;
+    e.preventDefault();
+    moveTo(next, true);
+  };
+
+  const selectedValue = expenseOf(selected);
 
   return (
     <div>
-      <div className="flex h-32 items-end gap-[3px]" role="img" aria-label="Pengeluaran harian">
-        {days.map((d) => {
-          const v = totals.get(d)?.expense ?? 0;
+      <div
+        className="flex h-32 items-end gap-[3px]"
+        role="group"
+        aria-label={`Pengeluaran harian ${formatLocalDate(month, 'MMMM yyyy')}`}
+        onKeyDown={onKeyDown}
+      >
+        {days.map((d, i) => {
+          const v = expenseOf(d);
+          const isSelected = d === selected;
           return (
             <button
               key={d}
+              ref={(el) => {
+                barRefs.current[i] = el;
+              }}
               type="button"
-              title={`${formatLocalDate(d, 'd MMM')}: ${formatIDR(v)}`}
-              onClick={() => onSelect?.(d)}
-              className="group flex h-full flex-1 items-end"
+              tabIndex={isSelected ? 0 : -1}
+              aria-label={describe(d)}
+              aria-pressed={isSelected}
+              aria-current={d === today ? 'date' : undefined}
+              onClick={() => setPicked(d)}
+              className="group flex h-full flex-1 items-end rounded-t-md outline-offset-1"
             >
               <span
                 className={cn(
@@ -105,6 +176,7 @@ export function DailyBars({
                       ? 'bg-linear-to-t from-rose-500 to-orange-400'
                       : 'bg-surface',
                   d === today && 'ring-2 ring-primary/60',
+                  isSelected && 'ring-2 ring-fg/70',
                 )}
                 style={{ height: `${Math.max(4, (v / max) * 100)}%` }}
               />
@@ -112,11 +184,66 @@ export function DailyBars({
           );
         })}
       </div>
-      <div className="mt-1.5 flex justify-between text-[10px] font-semibold text-muted">
+      <div
+        className="mt-1.5 flex justify-between text-[10px] font-semibold text-muted"
+        aria-hidden="true"
+      >
         <span>1</span>
         <span>{Math.ceil(days.length / 2)}</span>
         <span>{days.length}</span>
       </div>
+
+      <div className="mt-3 flex items-center gap-1.5">
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Hari sebelumnya"
+          // aria-disabled (bukan disabled) agar fokus keyboard tidak hilang di ujung bulan
+          aria-disabled={selectedIdx <= 0}
+          className="aria-disabled:cursor-default aria-disabled:opacity-40"
+          onClick={() => {
+            if (!(selectedIdx <= 0)) moveTo(selectedIdx - 1, false);
+          }}
+        >
+          <ChevronLeft />
+        </Button>
+        <p className="min-w-0 flex-1 text-center leading-tight">
+          <span className="block truncate text-xs font-semibold text-muted">
+            {formatLocalDate(selected, 'EEEE, d MMM')}
+            {selected === today && ' · hari ini'}
+          </span>
+          <span className="block text-sm font-bold tabular-nums">
+            {selectedValue > 0 ? formatIDR(selectedValue) : 'Tidak ada pengeluaran'}
+          </span>
+        </p>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label="Hari berikutnya"
+          // aria-disabled (bukan disabled) agar fokus keyboard tidak hilang di ujung bulan
+          aria-disabled={selectedIdx >= days.length - 1}
+          className="aria-disabled:cursor-default aria-disabled:opacity-40"
+          onClick={() => {
+            if (!(selectedIdx >= days.length - 1)) moveTo(selectedIdx + 1, false);
+          }}
+        >
+          <ChevronRight />
+        </Button>
+        {onSelect && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => onSelect(selected)}
+            aria-label={`Lihat ${formatLocalDate(selected, 'd MMMM')} di kalender`}
+          >
+            <CalendarDays /> <span className="hidden sm:inline">Kalender</span>
+          </Button>
+        )}
+      </div>
+      {/* Diumumkan hanya saat pindah lewat tombol ‹ › (fokus tidak berada di batang) */}
+      <span className="sr-only" role="status">
+        {announcement}
+      </span>
     </div>
   );
 }
