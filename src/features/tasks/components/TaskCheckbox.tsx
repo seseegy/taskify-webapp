@@ -39,6 +39,8 @@ export function TaskCheckbox({
         title="Kejadian berulang mendatang"
       >
         <Repeat className="size-3 text-muted" />
+        {/* `title` saja tidak terjangkau sentuhan/keyboard/pembaca layar */}
+        <span className="sr-only">Kejadian berulang mendatang</span>
       </span>
     );
   }
@@ -54,7 +56,10 @@ export function TaskCheckbox({
       }}
       className={cn(
         box,
-        'group flex shrink-0 items-center justify-center rounded-full border-2 transition active:scale-90',
+        // Lingkaran tetap kecil, tapi area ketuk diperluas via ::before: 44px (md) / 36px (sm,
+        // = tinggi minimum baris ringkas agar tidak tumpang tindih). WCAG 2.5.8 butuh ≥ 24px.
+        'group relative flex shrink-0 items-center justify-center rounded-full border-2 transition before:absolute before:content-[""] active:scale-90',
+        size === 'sm' ? 'before:-inset-2' : 'before:-inset-2.5',
         checked
           ? 'shine border-transparent bg-gradient-tasks text-white shadow-md shadow-violet-500/30'
           : RING[priority],
