@@ -9,6 +9,7 @@ import { toast } from '@/components/ui/toast-store';
 import type { TransactionKind } from '@/db/schema';
 import { shortTime, todayLocal } from '@/lib/date';
 import { cn } from '@/lib/utils';
+import { AttachmentList } from '@/features/attachments/AttachmentList';
 import { ENTITY_META } from '@/features/entities/entities';
 import { useLinkActions } from '@/features/links/link-actions';
 import { LinksPanel } from '@/features/links/LinksPanel';
@@ -252,6 +253,10 @@ function TxForm({
           <div>
             <Label>Tautan</Label>
             <LinksPanel type="transaction" id={tx.id} />
+          </div>
+          <div>
+            <Label>Foto struk / lampiran</Label>
+            <AttachmentList type="transaction" id={tx.id} label="Struk" />
           </div>
         </>
       )}

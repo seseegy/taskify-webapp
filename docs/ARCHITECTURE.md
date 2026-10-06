@@ -140,11 +140,27 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 - **Sampah** (`/sampah`) menggabungkan tugas, jurnal, dan transaksi. Item lebih dari 30 hari dihapus permanen otomatis setelah sync awal. Hapus permanen juga membersihkan tag & tautan (`db/refs.ts`), karena keduanya tidak punya foreign key.
 - `Sheet` memfokuskan elemen ber-`data-autofocus` setelah `showModal()` (yang jika tidak akan memfokuskan tombol Tutup).
 
+## Vault & lampiran (R2)
+
+```
+Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──sync──► Postgres
+   │  (2) presign {key, size} ──► Edge Function files (cek JWT, key berawalan user_id/, ≤ 100 MB)
+   │  (3) PUT langsung ke R2 (Content-Length ikut ditandatangani)
+   └─ (4) UPDATE status = 'uploaded' + simpan ke Cache Storage (bisa dibuka offline)
+```
+
+- Key R2 = `<user_id>/<attachment_id>/<nama file>`. Fungsi menolak key milik user lain.
+- Unduh/pratinjau: cache lokal dulu, baru presigned GET. Isi zip dibaca di browser (JSZip) tanpa ekstrak ke disk.
+- Sebelum upload, zip dianalisis (`features/vault/zip.ts`): file rahasia, node_modules, .git, hasil build. Duplikat dideteksi lewat SHA-256.
+- Hapus = soft delete lokal + hapus objek (best effort). Cron harian (`files` mode cleanup) membersihkan sisanya, termasuk objek yatim.
+- Snippet: syntax highlight (prism-react-renderer + bahasa prismjs tambahan, dimuat lazy), variabel template `{{nama}}` diisi saat disalin.
+- Foto besar (>1,5 MB) diperkecil ke maks. 2000 px JPEG sebelum diunggah.
+
 ## Keamanan
 
 - RLS `owner_*` di semua tabel + `FORCE ROW LEVEL SECURITY`; `anon` tidak punya akses.
 - Signup dimatikan; `seed_user_defaults` tidak bisa dipanggil dari client.
-- Key R2 tidak pernah ada di browser. Upload memakai presigned URL dari Edge Function (tahap 6).
+- Key R2 tidak pernah ada di browser. Upload/unduh memakai presigned URL berumur pendek dari Edge Function `files`.
 - PIN = kunci tampilan per perangkat (PBKDF2-SHA256, 210k iterasi, 5 percobaan → jeda 30 dtk), **bukan** enkripsi data.
 
 Migrasi diuji di Postgres (PGlite): RLS antar-user, constraint, trigger seed, publication (16 tabel), dan replica identity.
@@ -158,5 +174,5 @@ Migrasi diuji di Postgres (PGlite): RLS antar-user, constraint, trigger seed, pu
 | 3     | Keuangan (CRUD transaksi, input "25rb", anggaran, berulang, hutang, ekspor CSV)            | ✅     |
 | 4     | Jurnal (markdown, mood, "hari ini di masa lalu")                                           | ✅     |
 | 5     | Quick capture, tag & tautan silang, pencarian global FTS5, Sampah                          | ✅     |
-| 6     | Vault: snippet + zip ke R2 (Edge Function presign, lihat isi zip, versi, SHA-256)          |        |
+| 6     | Vault: snippet + zip ke R2 (Edge Function presign, lihat isi zip, versi, SHA-256)          | ✅     |
 | 7     | Dashboard review, heatmap, GitHub Action keep-alive + backup `pg_dump` ke R2, Share Target |        |

@@ -392,6 +392,10 @@ deno_version = 2
 [functions.send-reminders]
 verify_jwt = false
 
+# Upload/download R2 (JWT user) & pembersihan (x-cron-secret). Verifikasi di dalam fungsi.
+[functions.files]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

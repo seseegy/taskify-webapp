@@ -9,9 +9,9 @@ import { useDatabase } from '@/db/database-context';
 import type { AppDatabase } from '@/db/database';
 import { touch } from '@/db/mutations';
 import { deleteEntityRefs } from '@/db/refs';
-import { journalEntries, tasks, transactions } from '@/db/schema';
+import { codeProjects, journalEntries, snippets, tasks, transactions } from '@/db/schema';
 
-export type TrashType = 'task' | 'journal_entry' | 'transaction';
+export type TrashType = 'task' | 'journal_entry' | 'transaction' | 'snippet' | 'code_project';
 export const TRASH_RETENTION_DAYS = 30;
 
 /** Hapus permanen (+ subtask untuk tugas, + tag & tautan). */
@@ -30,9 +30,16 @@ export async function destroyEntities(db: AppDatabase, type: TrashType, ids: str
     } else if (type === 'journal_entry') {
       await deleteEntityRefs(t, 'journal_entry', ids);
       await t.delete(journalEntries).where(inArray(journalEntries.id, ids));
-    } else {
+    } else if (type === 'transaction') {
       await deleteEntityRefs(t, 'transaction', ids);
       await t.delete(transactions).where(inArray(transactions.id, ids));
+    } else if (type === 'snippet') {
+      await deleteEntityRefs(t, 'snippet', ids);
+      await t.delete(snippets).where(inArray(snippets.id, ids));
+    } else {
+      // Arsip zip di R2 dibersihkan cron server karena entitas induknya hilang
+      await deleteEntityRefs(t, 'code_project', ids);
+      await t.delete(codeProjects).where(inArray(codeProjects.id, ids));
     }
   });
 }
@@ -53,8 +60,12 @@ export function useTrashActions() {
           });
         } else if (type === 'journal_entry') {
           await db.update(journalEntries).set(values).where(eq(journalEntries.id, id));
-        } else {
+        } else if (type === 'transaction') {
           await db.update(transactions).set(values).where(eq(transactions.id, id));
+        } else if (type === 'snippet') {
+          await db.update(snippets).set(values).where(eq(snippets.id, id));
+        } else {
+          await db.update(codeProjects).set(values).where(eq(codeProjects.id, id));
         }
       },
       destroy: (type: TrashType, ids: string[]) => destroyEntities(db, type, ids),
@@ -73,33 +84,24 @@ export function useTrashPurge() {
     const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 86400_000).toISOString();
     void (async () => {
       try {
-        const oldTasks = await db
-          .select({ id: tasks.id })
-          .from(tasks)
-          .where(and(isNotNull(tasks.deleted_at), lt(tasks.deleted_at, cutoff)));
-        const oldJournal = await db
-          .select({ id: journalEntries.id })
-          .from(journalEntries)
-          .where(and(isNotNull(journalEntries.deleted_at), lt(journalEntries.deleted_at, cutoff)));
-        const oldTx = await db
-          .select({ id: transactions.id })
-          .from(transactions)
-          .where(and(isNotNull(transactions.deleted_at), lt(transactions.deleted_at, cutoff)));
-        await destroyEntities(
-          db,
-          'task',
-          oldTasks.map((r) => r.id),
-        );
-        await destroyEntities(
-          db,
-          'journal_entry',
-          oldJournal.map((r) => r.id),
-        );
-        await destroyEntities(
-          db,
-          'transaction',
-          oldTx.map((r) => r.id),
-        );
+        const tables = [
+          ['task', tasks],
+          ['journal_entry', journalEntries],
+          ['transaction', transactions],
+          ['snippet', snippets],
+          ['code_project', codeProjects],
+        ] as const;
+        for (const [type, table] of tables) {
+          const rows = await db
+            .select({ id: table.id })
+            .from(table as typeof tasks)
+            .where(and(isNotNull(table.deleted_at), lt(table.deleted_at, cutoff)));
+          await destroyEntities(
+            db,
+            type,
+            rows.map((r) => r.id),
+          );
+        }
       } catch (e) {
         console.error('[trash] pembersihan otomatis gagal', e);
       }

@@ -166,6 +166,73 @@ Log fungsi ada di **Edge Functions → send-reminders → Logs**.
 
 > Kuota: cron tiap menit ≈ 43 ribu panggilan/bulan, masih jauh di bawah batas free tier (500 ribu). Pengingat yang terlambat lebih dari 24 jam (misalnya karena project ter-pause) tidak dikirim.
 
+## 8. Vault & lampiran (Cloudflare R2)
+
+Isi file (zip project, foto struk, gambar jurnal) disimpan di R2. Metadata di tabel `attachments`. Browser **tidak pernah** memegang key R2: Edge Function `files` membuat presigned URL berumur 10–15 menit.
+
+### 8.1 Buat bucket
+
+Cloudflare Dashboard → **R2 Object Storage** → **Create bucket**, beri nama mis. `taskify-files`, location _Automatic_. Biarkan **tidak publik**.
+
+### 8.2 Atur CORS bucket
+
+Bucket → **Settings → CORS policy → Add/Edit**, lalu tempel (ganti domain Pages-mu):
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:5173",
+      "http://localhost:4173",
+      "https://<nama>.pages.dev"
+    ],
+    "AllowedMethods": ["GET", "PUT", "HEAD"],
+    "AllowedHeaders": ["content-type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+### 8.3 Buat API token R2
+
+R2 → **Manage R2 API Tokens → Create API token**:
+
+- Permission: **Object Read & Write**
+- Specify bucket: hanya `taskify-files`
+
+Catat **Access Key ID**, **Secret Access Key**, dan **Account ID** (ada di halaman R2 / URL dashboard).
+
+### 8.4 Secret & deploy Edge Function
+
+```bash
+npx supabase secrets set R2_ACCOUNT_ID='<account-id>' R2_BUCKET='taskify-files' \
+  R2_ACCESS_KEY_ID='<access-key-id>' R2_SECRET_ACCESS_KEY='<secret-access-key>'
+pnpm fn:deploy:files     # = supabase functions deploy files --no-verify-jwt
+```
+
+`CRON_SECRET` dipakai bersama fungsi pengingat (§7), jadi tidak perlu dibuat lagi.
+**Tanpa CLI:** buat fungsi `files` via Dashboard (tempel `supabase/functions/files/index.ts`), matikan **Verify JWT**, lalu isi 4 secret di atas.
+
+### 8.5 Migrasi & jadwal pembersihan
+
+1. Jalankan `supabase/migrations/20261007000100_attachments_cleanup.sql` (atau `pnpm db:push`).
+2. Jalankan `supabase/sql/schedule-attachment-cleanup.sql` di SQL Editor. File ini memakai secret Vault dari §7.4.
+
+Pembersihan harian menghapus objek R2 untuk lampiran yang:
+
+- dihapus,
+- gagal terunggah lebih dari 2 hari,
+- induknya sudah di Sampah lebih dari 30 hari,
+
+serta objek yatim yang tidak punya baris.
+
+### 8.6 Coba
+
+Vault → **Project** → buat project → tarik file zip. Isi zip dicek dulu (`.env`, `node_modules`, `.git`, hasil build, file duplikat). Setelah terunggah, **Lihat isi** menampilkan pohon folder & isi file. Di Keuangan, buka transaksi → **Foto struk**.
+
+> Kuota gratis R2: 10 GB penyimpanan, unduhan (egress) gratis. Pemakaian tampil di halaman Vault.
+
 ---
 
 ## Troubleshooting
@@ -181,6 +248,8 @@ Log fungsi ada di **Edge Functions → send-reminders → Logs**.
 | Login "Tidak bisa terhubung"             | Login pertama butuh internet; setelah itu aplikasi jalan offline                       |
 | Notifikasi "Belum tersedia"              | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                       |
 | Notifikasi uji "Edge Function gagal"     | Fungsi belum di-deploy, atau Verify JWT masih menyala                                  |
+| Upload gagal "periksa koneksi atau CORS" | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)               |
+| "Edge Function gagal" saat upload        | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah         |
 | Uji berhasil tapi pengingat tidak datang | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi |
 
 ## Perawatan rutin
