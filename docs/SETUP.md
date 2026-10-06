@@ -107,6 +107,22 @@ Halaman Keuangan/Beranda memakai dompet hasil seed, jadi saldo `Rp 0` berarti sy
 
 Routing SPA otomatis ditangani Cloudflare Pages (tanpa `404.html` → fallback ke `index.html`).
 
+### Header keamanan
+
+[`public/_headers`](../public/_headers) ikut ter-deploy dan memasang CSP, `X-Frame-Options`,
+`Referrer-Policy`, dan `Permissions-Policy`. Setelah deploy pertama, buka DevTools → Console dan
+pastikan tidak ada pesan _"Refused to …"_ dari CSP.
+
+CSP memuat hash SHA-256 dari skrip inline anti-kedip tema di `index.html`. **Kalau skrip itu
+diubah, hash harus dihitung ulang** (gejalanya ringan: tema berkedip sekali saat dibuka):
+
+```bash
+pnpm build
+node -e "const fs=require('fs'),c=require('crypto');const s=/<script>([\s\S]*?)<\/script>/.exec(fs.readFileSync('dist/index.html','utf8'))[1];console.log('sha256-'+c.createHash('sha256').update(s).digest('base64'))"
+```
+
+Tempel hasilnya ke `script-src` di `public/_headers`.
+
 ## 6. Install di HP Android
 
 Buka URL Pages di **Chrome** → menu ⋮ → **Install app** / **Tambahkan ke layar utama**.

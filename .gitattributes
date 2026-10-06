@@ -1,0 +1,13 @@
+# Normalisasi akhir baris: repo & working tree selalu LF.
+# Tanpa ini, clone di Windows (core.autocrlf=true) membuat `prettier --check` gagal
+# di semua file karena Prettier memakai endOfLine: "lf".
+* text=auto eol=lf
+
+# Berkas biner — jangan pernah diubah isinya.
+*.png   binary
+*.ico   binary
+*.woff2 binary
+*.wasm  binary
+
+# Lockfile: diff-nya tidak berguna saat review.
+pnpm-lock.yaml -diff linguist-generated

@@ -108,7 +108,10 @@ export default defineConfig({
   },
   build: {
     target: 'es2023',
-    sourcemap: true,
+    // Jangan kirim source map ke produksi: nama file .map mudah ditebak dari nama bundle
+    // (cukup tambah ".map"), jadi 'hidden' pun tetap membocorkan kode sumber.
+    // Untuk menelusuri bug di build produksi: `vite build --sourcemap`.
+    sourcemap: false,
     // Bundle utama berisi React + PowerSync + Supabase (≈245 KB gzip) — wajar untuk PWA offline
     chunkSizeWarningLimit: 1000,
   },

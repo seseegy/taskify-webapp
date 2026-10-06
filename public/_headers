@@ -1,0 +1,26 @@
+# Header untuk Cloudflare Pages (file ini disalin apa adanya ke root situs).
+# Dokumentasi: https://developers.cloudflare.com/pages/configuration/headers/
+
+# CSP catatan:
+#  - 'wasm-unsafe-eval' wajib: wa-sqlite mengompilasi WASM saat runtime.
+#  - Hash di script-src adalah skrip inline anti-kedip tema di index.html.
+#    Jika skrip itu diubah, hash harus dihitung ulang (lihat docs/SETUP.md) —
+#    kalau tidak, tema akan berkedip sekali saat aplikasi dibuka.
+#  - form-action 'self' (bukan 'none') karena Share Target mengirim POST ke /bagikan;
+#    'self' tetap melarang pengiriman form ke domain luar.
+#  - connect-src sengaja longgar (https: wss:) agar tidak perlu menulis URL Supabase &
+#    PowerSync ke dalam repo. Perketat ke domain proyekmu sendiri jika mau lebih ketat.
+
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-OyH5VurHb7D/FJVf9S6pVTmwsfwGExfTmW3Oe5dqhqg='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https: wss:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
+
+# Service worker & HTML tidak boleh di-cache CDN, supaya versi baru langsung terdeteksi.
+/sw.js
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
