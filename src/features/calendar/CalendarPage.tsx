@@ -15,6 +15,8 @@ import { Card, CardDescription, CardTitle } from '@/components/ui/Card';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { TaskList } from '@/db/schema';
 import { DayTransactions } from '@/features/finance/components/DayTransactions';
+import { DayJournal } from '@/features/journal/components/DayJournal';
+import { MoodIcon } from '@/features/journal/components/MoodIcon';
 import { QuickAdd } from '@/features/tasks/components/QuickAdd';
 import { useTaskLists } from '@/features/tasks/task-queries';
 import { dayGroupLabel } from '@/features/tasks/task-utils';
@@ -234,6 +236,11 @@ function MonthGrid({
               >
                 {cell.day}
               </span>
+              {activity.mood && (
+                <span className="absolute top-1.5 right-1.5 hidden sm:block">
+                  <MoodIcon mood={activity.mood} className="size-4" />
+                </span>
+              )}
               <ActivityDots activity={activity} className="sm:pl-1" />
               {open > 0 && (
                 <span className="hidden pl-1 text-[10px] font-semibold text-mod-tasks sm:block">
@@ -411,12 +418,6 @@ function DayPanel({
 }) {
   const rows = [
     {
-      icon: NotebookPen,
-      gradient: 'bg-gradient-journal',
-      label: 'Jurnal',
-      value: activity.journal ? `${activity.journal} catatan` : 'Belum menulis',
-    },
-    {
       icon: CodeXml,
       gradient: 'bg-gradient-vault',
       label: 'Vault',
@@ -448,6 +449,10 @@ function DayPanel({
         className="mb-2"
       />
       <DayTaskList items={items} today={today} lists={lists} compact empty="Tidak ada tugas." />
+
+      <div className="mt-5">
+        <DayJournal date={date} />
+      </div>
 
       <div className="mt-5">
         <DayTransactions date={date} />

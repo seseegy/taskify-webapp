@@ -71,7 +71,7 @@ export function DashboardPage() {
           delay={60}
         />
         <StatCard
-          to="/jurnal"
+          to={`/jurnal?tanggal=${today}`}
           icon={NotebookPen}
           gradient="bg-gradient-journal"
           label="Jurnal"
@@ -221,7 +221,7 @@ const ROADMAP = [
   { done: true, label: 'Fondasi: login, kunci PIN, database offline, sinkronisasi' },
   { done: true, label: 'Tugas + Kalender (berulang, subtask, pengingat)' },
   { done: true, label: 'Keuangan (dompet, kategori, anggaran, hutang)' },
-  { done: false, label: 'Jurnal + mood' },
+  { done: true, label: 'Jurnal + mood' },
   { done: false, label: 'Quick capture, tag & tautan silang, pencarian global' },
   { done: false, label: 'Vault: snippet kode & arsip zip (Cloudflare R2)' },
 ];

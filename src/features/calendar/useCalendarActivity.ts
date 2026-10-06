@@ -9,6 +9,8 @@ export interface DayActivity {
   tasks: number;
   tasksDone: number;
   journal: number;
+  /** Rata-rata mood jurnal hari itu (1–5), null jika tidak ada */
+  mood: number | null;
   expense: number; // total rupiah
   income: number; // total rupiah
   transactions: number;
@@ -19,6 +21,7 @@ export const EMPTY_DAY: DayActivity = {
   tasks: 0,
   tasksDone: 0,
   journal: 0,
+  mood: null,
   expense: 0,
   income: 0,
   transactions: 0,
@@ -30,7 +33,7 @@ interface Row {
   kind: ActivityKind;
   count: number;
   done: number;
-  amount: number;
+  amount: number | null;
 }
 
 /**
@@ -43,7 +46,7 @@ interface Row {
  *  - Vault (snippet, project, file) tidak punya tanggal lokal → created_at UTC dikonversi ke WIB.
  */
 const SQL = `
-  SELECT entry_date AS day, 'journal' AS kind, COUNT(*) AS count, 0 AS done, 0 AS amount
+  SELECT entry_date AS day, 'journal' AS kind, COUNT(*) AS count, 0 AS done, AVG(mood) AS amount
     FROM journal_entries
    WHERE deleted_at IS NULL AND entry_date BETWEEN ?1 AND ?2
    GROUP BY entry_date
@@ -79,13 +82,14 @@ export function useCalendarActivity(from: LocalDate, to: LocalDate) {
           break;
         case 'journal':
           entry.journal += row.count;
+          entry.mood = row.amount === null ? null : Math.round(row.amount);
           break;
         case 'expense':
-          entry.expense += row.amount;
+          entry.expense += row.amount ?? 0;
           entry.transactions += row.count;
           break;
         case 'income':
-          entry.income += row.amount;
+          entry.income += row.amount ?? 0;
           entry.transactions += row.count;
           break;
         case 'vault':
