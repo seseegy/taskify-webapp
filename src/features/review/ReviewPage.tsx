@@ -80,6 +80,8 @@ export function ReviewPage() {
         gradient="bg-gradient-brand"
         actions={
           <Button
+            // Di HP tombol hanya berupa ikon → wajib punya nama aksesibel
+            aria-label="Tulis refleksi"
             onClick={() =>
               navigate(
                 `/jurnal?baru=${today}&templat=review-${period}&dari=${current.from}&sampai=${current.to}`,
