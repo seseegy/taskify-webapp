@@ -32,6 +32,10 @@ const SQL = `
   SELECT 'transaction', t.id, COALESCE(NULLIF(t.title, ''), c.name, 'Transaksi'),
          t.occurred_on || '|' || t.kind || '|' || t.amount, t.deleted_at
     FROM transactions t LEFT JOIN categories c ON c.id = t.category_id WHERE t.deleted_at IS NOT NULL
+  UNION ALL
+  SELECT 'snippet', id, title, language, deleted_at FROM snippets WHERE deleted_at IS NOT NULL
+  UNION ALL
+  SELECT 'code_project', id, name, NULL, deleted_at FROM code_projects WHERE deleted_at IS NOT NULL
   ORDER BY deleted_at DESC`;
 
 /** Sampah gabungan: tugas, jurnal, transaksi. */
@@ -43,7 +47,13 @@ export function TrashPage() {
   const emptyAll = async () => {
     if (!window.confirm(`Hapus permanen ${rows.length} item? Tindakan ini tidak bisa dibatalkan.`))
       return;
-    for (const type of ['task', 'journal_entry', 'transaction'] as TrashType[]) {
+    for (const type of [
+      'task',
+      'journal_entry',
+      'transaction',
+      'snippet',
+      'code_project',
+    ] as TrashType[]) {
       await actions.destroy(
         type,
         rows.filter((r) => r.type === type).map((r) => r.id),

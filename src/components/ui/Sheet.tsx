@@ -11,6 +11,8 @@ interface Props {
   /** 'side' = panel kanan di desktop / bottom sheet di HP. 'center' = dialog kecil. */
   variant?: 'side' | 'center' | 'palette';
   className?: string;
+  /** Panel samping lebih lebar (editor kode, penampil zip) */
+  wide?: boolean;
 }
 
 /**
@@ -26,6 +28,7 @@ export function Sheet({
   footer,
   variant = 'side',
   className,
+  wide,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -54,7 +57,10 @@ export function Sheet({
       className={cn(
         'm-0 max-h-none max-w-none bg-transparent p-0 text-fg backdrop:bg-indigo-950/40 backdrop:backdrop-blur-sm',
         variant === 'side'
-          ? 'inset-x-0 top-auto bottom-0 w-full sm:inset-y-0 sm:right-0 sm:left-auto sm:h-dvh sm:w-[440px]'
+          ? cn(
+              'inset-x-0 top-auto bottom-0 w-full sm:inset-y-0 sm:right-0 sm:left-auto sm:h-dvh',
+              wide ? 'sm:w-[min(94vw,820px)]' : 'sm:w-[440px]',
+            )
           : variant === 'palette'
             ? 'inset-x-0 top-[8dvh] mx-auto w-[min(94vw,640px)]'
             : 'inset-0 m-auto w-[min(92vw,420px)]',

@@ -223,7 +223,7 @@ const ROADMAP = [
   { done: true, label: 'Keuangan (dompet, kategori, anggaran, hutang)' },
   { done: true, label: 'Jurnal + mood' },
   { done: true, label: 'Quick capture, tag & tautan silang, pencarian global' },
-  { done: false, label: 'Vault: snippet kode & arsip zip (Cloudflare R2)' },
+  { done: true, label: 'Vault: snippet kode & arsip zip (Cloudflare R2)' },
 ];
 
 function RoadmapCard() {

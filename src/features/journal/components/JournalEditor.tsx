@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/Input';
 import type { JournalEntry } from '@/db/schema';
 import { formatLocalDate, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
+import { AttachmentList } from '@/features/attachments/AttachmentList';
 import { LinksPanel } from '@/features/links/LinksPanel';
 import { TagPicker } from '@/features/tags/TagPicker';
 import { useJournalActions, type JournalPatch } from '../journal-actions';
@@ -217,6 +218,12 @@ export function JournalEditor({ entry, draftDate, onCreated, onBack }: Props) {
           <div>
             <p className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">Tautan</p>
             <LinksPanel type="journal_entry" id={savedId} />
+          </div>
+          <div className="sm:col-span-2">
+            <p className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">
+              Foto & lampiran
+            </p>
+            <AttachmentList type="journal_entry" id={savedId} label="Foto" />
           </div>
         </div>
       ) : (
