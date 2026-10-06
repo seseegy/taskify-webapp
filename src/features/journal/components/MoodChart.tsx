@@ -117,23 +117,26 @@ export function MoodChart({ points }: { points: MoodPoint[] }) {
         </span>
       </figcaption>
       {recorded.length > 0 && (
-        <table className="sr-only">
-          <caption>Data mood {points.length} hari terakhir</caption>
-          <thead>
-            <tr>
-              <th scope="col">Tanggal</th>
-              <th scope="col">Mood</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recorded.map((p) => (
-              <tr key={p.day}>
-                <td>{formatLocalDate(p.day, 'EEEE, d MMMM yyyy')}</td>
-                <td>{moodOf(p.mood)?.label}</td>
+        <div className="sr-only">
+          {/* <table> mengabaikan width/height `sr-only`; dibungkus div 1×1px agar tidak memperpanjang area scroll */}
+          <table>
+            <caption>Data mood {points.length} hari terakhir</caption>
+            <thead>
+              <tr>
+                <th scope="col">Tanggal</th>
+                <th scope="col">Mood</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {recorded.map((p) => (
+                <tr key={p.day}>
+                  <td>{formatLocalDate(p.day, 'EEEE, d MMMM yyyy')}</td>
+                  <td>{moodOf(p.mood)?.label}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </figure>
   );
