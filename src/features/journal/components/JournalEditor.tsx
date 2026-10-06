@@ -17,6 +17,9 @@ interface Props {
   /** Catatan yang sudah ada, atau undefined untuk draf baru */
   entry?: JournalEntry;
   draftDate: LocalDate;
+  /** Isi awal draf baru (mis. templat refleksi) */
+  draftTitle?: string;
+  draftContent?: string;
   onCreated: (id: string) => void;
   onBack: () => void;
 }
@@ -39,10 +42,17 @@ const PROMPTS = [
  * - Perubahan tertunda disimpan saat editor ditutup.
  * State lokal adalah sumber kebenaran selama mengedit (data sync tidak menimpa ketikan).
  */
-export function JournalEditor({ entry, draftDate, onCreated, onBack }: Props) {
+export function JournalEditor({
+  entry,
+  draftDate,
+  draftTitle,
+  draftContent,
+  onCreated,
+  onBack,
+}: Props) {
   const actions = useJournalActions();
-  const [title, setTitle] = useState(entry?.title ?? '');
-  const [content, setContent] = useState(entry?.content ?? '');
+  const [title, setTitle] = useState(entry?.title ?? draftTitle ?? '');
+  const [content, setContent] = useState(entry?.content ?? draftContent ?? '');
   const [mood, setMood] = useState<number | null>(entry?.mood ?? null);
   const [date, setDate] = useState<LocalDate>(entry?.entry_date ?? draftDate);
   const [pinned, setPinned] = useState(entry?.is_pinned === 1);

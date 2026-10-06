@@ -12,7 +12,7 @@ cp .env.example .env.local   # isi kredensial — lihat docs/SETUP.md
 pnpm dev
 ```
 
-Panduan setup lengkap (Supabase, PowerSync, deploy, install di Android): **[docs/SETUP.md](docs/SETUP.md)**
+Panduan setup lengkap (Supabase, PowerSync, deploy, install di Android, backup otomatis): **[docs/SETUP.md](docs/SETUP.md)**
 
 ## Perintah
 

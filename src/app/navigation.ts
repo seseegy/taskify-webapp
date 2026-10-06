@@ -5,6 +5,7 @@ import {
   ListChecks,
   NotebookPen,
   Settings,
+  Trophy,
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
@@ -46,6 +47,13 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Wallet,
     gradient: 'bg-gradient-finance',
     mobile: true,
+  },
+  {
+    to: '/review',
+    label: 'Review',
+    icon: Trophy,
+    gradient: 'bg-gradient-brand',
+    mobile: false,
   },
   {
     to: '/vault',

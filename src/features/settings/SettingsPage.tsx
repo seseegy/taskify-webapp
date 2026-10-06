@@ -1,6 +1,7 @@
 import { useQuery } from '@powersync/react';
 import {
   BellRing,
+  Download,
   Hash,
   Trash2,
   CloudAlert,
@@ -31,6 +32,8 @@ import { TagChip } from '@/features/tags/TagPicker';
 import { Link } from 'react-router';
 import { useTheme, type ThemePreference } from '@/features/theme/theme-context';
 import { cn } from '@/lib/utils';
+import { toast } from '@/components/ui/toast-store';
+import { exportAllData } from './export-data';
 import { PinSettings } from './PinSettings';
 import { formatBytes, useStorageInfo } from './useStorageInfo';
 
@@ -250,8 +253,11 @@ function usePendingUploads() {
 
 function DataSection() {
   const tags = useAllTags();
+  const { powerSync } = useDatabase();
+  const user = useUser();
+  const [busy, setBusy] = useState(false);
   return (
-    <Section icon={Hash} title="Tag & Sampah" gradient="bg-gradient-brand">
+    <Section icon={Hash} title="Data, tag & Sampah" gradient="bg-gradient-brand">
       <div className="mb-3 flex flex-wrap gap-1.5">
         {tags.length === 0 ? (
           <p className="text-sm text-muted">
@@ -261,12 +267,33 @@ function DataSection() {
           tags.map((t) => <TagChip key={t.id} tag={t} />)
         )}
       </div>
-      <Link
-        to="/sampah"
-        className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-surface"
-      >
-        <Trash2 className="size-4" /> Buka Sampah
-      </Link>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="secondary"
+          loading={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const n = await exportAllData(powerSync, user.id);
+              toast(`${n} baris diekspor`, { tone: 'success' });
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <Download /> Ekspor semua data (JSON)
+        </Button>
+        <Link
+          to="/sampah"
+          className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold text-primary hover:bg-surface"
+        >
+          <Trash2 className="size-4" /> Buka Sampah
+        </Link>
+      </div>
+      <p className="mt-3 text-xs text-muted">
+        Ekspor dibuat dari data di perangkat ini, jadi tetap bisa dipakai saat offline. Server juga
+        dicadangkan otomatis tiap minggu (lihat docs/SETUP.md §9).
+      </p>
     </Section>
   );
 }

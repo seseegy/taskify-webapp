@@ -103,7 +103,7 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 - `push_subscriptions` dan `task_reminder_log` **tidak disinkron** PowerSync. Langganan push ditulis langsung lewat supabase-js (mengaktifkan notifikasi memang butuh online), sedangkan log hanya diakses server.
 - Mengubah `remind_at` menghasilkan kunci log baru, jadi pengingat baru tetap terkirim, tanpa ada yang terkirim dobel.
 - Langganan yang kedaluwarsa (404/410) otomatis dihapus.
-- Service worker (Workbox) memuat `public/push-handler.js`. Klik notifikasi membuka `/tugas?task=<id>`, dan `AppShell` membuka panel detail tugas itu.
+- Service worker (Workbox) memuat `public/sw-extra.js` (push, klik notifikasi, Share Target). Klik notifikasi membuka `/tugas?task=<id>`, dan `AppShell` membuka panel detail tugas itu.
 
 ## Keuangan
 
@@ -156,6 +156,32 @@ Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──syn
 - Snippet: syntax highlight (prism-react-renderer + bahasa prismjs tambahan, dimuat lazy), variabel template `{{nama}}` diisi saat disalin.
 - Foto besar (>1,5 MB) diperkecil ke maks. 2000 px JPEG sebelum diunggah.
 
+## Review & heatmap
+
+- `/review?periode=minggu|bulan&tanggal=<tanggal>` (desktop: menu samping; HP: tautan dari Beranda). Minggu = Senin–Minggu WIB.
+- Statistik (`features/review/review-queries.ts`) dihitung langsung dengan SQL dari SQLite lokal, jadi tidak perlu tabel ringkasan: tugas selesai/terlambat, hari menulis jurnal & rata-rata mood, pemasukan/pengeluaran + kategori terbesar, item vault baru. Setiap angka dibandingkan dengan periode sebelumnya.
+- **Tulis refleksi** membuka draf jurnal (`?baru=…&templat=review-minggu|bulan`) berisi ringkasan angka + pertanyaan. Draf baru tersimpan setelah diedit, mengikuti aturan simpan otomatis jurnal.
+- Heatmap = jumlah per hari dari tugas selesai + catatan jurnal + transaksi + snippet/project baru. Level 0–4 relatif terhadap hari tersibuk dalam rentang. Beranda menampilkan 16 minggu terakhir.
+
+## Bagikan ke Taskify (Share Target)
+
+```
+App lain ── Bagikan ──► POST /bagikan (multipart) ──► sw-extra.js: simpan ke Cache "taskify-share"
+                                                       └─ 303 → /bagikan?masuk=1 ──► SharePage memilih tujuan
+```
+
+- Manifest `share_target` menerima judul/teks/URL dan file (gambar, PDF, zip, file teks/kode).
+- Teks → tugas, jurnal, snippet, atau catat cepat. File → project baru / versi project, struk transaksi, snippet (file teks), atau lampiran jurnal. Kotak masuk dikosongkan setelah selesai atau dibatalkan.
+- Hanya berfungsi untuk PWA yang ter-install (Chrome Android). Di desktop, halaman `/bagikan` tetap aman dibuka (kotak masuk kosong).
+
+## Backup & keep-alive
+
+- `backup.yml` (mingguan) menjalankan `scripts/backup.sh`, yang berisi `pg_dump -Fc` skema `public` + data `auth.users` → tar.gz → `openssl enc -aes-256-cbc -pbkdf2 -iter 600000` → unggah ke bucket R2 **terpisah** dengan prefix `backups/`. 12 arsip terbaru disimpan. Dump di bawah 1 KB dianggap gagal.
+- `pg_dump` 17 dijalankan lewat Docker `postgres:17-alpine`, karena versi bawaan runner lebih lama dari server Supabase.
+- `keepalive.yml` (tiap 2 hari) menjalankan satu `SELECT` supaya project free tier tidak di-pause.
+- Pembersihan yatim di fungsi `files` hanya menyentuh key berpola `<uuid>/<uuid>/…`, jadi objek lain (mis. backup jika satu bucket) tidak pernah terhapus.
+- **Ekspor JSON** di Pengaturan (`features/settings/export-data.ts`) mengambil 16 tabel tersinkron dari SQLite lokal, tanpa server.
+
 ## Keamanan
 
 - RLS `owner_*` di semua tabel + `FORCE ROW LEVEL SECURITY`; `anon` tidak punya akses.
@@ -175,4 +201,4 @@ Migrasi diuji di Postgres (PGlite): RLS antar-user, constraint, trigger seed, pu
 | 4     | Jurnal (markdown, mood, "hari ini di masa lalu")                                           | ✅     |
 | 5     | Quick capture, tag & tautan silang, pencarian global FTS5, Sampah                          | ✅     |
 | 6     | Vault: snippet + zip ke R2 (Edge Function presign, lihat isi zip, versi, SHA-256)          | ✅     |
-| 7     | Dashboard review, heatmap, GitHub Action keep-alive + backup `pg_dump` ke R2, Share Target |        |
+| 7     | Dashboard review, heatmap, GitHub Action keep-alive + backup `pg_dump` ke R2, Share Target | ✅     |
