@@ -160,7 +160,7 @@ function SnippetForm({
             spellCheck={false}
             aria-label="Kode"
             placeholder={'// Tempel kode di sini\n// Pakai {{nama}} untuk variabel template'}
-            className="block min-h-72 w-full resize-y bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre outline-none placeholder:text-muted/60"
+            className="block min-h-72 w-full resize-y bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset"
           />
         ) : (
           <div className="max-h-[50dvh] overflow-auto px-3 py-3">

@@ -49,7 +49,7 @@ export function SubtaskList({ parent }: { parent: Task }) {
                 else e.target.value = s.title;
               }}
               onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-              className={`min-w-0 flex-1 bg-transparent text-sm outline-none ${s.status === 'done' ? 'text-muted line-through' : ''}`}
+              className={`min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary/60 ${s.status === 'done' ? 'text-muted line-through' : ''}`}
             />
             <button
               type="button"
@@ -69,7 +69,7 @@ export function SubtaskList({ parent }: { parent: Task }) {
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Tambah subtask"
           aria-label="Tambah subtask"
-          className="h-9 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
+          className="h-9 min-w-0 flex-1 rounded-md bg-transparent px-1 text-sm outline-none placeholder:text-muted/70 focus-visible:ring-2 focus-visible:ring-primary/60"
         />
       </form>
     </div>

@@ -117,7 +117,7 @@ function TaskForm({ task }: { task: Task }) {
               }
             }}
             className={cn(
-              'field-sizing-content min-h-10 w-full resize-none bg-transparent py-1 text-lg font-bold outline-none',
+              'field-sizing-content min-h-10 w-full resize-none rounded-lg bg-transparent px-1 py-1 text-lg font-bold outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
               done && 'text-muted line-through',
             )}
           />

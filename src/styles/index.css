@@ -234,6 +234,20 @@
   }
 }
 
+/* -----------------------------------------------------------------------------
+   Fokus keyboard yang tidak boleh hilang
+   Banyak kolom teks memakai `outline-none` di dalam permukaan kaca. Aturan ini sengaja berada
+   DI LUAR @layer (menang atas utility Tailwind) dan menggambar cincin fokus di kolom itu sendiri
+   (`input.glass`) atau di pembungkus kacanya (`.glass` yang langsung membungkus input/textarea).
+   ----------------------------------------------------------------------------- */
+input.glass:focus-visible,
+textarea.glass:focus-visible,
+select.glass:focus-visible,
+.glass:has(> :is(input, textarea, select):focus-visible) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
