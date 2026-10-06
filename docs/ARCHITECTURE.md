@@ -117,6 +117,16 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 - **Hutang/piutang**: perpindahan uang ke/dari dompet bersifat opsional, dan transaksinya juga ber-ID deterministik (`debt-open`, `debt-settle`) sehingga "Batal lunas" dan hapus bisa tepat sasaran.
 - Ekspor CSV memakai pemisah `;` + BOM UTF-8 (cocok untuk Excel Indonesia).
 
+## Jurnal
+
+- Satu tanggal boleh punya beberapa catatan. Isi berupa Markdown (GFM). HTML mentah tidak dirender, jadi aman dari XSS.
+- **Simpan otomatis**: teks disimpan 0,7 detik setelah berhenti mengetik, sedangkan mood/tanggal/pin langsung. Draf baru baru dibuat di DB saat ada isi pertama, jadi tidak ada catatan kosong. Perubahan tertunda disimpan saat editor ditutup.
+- Selama mengedit, state lokal editor adalah sumber kebenaran. Draf yang baru tersimpan tetap memakai komponen yang sama (kursor tidak hilang).
+- URL: `?entri=<id>`, `?baru=<tanggal>` (selalu draf baru), `?tanggal=<tanggal>` (catatan terakhir di tanggal itu atau draf).
+- Mood 1–5 ditampilkan dengan ikon (bukan emoji) supaya konsisten di semua perangkat. Kalender menampilkan rata-rata mood per hari.
+- "Hari ini di masa lalu" = tanggal & bulan yang sama di tahun sebelumnya, plus tepat 1 bulan lalu. Streak tidak putus sebelum kamu sempat menulis hari ini.
+- Ekspor: satu file Markdown berisi semua catatan.
+
 ## Keamanan
 
 - RLS `owner_*` di semua tabel + `FORCE ROW LEVEL SECURITY`; `anon` tidak punya akses.
@@ -133,7 +143,7 @@ Migrasi diuji di Postgres (PGlite): RLS antar-user, constraint, trigger seed, pu
 | 1     | Fondasi: skema, RLS, sync, login, PIN, PWA, design system, Beranda & Kalender bulanan      | ✅     |
 | 2     | Tugas + Kalender (list, subtask, RRULE, minggu/agenda, pengingat Web Push)                 | ✅     |
 | 3     | Keuangan (CRUD transaksi, input "25rb", anggaran, berulang, hutang, ekspor CSV)            | ✅     |
-| 4     | Jurnal (markdown, mood, "hari ini di masa lalu")                                           |        |
+| 4     | Jurnal (markdown, mood, "hari ini di masa lalu")                                           | ✅     |
 | 5     | Quick capture, tag & tautan silang, pencarian global FTS5, Sampah                          |        |
 | 6     | Vault: snippet + zip ke R2 (Edge Function presign, lihat isi zip, versi, SHA-256)          |        |
 | 7     | Dashboard review, heatmap, GitHub Action keep-alive + backup `pg_dump` ke R2, Share Target |        |
