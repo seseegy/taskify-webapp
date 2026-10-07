@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { toast } from '@/components/ui/toast-store';
 import type { JournalEntry } from '@/db/schema';
-import { formatLocalDate, relativeDayLabel, todayLocal, type LocalDate } from '@/lib/date';
+import { formatLocalDate, relativeDayLabel, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { JournalEditor } from './components/JournalEditor';
 import { JournalInsights } from './components/JournalInsights';
@@ -16,6 +16,7 @@ import { useJournalActions } from './journal-actions';
 import { useEntriesOnDate, useJournalEntries, useJournalEntry } from './journal-queries';
 import { journalToMarkdown, plainExcerpt } from './journal-utils';
 import { MOODS, moodOf } from './mood';
+import { useToday } from '@/lib/useToday';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -26,7 +27,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
  *   ?tanggal=<tanggal> buka catatan terakhir di tanggal itu, atau draf jika belum ada
  */
 export function JournalPage() {
-  const today = todayLocal();
+  const today = useToday();
   const [params, setParams] = useSearchParams();
   const entriId = params.get('entri');
   const baru = DATE_RE.test(params.get('baru') ?? '') ? params.get('baru')! : null;

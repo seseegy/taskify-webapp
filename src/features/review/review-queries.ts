@@ -148,10 +148,14 @@ export interface HeatDay {
 /**
  * Skor aktivitas per hari untuk heatmap: tugas selesai + jurnal + transaksi + item vault baru.
  */
-export function useActivityHeatmap(from: LocalDate, to: LocalDate) {
-  const { data } = useQuery<{ day: LocalDate; kind: string; n: number }>(
-    `SELECT date(completed_at, ?3) AS day, 'tasks' AS kind, COUNT(*) AS n FROM tasks
-      WHERE deleted_at IS NULL AND status = 'done' AND date(completed_at, ?3) BETWEEN ?1 AND ?2 GROUP BY day
+/**
+ * Aturan hitung SAMA dengan Kalender & Review (supaya angka satu hari tidak berbeda antar layar):
+ *  - tugas = hanya tugas induk (subtask tidak dihitung sendiri)
+ *  - vault = snippet baru + project baru + versi file project baru
+ */
+export const HEATMAP_SQL = `SELECT date(completed_at, ?3) AS day, 'tasks' AS kind, COUNT(*) AS n FROM tasks
+      WHERE deleted_at IS NULL AND parent_id IS NULL AND status = 'done'
+        AND date(completed_at, ?3) BETWEEN ?1 AND ?2 GROUP BY day
      UNION ALL
      SELECT entry_date, 'journal', COUNT(*) FROM journal_entries
       WHERE deleted_at IS NULL AND entry_date BETWEEN ?1 AND ?2 GROUP BY entry_date
@@ -161,10 +165,17 @@ export function useActivityHeatmap(from: LocalDate, to: LocalDate) {
      UNION ALL
      SELECT day, 'vault', COUNT(*) FROM (
        SELECT date(created_at, ?3) AS day FROM snippets WHERE deleted_at IS NULL
-       UNION ALL SELECT date(created_at, ?3) FROM attachments WHERE deleted_at IS NULL AND entity_type = 'code_project')
-      WHERE day BETWEEN ?1 AND ?2 GROUP BY day`,
-    [from, to, SQLITE_TZ_MODIFIER],
-  );
+       UNION ALL SELECT date(created_at, ?3) FROM code_projects WHERE deleted_at IS NULL
+       UNION ALL SELECT date(created_at, ?3) FROM attachments
+        WHERE deleted_at IS NULL AND entity_type = 'code_project')
+      WHERE day BETWEEN ?1 AND ?2 GROUP BY day`;
+
+export function useActivityHeatmap(from: LocalDate, to: LocalDate) {
+  const { data } = useQuery<{ day: LocalDate; kind: string; n: number }>(HEATMAP_SQL, [
+    from,
+    to,
+    SQLITE_TZ_MODIFIER,
+  ]);
   return useMemo(() => {
     const map = new Map<LocalDate, HeatDay>();
     for (const r of data) {

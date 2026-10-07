@@ -1,8 +1,9 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { buildWeek, WEEKDAY_LABELS, WEEKDAY_NAMES } from '@/features/calendar/calendar-utils';
-import { addLocalDays, formatLocalDate, todayLocal, type LocalDate } from '@/lib/date';
+import { addLocalDays, formatLocalDate, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { heatLevel, useActivityHeatmap } from './review-queries';
+import { useToday } from '@/lib/useToday';
 
 const LEVEL_CLASS = [
   'bg-surface',
@@ -30,7 +31,7 @@ export function ActivityHeatmap({
   weeks?: number;
   onSelect?: (day: LocalDate) => void;
 }) {
-  const today = todayLocal();
+  const today = useToday();
   const lastWeek = buildWeek(today);
   const start = addLocalDays(lastWeek[0]!, -(weeks - 1) * 7);
   const byDay = useActivityHeatmap(start, lastWeek[6]!);

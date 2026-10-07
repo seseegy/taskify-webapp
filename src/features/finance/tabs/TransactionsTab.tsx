@@ -7,19 +7,13 @@ import { Select } from '@/components/ui/Field';
 import { toast } from '@/components/ui/toast-store';
 import type { TransactionKind } from '@/db/schema';
 import { downloadCsv, toCsv } from '@/lib/csv';
-import {
-  monthEnd,
-  relativeDayLabel,
-  shortTime,
-  todayLocal,
-  formatLocalDate,
-  type LocalDate,
-} from '@/lib/date';
+import { monthEnd, relativeDayLabel, shortTime, formatLocalDate, type LocalDate } from '@/lib/date';
 import { formatIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { TransactionRow } from '../components/TransactionRow';
 import { txTitle } from '../finance-utils';
 import { useCategories, useTransactions, useWallets, type TxRow } from '../finance-queries';
+import { useToday } from '@/lib/useToday';
 
 const KIND_LABEL: Record<TransactionKind, string> = {
   income: 'Pemasukan',
@@ -36,7 +30,7 @@ export function TransactionsTab({
   walletId: string | null;
   onWallet: (id: string | null) => void;
 }) {
-  const today = todayLocal();
+  const today = useToday();
   const [kind, setKind] = useState<TransactionKind | ''>('');
   const [categoryId, setCategoryId] = useState('');
   const [search, setSearch] = useState('');

@@ -89,6 +89,15 @@ export const nowIso = () => new Date().toISOString();
 const WIB_OFFSET_MS = 7 * 3600_000;
 
 /**
+ * Milidetik sampai tengah malam WIB berikutnya (+ sedikit jeda agar `todayLocal()` sudah pasti
+ * berganti saat timer berbunyi). WIB tetap UTC+7 tanpa DST, jadi cukup aritmetika offset.
+ */
+export function msUntilNextDay(now: number = Date.now()): number {
+  const day = 86_400_000;
+  return day - ((now + WIB_OFFSET_MS) % day) + 250;
+}
+
+/**
  * Parse timestamp dari DB. PowerSync mengirim timestamptz sebagai
  * '2026-10-05 07:00:00Z' (spasi, bukan 'T'), sedangkan tulisan lokal memakai ISO.
  */

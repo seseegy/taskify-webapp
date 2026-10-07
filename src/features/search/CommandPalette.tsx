@@ -40,11 +40,12 @@ import { EntityIcon } from '@/features/entities/EntityChip';
 import { useTxSheet } from '@/features/finance/tx-sheet-store';
 import { TagChip } from '@/features/tags/TagPicker';
 import { useTheme } from '@/features/theme/theme-context';
-import { relativeDayLabel, todayLocal } from '@/lib/date';
+import { relativeDayLabel } from '@/lib/date';
 import { formatIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { usePalette } from './palette-store';
 import { splitSnippet, useGlobalSearch } from './useGlobalSearch';
+import { useToday } from '@/lib/useToday';
 
 interface Item {
   key: string;
@@ -105,7 +106,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
   const listId = `${baseId}-list`;
   const hintId = `${baseId}-hint`;
   const optionId = (i: number) => `${baseId}-opt-${i}`;
-  const today = todayLocal();
+  const today = useToday();
   const navigate = useNavigate();
   const openEntity = useOpenEntity();
   const capture = useCapture();

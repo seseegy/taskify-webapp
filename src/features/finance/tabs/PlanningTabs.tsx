@@ -22,13 +22,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
 import type { Category, CategoryKind } from '@/db/schema';
 import { describeRule } from '@/features/tasks/recurrence';
-import {
-  formatLocalDate,
-  monthEnd,
-  relativeDayLabel,
-  todayLocal,
-  type LocalDate,
-} from '@/lib/date';
+import { formatLocalDate, monthEnd, relativeDayLabel, type LocalDate } from '@/lib/date';
 import { formatIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { BudgetBar } from '../components/BudgetBar';
@@ -51,6 +45,7 @@ import {
   type WalletWithBalance,
 } from '../finance-queries';
 import { DueRecurring } from './OverviewTab';
+import { useToday } from '@/lib/useToday';
 
 // ============================================================================ Anggaran
 export function BudgetTab({ month }: { month: LocalDate }) {
@@ -105,7 +100,7 @@ export function BudgetTab({ month }: { month: LocalDate }) {
 
 // ============================================================================ Berulang
 export function RecurringTab() {
-  const today = todayLocal();
+  const today = useToday();
   const items = useRecurringTransactions();
   const actions = useFinanceActions();
   const [dialog, setDialog] = useState<{ open: boolean; item: RecurringRow | null }>({
@@ -222,7 +217,7 @@ export function RecurringTab() {
 
 // ============================================================================ Hutang
 export function DebtTab() {
-  const today = todayLocal();
+  const today = useToday();
   const debts = useDebts();
   const actions = useFinanceActions();
   const [open, setOpen] = useState(false);

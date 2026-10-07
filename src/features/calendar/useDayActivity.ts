@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
 import type { Task } from '@/db/schema';
-import { addLocalDays, todayLocal, type LocalDate } from '@/lib/date';
+import { addLocalDays, type LocalDate } from '@/lib/date';
 import { occurrencesBetween } from '@/features/tasks/recurrence';
 import { useActiveRecurring, useTasksInRange } from '@/features/tasks/task-queries';
 import { EMPTY_DAY, useCalendarActivity, type DayActivity } from './useCalendarActivity';
+import { useToday } from '@/lib/useToday';
 
 export interface CalendarTaskItem {
   task: Task;
@@ -14,7 +15,7 @@ export interface CalendarTaskItem {
 
 /** Tugas per hari dalam rentang: baris nyata + kejadian berulang virtual. */
 export function useCalendarTasks(from: LocalDate, to: LocalDate) {
-  const today = todayLocal();
+  const today = useToday();
   const real = useTasksInRange(from, to);
   const recurring = useActiveRecurring(to);
 

@@ -1,5 +1,5 @@
 import { useQuery } from '@powersync/react';
-import { todayLocal } from '@/lib/date';
+import { useToday } from '@/lib/useToday';
 
 export interface TodaySummary {
   tasks_today: number;
@@ -48,7 +48,7 @@ const SQL = `
 `;
 
 export function useTodaySummary() {
-  const today = todayLocal();
+  const today = useToday();
   const monthStart = `${today.slice(0, 7)}-01`;
   const { data, isLoading } = useQuery<TodaySummary>(SQL, [today, monthStart]);
   return { summary: data[0], isLoading, today };

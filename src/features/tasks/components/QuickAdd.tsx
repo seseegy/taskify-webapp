@@ -1,11 +1,12 @@
 import { CalendarDays, Clock, Flag, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
-import { relativeDayLabel, todayLocal, type LocalDate } from '@/lib/date';
+import { relativeDayLabel, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { useTagActions } from '@/features/tags/tag-actions';
 import { parseQuickAdd } from '../quick-parse';
 import { useTaskActions } from '../task-actions';
 import { PRIORITIES } from '../task-utils';
+import { useToday } from '@/lib/useToday';
 
 interface Props {
   /** Tanggal default jika input tidak menyebut tanggal */
@@ -23,7 +24,7 @@ export function QuickAdd({ defaultDate = null, listId = null, placeholder, class
   const actions = useTaskActions();
   const tagActions = useTagActions();
   const [value, setValue] = useState('');
-  const today = todayLocal();
+  const today = useToday();
   const parsed = value.trim() ? parseQuickAdd(value, today) : null;
   const date = parsed?.due_date ?? defaultDate;
 
