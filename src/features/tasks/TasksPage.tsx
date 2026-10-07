@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingRows } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/toast-store';
 import type { Task, TaskList } from '@/db/schema';
 import {
@@ -288,7 +289,7 @@ function TaskViewContent({
     return groupByDate(rows, today);
   }, [rows, view, today]);
 
-  if (isLoading) return null;
+  if (isLoading) return <LoadingRows label="Memuat tugas…" />;
 
   const empty = rows.length === 0;
 

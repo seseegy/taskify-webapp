@@ -5,6 +5,7 @@ import { ArrowRight, Target } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link } from 'react-router';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { LoadingRows } from '@/components/ui/Skeleton';
 import { useDatabase } from '@/db/database-context';
 import { tasks } from '@/db/schema';
 import { QuickAdd } from '@/features/tasks/components/QuickAdd';
@@ -43,7 +44,7 @@ export function FocusCard({ today }: { today: LocalDate }) {
         .limit(LIMIT + 1),
     [db, today],
   );
-  const { data } = useQuery(toCompilableQuery(query));
+  const { data, isLoading } = useQuery(toCompilableQuery(query));
 
   return (
     <Card className="animate-fade-up">
@@ -62,8 +63,12 @@ export function FocusCard({ today }: { today: LocalDate }) {
         </Link>
       </CardHeader>
       <QuickAdd defaultDate={today} placeholder="Tambah tugas hari ini…" className="mb-2" />
-      {data.length === 0 ? (
-        <p className="px-2 py-3 text-sm text-muted">Semua beres untuk hari ini 🎉</p>
+      {isLoading ? (
+        <LoadingRows label="Memuat tugas hari ini…" rows={2} />
+      ) : data.length === 0 ? (
+        <p className="px-2 py-3 text-sm text-muted">
+          Semua beres untuk hari ini <span aria-hidden="true">🎉</span>
+        </p>
       ) : (
         <div className="space-y-0.5">
           {data.slice(0, LIMIT).map((t) => (

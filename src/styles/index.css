@@ -39,6 +39,8 @@
 
   --animate-blob: blob 22s ease-in-out infinite alternate;
   --animate-fade-up: fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* Muncul setelah jeda 300 ms: pemuatan singkat (query lokal) tidak menampilkan apa pun */
+  --animate-delayed-in: delayed-in 0.2s ease 0.3s both;
 
   @keyframes blob {
     0% {
@@ -49,6 +51,14 @@
     }
     100% {
       transform: translate3d(-4%, 5%, 0) scale(0.96);
+    }
+  }
+  @keyframes delayed-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
     }
   }
   @keyframes fade-up {

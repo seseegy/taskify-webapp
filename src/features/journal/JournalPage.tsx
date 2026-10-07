@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingRows } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/toast-store';
 import type { JournalEntry } from '@/db/schema';
 import { formatLocalDate, relativeDayLabel, todayLocal, type LocalDate } from '@/lib/date';
@@ -262,6 +263,8 @@ function EntryList({
           </button>
         </div>
       )}
+
+      {isLoading && <LoadingRows label="Memuat catatan…" />}
 
       {!isLoading && entries.length === 0 && (
         <EmptyState
