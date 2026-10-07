@@ -21,7 +21,9 @@ export interface LockConfig {
 export const AUTO_LOCK_OPTIONS = [0, 1, 5, 15, 60] as const;
 
 // ----------------------------------------------------------------------------- percobaan gagal
-const ATTEMPTS_KEY = 'taskify-lock-attempts';
+export const ATTEMPTS_KEY = 'taskify-lock-attempts';
+/** Jeda setelah 5 percobaan gagal. Juga batas atas nilai tersimpan (lihat readLockAttempts). */
+export const COOLDOWN_MS = 30_000;
 
 export interface LockAttempts {
   failedAttempts: number;
@@ -41,8 +43,12 @@ export function readLockAttempts(now = Date.now()): LockAttempts {
       typeof v.failedAttempts === 'number' && v.failedAttempts > 0
         ? Math.floor(v.failedAttempts)
         : 0;
+    // Dijepit ke now + COOLDOWN_MS: jika jam perangkat sempat maju jauh lalu dikoreksi, nilai
+    // tersimpan bisa berbulan-bulan di depan dan mengunci pengguna di luar aplikasi.
     const cooldownUntil =
-      typeof v.cooldownUntil === 'number' && v.cooldownUntil > now ? v.cooldownUntil : null;
+      typeof v.cooldownUntil === 'number' && v.cooldownUntil > now
+        ? Math.min(v.cooldownUntil, now + COOLDOWN_MS)
+        : null;
     return { failedAttempts, cooldownUntil };
   } catch {
     return { failedAttempts: 0, cooldownUntil: null };

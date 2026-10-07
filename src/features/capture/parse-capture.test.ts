@@ -85,6 +85,20 @@ describe('parseCapture · nominal + tanggal MENDATANG = rencana (tugas)', () => 
     });
   });
 
+  it('pembelian/pemasukan yang kebetulan menyebut "besok" tetap transaksi (bukan rencana bayar)', () => {
+    for (const s of [
+      'beli kado 100rb untuk ulang tahun besok',
+      'isi bensin 50rb buat besok',
+      '+5jt gaji minggu depan',
+      'terima bonus 2jt lusa',
+    ]) {
+      const c = parseCapture(s, TODAY);
+      expect(['expense', 'income'], s).toContain(c.kind);
+      expect(c.amount, s).toBeGreaterThan(0);
+    }
+    expect(parseCapture('+5jt gaji minggu depan', TODAY).kind).toBe('income');
+  });
+
   it('nama hari TANPA "depan" tetap dicatat sebagai transaksi (orang sering mencatat hari yang lalu)', () => {
     expect(parseCapture('makan siang 25rb senin', TODAY).kind).toBe('expense');
   });

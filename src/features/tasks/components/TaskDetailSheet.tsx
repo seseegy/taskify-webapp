@@ -26,7 +26,7 @@ import { LinksPanel } from '@/features/links/LinksPanel';
 import { TagPicker } from '@/features/tags/TagPicker';
 import { localeId, parseTimestamp, shortTime, todayLocal } from '@/lib/date';
 import { cn } from '@/lib/utils';
-import { buildRule, parseRule } from '../recurrence';
+import { retargetRule } from '../recurrence';
 import { computeRemindAt, detectPreset } from '../reminder';
 import { useTaskActions, type TaskPatch } from '../task-actions';
 import { useTask, useTaskLists } from '../task-queries';
@@ -68,7 +68,7 @@ function TaskForm({ task }: { task: Task }) {
   const changeSchedule = (due_date: string | null, due_time: string | null) => {
     if (!due_date) return save({ due_date: null });
     const patch: TaskPatch = { due_date, due_time };
-    if (task.rrule) patch.rrule = buildRule(parseRule(task.rrule), due_date);
+    if (task.rrule) patch.rrule = retargetRule(task.rrule, due_date);
     const preset = detectPreset(task.remind_at, task.due_date, task.due_time);
     if (preset !== 'none' && preset !== 'custom') {
       // Preset yang tidak cocok lagi (mis. "10 menit sebelum" tapi jam dihapus) → hapus pengingat

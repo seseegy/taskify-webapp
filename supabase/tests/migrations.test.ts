@@ -15,6 +15,7 @@ const FILES = readdirSync(DIR)
   .filter((f) => f.endsWith('.sql'))
   .sort();
 const RETRY_MIGRATION = '20261008000100_reminder_retry.sql';
+const LATER_MIGRATIONS = FILES.filter((f) => f > RETRY_MIGRATION);
 
 let pg: PGlite;
 let userId: string;
@@ -47,7 +48,7 @@ beforeAll(async () => {
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT NULL::uuid $$;
   `);
   // Migrasi sebelum perbaikan pengingat dulu, supaya jalur upgrade (data lama) ikut teruji
-  for (const f of FILES.filter((f) => f !== RETRY_MIGRATION))
+  for (const f of FILES.filter((f) => f < RETRY_MIGRATION))
     await pg.exec(readFileSync(DIR + f, 'utf8'));
   userId = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!
     .id;
@@ -117,6 +118,7 @@ describe('pengingat · jalur upgrade', () => {
     const old = await makeTask('diklaim-fungsi-lama', 10);
     expect(await claim()).toHaveLength(1); // fungsi lama
     await pg.exec(readFileSync(DIR + RETRY_MIGRATION, 'utf8')); // upgrade
+    for (const f of LATER_MIGRATIONS) await pg.exec(readFileSync(DIR + f, 'utf8'));
 
     const cols = (
       await rows<{ column_name: string }>(
@@ -211,5 +213,70 @@ describe('pengingat · klaim, coba ulang, selesai', () => {
     );
     expect(grants).toHaveLength(3);
     for (const g of grants) expect(g.ok, g.proname).toBe(false);
+  });
+});
+
+describe('lampiran · pembersihan memakai waktu server (received_at)', () => {
+  async function makeAttachment(opts: {
+    status: string;
+    createdDaysAgo: number;
+    receivedDaysAgo: number;
+  }) {
+    // Entitas induk yang hidup, supaya aturan "induk hilang" tidak ikut memicu
+    const [task] = await rows<{ id: string }>(
+      `INSERT INTO public.tasks (id, user_id, title, status) VALUES (gen_random_uuid(), $1, 'induk', 'todo') RETURNING id`,
+      [userId],
+    );
+    const [a] = await rows<{ id: string }>(
+      `INSERT INTO public.attachments
+         (id, user_id, entity_type, entity_id, storage_key, file_name, size_bytes, status, created_at, received_at)
+       VALUES (gen_random_uuid(), $1, 'task', $2, 'k/' || gen_random_uuid(), 'f.txt', 10, $3,
+               now() - ($4 || ' days')::interval, now() - ($5 || ' days')::interval)
+       RETURNING id`,
+      [userId, task!.id, opts.status, String(opts.createdDaysAgo), String(opts.receivedDaysAgo)],
+    );
+    return a!.id;
+  }
+  const purgeable = async () =>
+    (await rows<{ id: string }>(`SELECT id FROM public.attachments_to_purge(500)`)).map(
+      (r) => r.id,
+    );
+
+  it('kolom received_at ada, default-nya waktu server, dan klien tidak perlu mengisinya', async () => {
+    const [{ received_at, created_at }] = await rows<{ received_at: Date; created_at: Date }>(
+      `WITH t AS (INSERT INTO public.tasks (id, user_id, title, status) VALUES (gen_random_uuid(), $1, 'x', 'todo') RETURNING id)
+       INSERT INTO public.attachments (id, user_id, entity_type, entity_id, storage_key, file_name, size_bytes, status, created_at)
+       SELECT gen_random_uuid(), $1, 'task', t.id, 'k/' || gen_random_uuid(), 'f', 1, 'pending', now() - interval '10 days' FROM t
+       RETURNING received_at, created_at`,
+      [userId],
+    );
+    expect(Date.now() - received_at.getTime()).toBeLessThan(60_000);
+    expect(received_at.getTime() - created_at.getTime()).toBeGreaterThan(9 * 86_400_000);
+  });
+
+  it('dibuat offline 10 hari lalu tetapi BARU tiba di server → tidak dihapus', async () => {
+    const id = await makeAttachment({ status: 'pending', createdDaysAgo: 10, receivedDaysAgo: 0 });
+    expect(await purgeable()).not.toContain(id);
+  });
+
+  it('sudah > 2 hari di server tetapi masih belum terunggah → dihapus', async () => {
+    const id = await makeAttachment({ status: 'failed', createdDaysAgo: 3, receivedDaysAgo: 3 });
+    expect(await purgeable()).toContain(id);
+  });
+
+  it('yang sudah terunggah tidak pernah dihapus karena umur', async () => {
+    const id = await makeAttachment({
+      status: 'uploaded',
+      createdDaysAgo: 400,
+      receivedDaysAgo: 400,
+    });
+    expect(await purgeable()).not.toContain(id);
+  });
+
+  it('fungsi pembersih tetap hanya bisa dipanggil service_role', async () => {
+    const [{ ok }] = await rows<{ ok: boolean }>(
+      `SELECT has_function_privilege('authenticated', 'public.attachments_to_purge(integer)', 'EXECUTE') AS ok`,
+    );
+    expect(ok).toBe(false);
   });
 });

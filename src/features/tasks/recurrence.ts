@@ -30,6 +30,12 @@ export interface RecurrenceState {
   /** 0 = Senin … 6 = Minggu (konvensi rrule) */
   byDay: number[];
   until: LocalDate | null;
+  /**
+   * Bulanan saja: tanggal yang dimaksud rule (1–31). Dibawa apa adanya agar rule "tiap tgl 31"
+   * tidak berubah menjadi "tiap tgl 28" hanya karena kejadian yang sedang aktif jatuh di 28 Feb
+   * lalu interval/batas diedit. Kosong = ikuti tanggal jatuh tempo (`anchor`).
+   */
+  monthDay?: number;
 }
 
 export const NO_RECURRENCE: RecurrenceState = { freq: 'none', interval: 1, byDay: [], until: null };
@@ -87,7 +93,11 @@ export function buildRule(state: RecurrenceState, anchor: LocalDate): string | n
       break;
     case 'monthly':
       opts.freq = RRule.MONTHLY;
-      opts.bymonthday = [anchorDate.getUTCDate()];
+      opts.bymonthday = [
+        state.monthDay && state.monthDay >= 1 && state.monthDay <= 31
+          ? state.monthDay
+          : anchorDate.getUTCDate(),
+      ];
       break;
     case 'yearly':
       opts.freq = RRule.YEARLY;
@@ -108,6 +118,18 @@ export function buildRule(state: RecurrenceState, anchor: LocalDate): string | n
   ].join(';');
 }
 
+/**
+ * Sesuaikan rule dengan tanggal jatuh tempo baru (mis. pengguna memindahkan tanggal atau
+ * mengubah jam). Jika rule yang ada MASIH menghasilkan tanggal itu, rule dibiarkan apa adanya:
+ * rule akhir-bulan yang sedang jatuh di 28 Feb tetap "akhir bulan" (bukan jadi "tiap tgl 28").
+ * Jika tidak (tanggal dipindah ke hari lain), rule dibangun ulang dari tanggal baru.
+ */
+export function retargetRule(rule: string | null | undefined, anchor: LocalDate): string | null {
+  if (!rule) return null;
+  if (occurrencesBetween(rule, anchor, anchor, anchor, 1).length === 1) return rule;
+  return buildRule({ ...parseRule(rule), monthDay: undefined }, anchor);
+}
+
 /** Parse string RRULE kembali ke state editor. String tak dikenal → 'none'. */
 export function parseRule(rule: string | null | undefined): RecurrenceState {
   if (!rule) return NO_RECURRENCE;
@@ -124,8 +146,12 @@ export function parseRule(rule: string | null | undefined): RecurrenceState {
         if (interval === 1 && byDay.join() === '0,1,2,3,4')
           return { freq: 'weekdays', interval: 1, byDay, until };
         return { freq: 'weekly', interval, byDay, until };
-      case RRule.MONTHLY:
-        return { freq: 'monthly', interval, byDay: [], until };
+      case RRule.MONTHLY: {
+        const monthDay = asArray(o.bymonthday).length
+          ? Math.max(...asArray(o.bymonthday))
+          : undefined;
+        return { freq: 'monthly', interval, byDay: [], until, monthDay };
+      }
       case RRule.YEARLY:
         return { freq: 'yearly', interval, byDay: [], until };
       default:

@@ -112,6 +112,14 @@ function findMoney(text: string): RegExpMatchArray | null {
 const FUTURE_WORD =
   /\s(?:besok|lusa|minggu\s+depan|(?:senin|selasa|rabu|kamis|jum'?at|sabtu|minggu|ahad)\s+depan)(?=\s)/i;
 
+/**
+ * Kata kerja yang menandakan RENCANA membayar/mengirim uang ("bayar listrik 150rb besok").
+ * Tanpa ini, "beli kado 100rb untuk ulang tahun besok" (pembelian yang terjadi sekarang) salah
+ * menjadi tugas hanya karena ada kata "besok".
+ */
+const PLAN_VERB =
+  /\b(?:bayar|bayarkan|membayar|cicil|angsur|angsuran|lunasi|lunas|tagihan|transfer|kirim|setor|top\s?up|perpanjang|iuran|donasi|zakat|sedekah|sewa|kontrak)\b/i;
+
 export function parseCapture(input: string, today: LocalDate): Capture {
   let text = ` ${input.trim()} `;
 
@@ -136,9 +144,12 @@ export function parseCapture(input: string, today: LocalDate): Capture {
     if (amount && amount > 0) {
       let rest = text.replace(money[0], ' ');
 
-      // Nominal + "besok/lusa/minggu depan" = rencana membayar, bukan transaksi yang sudah terjadi.
-      // Jadikan tugas bertanggal; nominal tetap disimpan agar jenisnya bisa diganti di palette.
-      if (FUTURE_WORD.test(rest)) {
+      // Nominal + "besok/lusa/minggu depan" + kata kerja rencana ("bayar", "transfer", …) = rencana
+      // membayar, bukan transaksi yang sudah terjadi. Pemasukan (awalan + / kata gaji) bukan rencana
+      // yang perlu diingatkan. Jadikan tugas bertanggal; nominal tetap disimpan agar jenisnya bisa
+      // diganti di palette.
+      const incomeLike = money[2] === '+' || INCOME_WORDS.test(rest);
+      if (!incomeLike && FUTURE_WORD.test(rest) && PLAN_VERB.test(rest)) {
         const plan = parseQuickAdd(text, today);
         const planTx = parseQuickAdd(rest, today);
         if (plan.due_date && plan.due_date > today) {

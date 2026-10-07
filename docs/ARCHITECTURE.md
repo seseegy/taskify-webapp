@@ -93,6 +93,7 @@ Aturan hitung aktivitas harus SAMA antar layar (Kalender, Review, heatmap): hany
 - Dalam satu seri (`series_id`) hanya **satu baris aktif** yang membawa `rrule`.
 - Saat dicentang: baris itu menjadi riwayat (`done`, `rrule = null`), lalu baris baru dibuat untuk kejadian berikutnya. Subtask ikut disalin dalam keadaan belum selesai, dan `remind_at` digeser sejumlah hari yang sama. Kalau tugas sudah lama terlambat, kejadian berikutnya melompat ke mulai hari ini.
 - **Tanggal 29–31** jatuh di hari terakhir bulan yang tidak punya tanggal itu (31 Jan → 28 Feb → 31 Mar), bukan dilewati seperti default RFC 5545. Rule dibuat sebagai `BYMONTHDAY=28,29,30,31;BYSETPOS=-1`, dan rule lama (`BYMONTHDAY=31`) dinormalkan saat dibaca (`clampToMonthEnd`) sehingga tanpa migrasi data. Berlaku juga untuk transaksi berulang dan 29 Feb tahunan.
+- **Mengedit tugas berulang** (`retargetRule`): memindahkan tanggal/jam tidak membangun ulang rule bila rule yang ada masih menghasilkan tanggal itu, jadi rule akhir-bulan yang kebetulan sedang jatuh di 28 Feb tetap "akhir bulan" (bukan berubah jadi "tiap tgl 28"). Editor interval membawa `monthDay` dari rule sebelumnya. Rule baru dibangun hanya bila tanggal dipindah ke hari lain.
 - Kejadian masa depan di Kalender bersifat **virtual** (dihitung dari rrule, tidak disimpan) dan ditandai ikon 🔁.
 - Semua operasi multi-baris dibungkus transaksi, dan bisa **Diurungkan** lewat toast.
 
@@ -104,7 +105,7 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
                                                    └─ Web Push (VAPID, aes128gcm) ──► push_subscriptions
 ```
 
-- **Pengiriman at-least-once**: `claim_due_reminders()` menulis log (`claimed_at`) lebih dulu agar cron yang tumpang tindih tidak mengirim dobel, tetapi baris baru dianggap selesai setelah Edge Function memanggil `mark_reminders_delivered()` (`delivered_at`) _sesudah_ push sukses. Jika push gagal, pengingat diklaim ulang setelah 3 menit, maksimal 5 percobaan, dalam jendela 24 jam. User tanpa langganan push atau semua langganannya sudah kedaluwarsa dianggap selesai (tidak ada tujuan).
+- **Pengiriman at-least-once**: `claim_due_reminders()` menulis log (`claimed_at`) lebih dulu agar cron yang tumpang tindih tidak mengirim dobel, tetapi baris baru dianggap selesai setelah Edge Function memanggil `mark_reminders_delivered()` (`delivered_at`) _sesudah_ push sukses. Jika push gagal, pengingat diklaim ulang setelah 3 menit, maksimal 5 percobaan, dalam jendela 24 jam. Penandaan dilakukan per kelompok 5 pengingat (bukan sekali di akhir), setiap push punya timeout 10 dtk, dan batch berhenti setelah 90 dtk, sehingga bila fungsi mati di tengah jalan paling banyak satu kelompok kecil terkirim ulang. Orkestrasinya ada di `supabase/functions/send-reminders/process.ts` (murni, diuji Vitest). User tanpa langganan push atau semua langganannya sudah kedaluwarsa dianggap selesai (tidak ada tujuan).
 - `push_subscriptions` dan `task_reminder_log` **tidak disinkron** PowerSync. Langganan push ditulis langsung lewat supabase-js (mengaktifkan notifikasi memang butuh online), sedangkan log hanya diakses server.
 - Mengubah `remind_at` menghasilkan kunci log baru, jadi pengingat baru tetap terkirim, tanpa ada yang terkirim dobel.
 - Langganan yang kedaluwarsa (404/410) otomatis dihapus.
@@ -154,7 +155,8 @@ Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──syn
    └─ (4) UPDATE status = 'uploaded' (file sudah ada di Cache Storage sejak langkah 0)
 ```
 
-- **Langkah 0**: file disimpan ke Cache Storage perangkat _sebelum_ diunggah. Jika offline/gagal/aplikasi ditutup, "Ulangi" tetap bisa memakai salinan itu, dan `useAttachmentOutbox` (AppShell) mengunggah otomatis saat online (maks. 3 percobaan per lampiran per sesi; hanya lampiran yang salinannya ada di perangkat ini). Cron server tetap menghapus lampiran yang belum terunggah setelah 2 hari.
+- **Langkah 0**: file disimpan ke Cache Storage perangkat _sebelum_ diunggah. Jika offline/gagal/aplikasi ditutup, "Ulangi" tetap bisa memakai salinan itu, dan `useAttachmentOutbox` (AppShell) mengunggah otomatis saat online. Aturan outbox (`upload-policy.ts`, diuji): maks. 3 percobaan per lampiran per sesi dengan jeda ≥ 1 menit; hanya lampiran yang salinannya ada di perangkat ini; upload yang **dibatalkan pengguna tidak diulang**; satu unggahan per lampiran lintas tab lewat Web Locks, dan status dibaca ulang di dalam kunci sehingga `uploaded` tidak diturunkan kembali.
+- Cron server menghapus lampiran yang belum terunggah setelah 2 hari **sejak diterima server** (`attachments.received_at`, diisi server), bukan sejak `created_at` (jam perangkat). Lampiran yang dibuat offline berhari-hari tidak terhapus sebelum sempat terunggah.
 
 - Key R2 = `<user_id>/<attachment_id>/<nama file>`. Fungsi menolak key milik user lain.
 - Unduh/pratinjau: cache lokal dulu, baru presigned GET. Isi zip dibaca di browser (JSZip) tanpa ekstrak ke disk.
@@ -195,13 +197,23 @@ App lain ── Bagikan ──► POST /bagikan (multipart) ──► sw-extra.j
 - RLS `owner_*` di semua tabel + `FORCE ROW LEVEL SECURITY`; `anon` tidak punya akses.
 - Signup dimatikan; `seed_user_defaults` tidak bisa dipanggil dari client.
 - Key R2 tidak pernah ada di browser. Upload/unduh memakai presigned URL berumur pendek dari Edge Function `files`.
-- PIN = kunci tampilan per perangkat (PBKDF2-SHA256, 210k iterasi, 5 percobaan → jeda 30 dtk), **bukan** enkripsi data. Hitungan percobaan dan jeda disimpan di localStorage agar reload tidak mereset.
+- PIN = kunci tampilan per perangkat (PBKDF2-SHA256, 210k iterasi, 5 percobaan → jeda 30 dtk), **bukan** enkripsi data. Hitungan percobaan dan jeda disimpan di localStorage agar reload tidak mereset, dibagi antar tab (dibaca ulang sebelum menambah + event `storage`), dan jeda tersimpan dijepit ke 30 dtk agar jam perangkat yang pernah salah tidak mengunci berbulan-bulan.
 - Ekspor CSV menetralkan sel teks berawalan `= + - @` (formula injection).
 
 ## Batas data & penolakan server
 
 - CHECK Postgres menolak baris yang melanggar batas (mis. `transactions.title` ≤ 120). Penolakan permanen masuk `upload_errors` (lokal), dan **sisa operasi dalam satu transaksi lokal ikut dibuang**; operasi sebelumnya sudah diterapkan, jadi satu transaksi lokal bisa berlaku sebagian di server. Karena itu semua jalur tulis memotong teks lewat `clip(…, LIMITS.x)` (`src/lib/limits.ts`, per code point seperti `char_length`). Ubah `LIMITS` bersamaan dengan CHECK-nya.
 - Pengaturan → Sinkronisasi menampilkan daftar penolakan (tabel, penyebab), dengan tombol salin JSON dan bersihkan.
+
+## Batasan yang diketahui
+
+Sengaja tidak diubah (trade-off atau terlalu jarang untuk sebanding dengan risikonya):
+
+- **Parser jam**: jam berformat titik tanpa penanda hanya dikenali bila menitnya 00/15/30/45 ("rapat 14.30"). "15.20" tidak dianggap jam karena bentrok dengan harga/nomor versi. Tulis "jam 15.20", "15:20", atau "15.20 WIB".
+- **Catat cepat**: angka polos > 9 digit atau bersatuan hitung ("50000 orang") bukan nominal; tulis "50rb" atau "Rp 50.000". Kalimat dengan nominal + besok/lusa/"<hari> depan" menjadi **tugas** hanya bila ada kata kerja rencana bayar (bayar, cicil, transfer, kirim, setor, …) dan bukan pemasukan; selebihnya tetap transaksi. Jenis bisa diganti di palette (Alt+↑↓).
+- **Sinkronisasi**: `PATCH` ke baris yang sudah dihapus permanen di server mengenai 0 baris tanpa error (edit dari perangkat yang tertinggal hilang diam-diam). Perangkat yang offline > 30 hari bisa menabrak FK (23503) pada baris yang sudah dipurge dan masuk `upload_errors`. Pembersihan 30 hari memakai jam perangkat (pola yang sama untuk semua entitas).
+- **Pengingat**: setelah 5 percobaan (~12 menit) pengingat yang tetap gagal dilepas tanpa jejak selain log Edge Function. Jika satu perangkat berhasil dan perangkat lain gagal sementara, pengingat dianggap selesai.
+- **Pengujian**: klaim cron yang benar-benar bersamaan (dua koneksi) hanya diuji manual di Postgres 16; suite PGlite memakai satu koneksi. Fungsi Edge (Deno) tidak punya tes langsung; logika orkestrasinya diekstrak ke `process.ts` agar teruji.
 
 ## Pengujian
 

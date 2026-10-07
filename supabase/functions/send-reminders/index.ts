@@ -15,6 +15,7 @@
 // =============================================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
+import { processReminders } from './process.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -92,6 +93,14 @@ Deno.serve(async (req) => {
   }
 });
 
+// Batas kerja satu eksekusi cron. Edge Function punya batas waktu; berhenti sebelum itu agar
+// pengingat yang belum sempat diproses diklaim ulang dengan bersih (bukan mati di tengah push).
+const TIME_BUDGET_MS = 90_000;
+const PUSH_TIMEOUT_MS = 10_000;
+// Ditandai terkirim tiap sekian pengingat, bukan sekali di akhir: jika fungsi mati di tengah batch,
+// paling banyak satu kelompok kecil yang terkirim ulang (bukan seluruh batch).
+const MARK_BATCH = 5;
+
 async function runCron() {
   const { data, error } = await admin.rpc('claim_due_reminders', { p_limit: 200 });
   if (error) throw error;
@@ -103,49 +112,24 @@ async function runCron() {
   if (reminders.length === 0) return { reminders: 0, sent: 0, removed: 0, delivered: 0, retry: 0 };
 
   const userIds = [...new Set(reminders.map((r) => r.user_id))];
-  const subsByUser = await loadSubscriptions(userIds);
-
-  let sent = 0;
-  let removed = 0;
-  const delivered: DueReminder[] = [];
-  for (const r of reminders) {
-    const subs = subsByUser.get(r.user_id) ?? [];
-    // Tanpa perangkat terdaftar tidak ada yang bisa dikirim → selesai (bukan "gagal").
-    let done = subs.length === 0;
-    let failed = false;
-    for (const sub of subs) {
-      const result = await sendPush(sub, buildReminderPayload(r));
-      if (result === 'sent') {
-        sent++;
-        done = true;
-      } else if (result === 'gone') {
-        removed++;
-      } else {
-        failed = true;
-      }
-    }
-    // Semua langganan sudah tidak berlaku (404/410) dan tidak ada yang gagal sementara → selesai.
-    if (!done && !failed) done = true;
-    if (done) delivered.push(r);
-    // Selain itu (push gagal sementara di semua perangkat) dibiarkan: database mengklaimnya
-    // ulang setelah 3 menit, maksimal 5 percobaan (migrasi 20261008000100_reminder_retry.sql).
-  }
-
-  if (delivered.length > 0) {
-    const { error: markError } = await admin.rpc('mark_reminders_delivered', {
-      p_task_ids: delivered.map((r) => r.task_id),
-      p_remind_ats: delivered.map((r) => r.remind_at),
-    });
-    // Jangan dilempar: push sudah terkirim. Paling buruk pengingat dikirim sekali lagi.
-    if (markError) console.error('[send-reminders] gagal menandai terkirim', markError.message);
-  }
-  return {
-    reminders: reminders.length,
-    sent,
-    removed,
-    delivered: delivered.length,
-    retry: reminders.length - delivered.length,
-  };
+  const result = await processReminders(reminders, {
+    subsByUser: await loadSubscriptions(userIds),
+    send: (sub, r) => sendPush(sub, buildReminderPayload(r)),
+    mark: async (batch) => {
+      const { error: markError } = await admin.rpc('mark_reminders_delivered', {
+        p_task_ids: batch.map((r) => r.task_id),
+        p_remind_ats: batch.map((r) => r.remind_at),
+      });
+      // Push sudah terkirim, jadi jangan dilempar. Tetapi kegagalan ini berarti baris tetap
+      // "belum terkirim" dan akan diklaim ulang (sampai 4 kali lagi) → terkirim berulang. Perlu
+      // dilihat di log bila sering muncul.
+      if (markError) console.error('[send-reminders] gagal menandai terkirim', markError.message);
+      return !markError;
+    },
+    budgetMs: TIME_BUDGET_MS,
+    markBatch: MARK_BATCH,
+  });
+  return { reminders: reminders.length, ...result };
 }
 
 async function runTest(userId: string) {
@@ -187,12 +171,16 @@ async function sendPush(
       endpoint: sub.endpoint,
       keys: { p256dh: sub.p256dh, auth: sub.auth },
     });
-    await subscriber.pushTextMessage(JSON.stringify(payload), {
-      urgency: webpush.Urgency.High,
-      ttl: 60 * 60 * 12,
-      // Topic (RFC 8030, maks 32 char): pesan baru dengan topic sama menggantikan yang belum terkirim
-      topic: payload.tag.replace(/[^A-Za-z0-9]/g, '').slice(-32),
-    });
+    // Layanan push yang menggantung tidak boleh menahan seluruh batch.
+    await withTimeout(
+      subscriber.pushTextMessage(JSON.stringify(payload), {
+        urgency: webpush.Urgency.High,
+        ttl: 60 * 60 * 12,
+        // Topic (RFC 8030, maks 32 char): pesan baru dengan topic sama menggantikan yang belum terkirim
+        topic: payload.tag.replace(/[^A-Za-z0-9]/g, '').slice(-32),
+      }),
+      PUSH_TIMEOUT_MS,
+    );
     await admin
       .from('push_subscriptions')
       .update({ last_used_at: new Date().toISOString() })
@@ -208,6 +196,14 @@ async function sendPush(
     console.error('[send-reminders] push gagal', status, String(e));
     return 'failed';
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`timeout ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];

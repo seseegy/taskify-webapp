@@ -61,7 +61,14 @@ export function RecurrenceEditor({
         aria-label="Pengulangan"
         aria-describedby={describedBy}
         value={state.freq}
-        onChange={(e) => apply({ freq: e.target.value as RecurrenceFreq, interval: 1, byDay: [] })}
+        onChange={(e) =>
+          apply({
+            freq: e.target.value as RecurrenceFreq,
+            interval: 1,
+            byDay: [],
+            monthDay: undefined,
+          })
+        }
       >
         {FREQ_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>

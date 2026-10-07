@@ -145,7 +145,7 @@ Alur: **pg_cron** (tiap menit) → Edge Function **`send-reminders`** → Web Pu
 
 `pnpm db:push`, atau jalankan `supabase/migrations/20261006000100_reminders.sql` di SQL Editor.
 
-> **Memperbarui instalasi yang sudah berjalan** (migrasi `20261008000100_reminder_retry.sql`, pengingat dicoba ulang jika push gagal): deploy fungsi **dulu** (`pnpm fn:deploy`), baru `pnpm db:push`. Fungsi baru aman di atas skema lama; kebalikannya mengirim ulang pengingat karena fungsi lama tidak menandai terkirim.
+> **Memperbarui instalasi yang sudah berjalan** (migrasi `20261008000100_reminder_retry.sql`, pengingat dicoba ulang jika push gagal): deploy fungsi **dulu** (`pnpm fn:deploy`), baru `pnpm db:push`. Fungsi baru aman di atas skema lama; kebalikannya mengirim ulang pengingat karena fungsi lama tidak menandai terkirim. Urutan ini hanya dijaga dokumentasi (tidak ada CI yang menerapkan migrasi), jadi jangan dibalik. Migrasi `20261008000200_attachments_received_at.sql` (pembersihan lampiran memakai waktu server) tidak bergantung pada urutan; fungsi `files` juga perlu di-deploy ulang (`pnpm fn:deploy:files`) untuk penelusuran bucket berhalaman.
 
 ### 7.2 Buat kunci VAPID
 

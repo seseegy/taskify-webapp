@@ -16,7 +16,7 @@ import { create } from 'zustand';
 import { toast } from '@/components/ui/toast-store';
 import { useDatabase } from '@/db/database-context';
 import { softDeleted, touch, withMeta } from '@/db/mutations';
-import { attachments, type Attachment, type EntityType } from '@/db/schema';
+import { attachments, type Attachment, type AttachmentStatus, type EntityType } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
 import { formatBytes } from '@/lib/bytes';
 import { nowIso } from '@/lib/date';
@@ -33,6 +33,7 @@ import {
   storageKey,
   uploadToR2,
 } from '@/lib/files';
+import { canAutoRetry, MAX_PER_RUN, withUploadLock, type AutoAttempt } from './upload-policy';
 
 // --------------------------------------------------------------------------- progres upload
 interface UploadState {
@@ -74,6 +75,9 @@ export interface UploadOptions {
   /** Perkecil gambar besar sebelum upload (default true) */
   compress?: boolean;
 }
+
+/** Lampiran yang unggahannya DIBATALKAN pengguna: jangan diulang otomatis oleh outbox. */
+const userCancelled = new Set<string>();
 
 export function useAttachmentActions() {
   const { db, powerSync } = useDatabase();
@@ -119,6 +123,35 @@ export function useAttachmentActions() {
       }
     };
 
+    /**
+     * Satu percobaan unggah, dilindungi kunci antar-tab. Status dibaca ulang DI DALAM kunci:
+     * jika tab lain sudah menyelesaikannya, jangan diturunkan kembali ke 'pending'.
+     */
+    const attempt = (
+      att: Pick<Attachment, 'id' | 'storage_key'>,
+      file: File,
+      opts: { quiet?: boolean; markPending?: boolean } = {},
+    ) =>
+      withUploadLock(
+        att.id,
+        async () => {
+          const current = await powerSync.getOptional<{
+            status: AttachmentStatus;
+            deleted_at: string | null;
+          }>('SELECT status, deleted_at FROM attachments WHERE id = ?', [att.id]);
+          if (!current || current.deleted_at) return false;
+          if (current.status === 'uploaded') return true;
+          userCancelled.delete(att.id);
+          if (opts.markPending)
+            await db
+              .update(attachments)
+              .set(touch({ status: 'pending' as const }))
+              .where(eq(attachments.id, att.id));
+          return send(att, file, opts.quiet);
+        },
+        false,
+      );
+
     return {
       /** Cari file identik (SHA-256) milik user yang masih ada. */
       async findDuplicate(sha: string): Promise<DuplicateInfo | null> {
@@ -157,8 +190,13 @@ export function useAttachmentActions() {
         // Simpan salinan di perangkat SEBELUM mencoba mengunggah: jika offline/gagal/reload, file
         // masih ada untuk "Ulangi" & outbox. Gagal menyimpan (kuota) tidak menghalangi upload.
         await putCachedFile(row.id, file).catch(() => undefined);
-        await db.insert(attachments).values(row);
-        const ok = await send(row, file);
+        try {
+          await db.insert(attachments).values(row);
+        } catch (e) {
+          await deleteCachedFile(row.id).catch(() => undefined); // jangan tinggalkan salinan yatim
+          throw e;
+        }
+        const ok = await attempt(row, file);
         if (ok) toast(`${file.name} terunggah`, { tone: 'success' });
         return row.id;
       },
@@ -176,14 +214,11 @@ export function useAttachmentActions() {
             });
           return false;
         }
-        await db
-          .update(attachments)
-          .set(touch({ status: 'pending' as const }))
-          .where(eq(attachments.id, att.id));
-        return send(att, f, opts.quiet);
+        return attempt(att, f, { quiet: opts.quiet, markPending: true });
       },
 
       cancel(id: string) {
+        userCancelled.add(id);
         useUploads.getState().controllers[id]?.abort();
       },
 
@@ -221,16 +256,17 @@ async function fileFromCache(att: Pick<Attachment, 'id' | 'file_name' | 'mime_ty
   return blob ? new File([blob], att.file_name, { type: att.mime_type ?? blob.type }) : null;
 }
 
-const MAX_AUTO_RETRIES = 3;
 const OUTBOX_INTERVAL_MS = 2 * 60_000;
-const autoAttempts = new Map<string, number>();
+/** Percobaan otomatis per lampiran: jumlah & waktu terakhir (jeda mencegah koneksi yang berkedip menghabiskannya). */
+const autoAttempts = new Map<string, AutoAttempt>();
 
 /**
  * Outbox lampiran: mengunggah otomatis lampiran yang belum terunggah (dibuat saat offline atau
  * gagal) begitu perangkat online & sync pertama selesai. Hanya memproses lampiran yang salinan
  * filenya ada di perangkat INI (baris dari perangkat lain tidak punya cache → dilewati).
- * Setiap lampiran dicoba maksimal 3 kali per sesi agar kegagalan permanen tidak berulang terus.
- * Pasang sekali di AppShell.
+ * Setiap lampiran dicoba maksimal 3 kali per sesi, dengan jeda minimal 1 menit, agar kegagalan
+ * permanen atau koneksi yang berkedip tidak menghabiskan percobaan/berulang terus. Upload yang
+ * DIBATALKAN pengguna tidak diulang. Pasang sekali di AppShell.
  */
 export function useAttachmentOutbox() {
   const { powerSync } = useDatabase();
@@ -248,15 +284,19 @@ export function useAttachmentOutbox() {
       try {
         const rows = await powerSync.getAll<Attachment>(
           `SELECT * FROM attachments WHERE deleted_at IS NULL AND status <> 'uploaded'
-            ORDER BY created_at LIMIT 20`,
+            ORDER BY created_at`,
         );
+        let handled = 0;
         for (const att of rows) {
-          if (!alive) break;
+          if (!alive || handled >= MAX_PER_RUN) break;
+          if (userCancelled.has(att.id)) continue;
           if (useUploads.getState().progress[att.id] !== undefined) continue; // sedang diunggah
-          const tried = autoAttempts.get(att.id) ?? 0;
-          if (tried >= MAX_AUTO_RETRIES) continue;
+          const prev = autoAttempts.get(att.id);
+          if (!canAutoRetry(prev, Date.now())) continue;
+          // Baris dari perangkat lain tidak punya salinan di sini → dilewati (tanpa memakan jatah)
           if (!(await getCachedFile(att.id).catch(() => null))) continue;
-          autoAttempts.set(att.id, tried + 1);
+          autoAttempts.set(att.id, { n: (prev?.n ?? 0) + 1, at: Date.now() });
+          handled++;
           const ok = await actions.retry(att, { quiet: true });
           if (ok) toast(`${att.file_name} terunggah`, { tone: 'success' });
         }
