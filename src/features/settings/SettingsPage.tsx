@@ -31,6 +31,7 @@ import { NotificationSettings } from '@/features/notifications/NotificationSetti
 import { useAllTags } from '@/features/tags/tag-actions';
 import { TagChip } from '@/features/tags/TagPicker';
 import { Link } from 'react-router';
+import { useMotionStore, type MotionPreference } from '@/features/theme/motion-store';
 import { useTheme, type ThemePreference } from '@/features/theme/theme-context';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/toast-store';
@@ -94,6 +95,9 @@ function Section({
 
 function AppearanceSection() {
   const { preference, setPreference } = useTheme();
+  const motion = useMotionStore((s) => s.preference);
+  const setMotion = useMotionStore((s) => s.setPreference);
+  const powerSaver = useMotionStore((s) => s.powerSaver);
   return (
     <Section icon={Palette} title="Tampilan" gradient="bg-gradient-brand">
       <SegmentedControl<ThemePreference>
@@ -110,6 +114,25 @@ function AppearanceSection() {
         Tema disimpan per perangkat. Terang = &ldquo;Aurora pagi&rdquo;, Gelap = &ldquo;Nebula
         malam&rdquo;.
       </p>
+
+      <div className="mt-5">
+        <SegmentedControl<MotionPreference>
+          label="Animasi latar"
+          value={motion}
+          onChange={setMotion}
+          options={[
+            { value: 'auto', label: 'Otomatis' },
+            { value: 'on', label: 'Hidup' },
+            { value: 'off', label: 'Mati' },
+          ]}
+        />
+        <p className="mt-3 text-xs text-muted">
+          Latar yang bergerak membuat efek kaca dihitung ulang terus-menerus dan bisa menguras
+          baterai. &ldquo;Otomatis&rdquo; menghentikannya saat baterai ≤ 20% dan tidak mengisi daya,
+          atau Penghemat Data aktif (deteksi baterai hanya ada di sebagian browser).
+          {motion === 'auto' && powerSaver && ' Saat ini: hemat daya aktif, latar diam.'}
+        </p>
+      </div>
     </Section>
   );
 }
