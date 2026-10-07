@@ -263,7 +263,7 @@ export function JournalEditor({
 
       <MarkdownEditor
         value={content}
-        placeholder={`${prompt}\n\nMendukung Markdown: **tebal**, _miring_, - daftar, - [ ] checklist`}
+        placeholder={prompt}
         onChange={(v) => {
           setContent(v);
           queue({ content: v });

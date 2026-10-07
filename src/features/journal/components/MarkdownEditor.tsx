@@ -11,7 +11,7 @@ import {
   Pencil,
   Quote,
 } from 'lucide-react';
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Markdown } from '@/components/ui/Markdown';
 import { cn } from '@/lib/utils';
 import { toggleChecklistLine } from '../journal-utils';
@@ -61,6 +61,7 @@ const TOOLS: { label: string; icon: typeof Bold; action: Action; key?: string }[
 export function MarkdownEditor({ value, onChange, placeholder }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<'write' | 'preview'>('write');
+  const uid = useId();
 
   const apply = (action: Action) => {
     const el = ref.current;
@@ -147,16 +148,30 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
           </button>
         ))}
         <span className="flex-1" />
-        <div className="flex shrink-0 rounded-lg bg-surface p-0.5" role="tablist">
+        <div
+          className="flex shrink-0 rounded-lg bg-surface p-0.5"
+          role="tablist"
+          aria-label="Mode editor"
+          onKeyDown={(e) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+            e.preventDefault();
+            const next = mode === 'write' ? 'preview' : 'write';
+            setMode(next);
+            requestAnimationFrame(() => document.getElementById(`${uid}-${next}`)?.focus());
+          }}
+        >
           {(['write', 'preview'] as const).map((m) => (
             <button
               key={m}
+              id={`${uid}-${m}`}
               type="button"
               role="tab"
               aria-selected={mode === m}
+              aria-controls={`${uid}-panel`}
+              tabIndex={mode === m ? 0 : -1}
               onClick={() => setMode(m)}
               className={cn(
-                'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition',
+                'flex min-h-8 items-center gap-1 rounded-md px-3 py-1 text-xs font-bold transition',
                 mode === m ? 'bg-gradient-journal text-white shadow' : 'text-muted hover:text-fg',
               )}
             >
@@ -166,27 +181,36 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
           ))}
         </div>
       </div>
-      {mode === 'write' ? (
-        <textarea
-          ref={ref}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={placeholder}
-          aria-label="Isi jurnal"
-          spellCheck
-          className="block field-sizing-content min-h-72 w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed outline-none placeholder:text-muted/60"
-        />
-      ) : (
-        <div className="min-h-72 px-4 py-3">
-          {value.trim() ? (
-            <Markdown onToggleTask={(line) => onChange(toggleChecklistLine(value, line))}>
-              {value}
-            </Markdown>
-          ) : (
-            <p className="text-sm text-muted">Belum ada isi.</p>
-          )}
-        </div>
+      <div id={`${uid}-panel`} role="tabpanel" aria-labelledby={`${uid}-${mode}`}>
+        {mode === 'write' ? (
+          <textarea
+            ref={ref}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={placeholder}
+            aria-label="Isi jurnal"
+            aria-describedby={`${uid}-help`}
+            spellCheck
+            className="block field-sizing-content min-h-72 w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed outline-none placeholder:text-muted"
+          />
+        ) : (
+          <div className="min-h-72 px-4 py-3">
+            {value.trim() ? (
+              <Markdown onToggleTask={(line) => onChange(toggleChecklistLine(value, line))}>
+                {value}
+              </Markdown>
+            ) : (
+              <p className="text-sm text-muted">Belum ada isi.</p>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Bantuan sintaks persisten (sebelumnya hanya di placeholder: hilang saat mengetik, kontras rendah) */}
+      {mode === 'write' && (
+        <p id={`${uid}-help`} className="border-t border-line px-4 py-1.5 text-xs text-muted">
+          Markdown: **tebal**, _miring_, - daftar, - [ ] checklist
+        </p>
       )}
     </div>
   );
