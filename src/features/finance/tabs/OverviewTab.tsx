@@ -149,7 +149,7 @@ export function OverviewTab({
               <button
                 type="button"
                 onClick={() => goTab('anggaran')}
-                className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                className="hit-area flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
               >
                 Kelola <ArrowRight className="size-4" />
               </button>
@@ -173,7 +173,7 @@ export function OverviewTab({
           <button
             type="button"
             onClick={() => goTab('transaksi')}
-            className="flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+            className="hit-area flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
           >
             Semua <ArrowRight className="size-4" />
           </button>

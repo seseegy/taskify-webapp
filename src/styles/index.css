@@ -196,6 +196,18 @@
   color: transparent;
 }
 
+/* Perluas area ketuk tanpa mengubah tata letak (tombol teks/ikon kecil). Area tambahan 8px per sisi,
+   jadi target efektifnya ≥ 24px walau tampilannya kecil (WCAG 2.5.8). Jangan dipakai pada elemen
+   yang sudah `absolute`, dan hindari pada elemen yang berdempetan (areanya saling menimpa). */
+@utility hit-area {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -0.5rem;
+  }
+}
+
 /* Kilau tipis di tepi atas elemen bergradasi (tombol, ikon modul) */
 @utility shine {
   position: relative;

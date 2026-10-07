@@ -248,9 +248,9 @@ function FilePreview({ info, path }: { info: ZipInfo; path: string | null }) {
               type="button"
               aria-label="Unduh file ini"
               onClick={() => saveBlob(current.blob!, path.split('/').pop()!)}
-              className="rounded p-1 hover:bg-surface"
+              className="flex size-8 items-center justify-center rounded-lg hover:bg-surface"
             >
-              <Download className="size-3.5" />
+              <Download className="size-4" />
             </button>
           )}
         </span>

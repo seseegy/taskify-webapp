@@ -100,7 +100,6 @@ export function MonthSwitcher({
       <Button
         size="icon"
         variant="ghost"
-        className="size-8"
         aria-label="Bulan sebelumnya"
         onClick={() => onChange(addMonthsLocal(month, -1))}
       >
@@ -109,15 +108,15 @@ export function MonthSwitcher({
       <button
         type="button"
         onClick={() => onChange(current)}
-        title="Bulan ini"
-        className="min-w-32 px-2 text-center text-sm font-bold capitalize"
+        title="Kembali ke bulan ini"
+        aria-label={`${formatLocalDate(month, 'MMMM yyyy')}. Ketuk untuk kembali ke bulan ini`}
+        className="min-h-10 min-w-32 px-2 text-center text-sm font-bold capitalize"
       >
         {formatLocalDate(month, 'MMMM yyyy')}
       </button>
       <Button
         size="icon"
         variant="ghost"
-        className="size-8"
         aria-label="Bulan berikutnya"
         onClick={() => onChange(addMonthsLocal(month, 1))}
       >

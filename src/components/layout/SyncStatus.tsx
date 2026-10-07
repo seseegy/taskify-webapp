@@ -1,5 +1,6 @@
 import { formatDistanceToNow } from 'date-fns';
 import { CloudCheck, CloudOff, CloudUpload, RefreshCw } from 'lucide-react';
+import { toast } from '@/components/ui/toast-store';
 import { localeId } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { useSyncState, type SyncState } from './sync-state';
@@ -26,19 +27,29 @@ export function SyncStatus({ compact = false }: { compact?: boolean }) {
         ? `Terakhir ${formatDistanceToNow(lastSyncedAt, { addSuffix: true, locale: localeId })}`
         : undefined;
 
+  const full = detail ? `${meta.label}. ${detail}` : meta.label;
+
   return (
-    <div
-      className={cn(
-        'flex items-center gap-2 rounded-full text-xs font-semibold glass',
-        compact ? 'size-9 justify-center' : 'px-3 py-1.5',
-        meta.className,
-      )}
-      title={detail ? `${meta.label} · ${detail}` : meta.label}
-      role="status"
-      aria-label={meta.label}
-    >
-      <Icon className={cn('size-4', spinning && 'animate-spin')} />
-      {!compact && <span>{meta.label}</span>}
-    </div>
+    // Tombol: bisa difokuskan (keyboard) dan diketuk (sentuhan) untuk membaca detail,
+    // tidak hanya lewat tooltip hover. Status berubah tetap diumumkan lewat live region tersembunyi.
+    <>
+      <button
+        type="button"
+        onClick={() => toast(full)}
+        title={full}
+        aria-label={`Status sinkronisasi: ${full}`}
+        className={cn(
+          'flex items-center gap-2 rounded-full text-xs font-semibold glass',
+          compact ? 'size-10 justify-center' : 'min-h-9 px-3 py-1.5',
+          meta.className,
+        )}
+      >
+        <Icon className={cn('size-4', spinning && 'animate-spin')} aria-hidden="true" />
+        {!compact && <span>{meta.label}</span>}
+      </button>
+      <span role="status" className="sr-only">
+        {meta.label}
+      </span>
+    </>
   );
 }

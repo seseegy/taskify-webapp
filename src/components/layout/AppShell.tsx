@@ -150,7 +150,7 @@ function MobileHeader() {
             type="button"
             aria-label="Cari & catat cepat"
             onClick={() => usePalette.getState().show()}
-            className="flex size-9 items-center justify-center rounded-full text-muted glass hover:text-fg"
+            className="flex size-10 items-center justify-center rounded-full text-muted glass hover:text-fg"
           >
             <Search className="size-4" />
           </button>
@@ -178,7 +178,7 @@ function HeaderLink({
       aria-label={label}
       className={({ isActive }) =>
         cn(
-          'flex size-9 items-center justify-center rounded-full transition',
+          'flex size-10 items-center justify-center rounded-full transition',
           isActive ? 'bg-gradient-brand text-white' : 'text-muted glass hover:text-fg',
         )
       }

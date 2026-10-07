@@ -252,7 +252,7 @@ function EntryList({
           Catatan di Sampah bisa dipulihkan.
           <button
             type="button"
-            className="font-bold text-danger hover:underline"
+            className="hit-area font-bold text-danger hover:underline"
             onClick={() => {
               if (window.confirm('Hapus permanen semua catatan di Sampah?'))
                 void actions.emptyTrash();

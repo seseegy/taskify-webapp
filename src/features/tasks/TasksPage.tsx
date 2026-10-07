@@ -121,7 +121,7 @@ export function TasksPage() {
                 type="button"
                 aria-label="Daftar baru"
                 onClick={() => setDialog({ open: true, list: null })}
-                className="flex size-7 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-fg"
+                className="hit-area flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-fg"
               >
                 <Plus className="size-4" />
               </button>

@@ -49,7 +49,7 @@ export function LinksPanel({ type, id }: { type: EntityType; id: string }) {
             type="button"
             aria-label={`Lepas tautan ${l.title}`}
             onClick={() => void actions.unlink(l.link_id)}
-            className="flex size-7 items-center justify-center rounded-lg text-muted opacity-60 group-hover:opacity-100 hover:bg-danger/10 hover:text-danger"
+            className="flex size-9 items-center justify-center rounded-lg text-muted opacity-70 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 pointer-coarse:opacity-100"
           >
             <X className="size-4" />
           </button>
@@ -71,9 +71,9 @@ export function LinksPanel({ type, id }: { type: EntityType; id: string }) {
             />
             <button
               type="button"
-              aria-label="Batal"
+              aria-label="Batal menautkan"
               onClick={() => setAdding(false)}
-              className="text-muted hover:text-fg"
+              className="hit-area text-muted hover:text-fg"
             >
               <X className="size-4" />
             </button>

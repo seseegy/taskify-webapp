@@ -58,7 +58,7 @@ export function SubtaskList({ parent }: { parent: Task }) {
               type="button"
               aria-label={`Hapus subtask ${s.title}`}
               onClick={() => void actions.destroy([s.id])}
-              className="flex size-7 items-center justify-center rounded-lg text-muted opacity-60 transition group-hover:opacity-100 hover:bg-danger/10 hover:text-danger"
+              className="flex size-9 items-center justify-center rounded-lg text-muted opacity-70 transition group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 pointer-coarse:opacity-100"
             >
               <X className="size-4" />
             </button>

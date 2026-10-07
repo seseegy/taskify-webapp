@@ -151,7 +151,7 @@ export function TransactionsTab({
             setSearch('');
             onWallet(null);
           }}
-          className="mb-3 inline-flex items-center gap-1 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted hover:text-fg"
+          className="mb-3 inline-flex min-h-9 items-center gap-1 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted hover:text-fg"
         >
           <X className="size-3" /> Hapus filter · {rows.length} transaksi
         </button>
