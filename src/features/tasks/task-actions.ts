@@ -9,6 +9,7 @@ import { useDatabase } from '@/db/database-context';
 import { softDeleted, touch, withMeta } from '@/db/mutations';
 import { taskLists, tasks, type Task, type TaskStatus } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
+import { clip, LIMITS } from '@/lib/limits';
 import { destroyEntities } from '@/features/trash/trash-actions';
 import {
   diffLocalDays,
@@ -74,7 +75,7 @@ export function useTaskActions() {
     const actions = {
       async create(input: NewTaskInput): Promise<string> {
         const row = withMeta(userId, {
-          title: input.title.trim(),
+          title: clip(input.title.trim(), LIMITS.taskTitle),
           list_id: input.list_id ?? null,
           parent_id: input.parent_id ?? null,
           due_date: input.due_date ?? null,
@@ -90,6 +91,7 @@ export function useTaskActions() {
 
       async update(id: string, patch: TaskPatch) {
         const values: TaskPatch = { ...patch };
+        if (values.title !== undefined) values.title = clip(values.title, LIMITS.taskTitle);
         if ('due_time' in values) values.due_time = toDbTime(values.due_time);
         if (values.due_date === null) {
           // Tanpa tanggal → tidak boleh ada jam, pengulangan, atau pengingat

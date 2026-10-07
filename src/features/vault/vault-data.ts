@@ -6,6 +6,7 @@ import { useDatabase } from '@/db/database-context';
 import { softDeleted, touch, withMeta } from '@/db/mutations';
 import { codeProjects, snippets, type CodeProject, type Snippet } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
+import { clip, LIMITS } from '@/lib/limits';
 
 // --------------------------------------------------------------------------- snippet
 export interface SnippetFilter {
@@ -108,7 +109,7 @@ export function useVaultActions() {
         description: string | null;
       }) {
         const values = {
-          title: v.title.trim(),
+          title: clip(v.title.trim(), LIMITS.snippetTitle),
           language: v.language,
           code: v.code,
           description: v.description?.trim() || null,
@@ -140,7 +141,7 @@ export function useVaultActions() {
         repo_url: string | null;
       }) {
         const values = {
-          name: v.name.trim(),
+          name: clip(v.name.trim(), LIMITS.projectName),
           description: v.description?.trim() || null,
           repo_url: v.repo_url?.trim() || null,
         };

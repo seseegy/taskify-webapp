@@ -73,7 +73,6 @@ export function AttachmentList({
 
 function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }) {
   const progress = useUploads((s) => s.progress[att.id]);
-  const hasFile = useUploads((s) => Boolean(s.files[att.id]));
   const actions = useAttachmentActions();
   const { url } = useFileBlob(att, isImage(att));
   const uploading = progress !== undefined;
@@ -117,16 +116,14 @@ function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }
       )}
       {!uploading && att.status !== 'uploaded' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-rose-800/90 p-1 text-center text-[10px] font-bold text-white">
-          {att.status === 'failed' ? 'Gagal' : 'Menunggu'}
-          {hasFile && (
-            <button
-              type="button"
-              onClick={() => void actions.retry(att)}
-              className="flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5"
-            >
-              <RotateCcw className="size-3" /> Ulangi
-            </button>
-          )}
+          {att.status === 'failed' ? 'Gagal' : 'Menunggu koneksi'}
+          <button
+            type="button"
+            onClick={() => void actions.retry(att)}
+            className="flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5"
+          >
+            <RotateCcw className="size-3" /> Ulangi
+          </button>
           <button type="button" onClick={() => void actions.remove(att)} className="underline">
             Hapus
           </button>

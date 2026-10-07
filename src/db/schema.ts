@@ -289,7 +289,8 @@ export const attachments = sqliteTable(
 
 // -----------------------------------------------------------------------------
 // LOCAL-ONLY: perubahan yang ditolak server permanen (constraint/RLS).
-// Tidak disinkron. Disimpan agar data tidak hilang diam-diam & bisa ditinjau di Pengaturan.
+// Tidak disinkron. Disimpan agar data tidak hilang diam-diam; daftar, salin, dan bersihkan
+// di Pengaturan → Sinkronisasi (features/settings/UploadErrors.tsx).
 // -----------------------------------------------------------------------------
 export const uploadErrors = sqliteTable('upload_errors', {
   id: text('id').primaryKey().notNull(),

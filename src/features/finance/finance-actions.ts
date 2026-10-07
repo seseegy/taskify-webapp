@@ -22,6 +22,7 @@ import {
 } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
 import { nowIso, todayLocal, toDbTime, type LocalDate } from '@/lib/date';
+import { clip, LIMITS } from '@/lib/limits';
 import { formatIDR } from '@/lib/money';
 import type { DebtRow, RecurringRow } from './finance-queries';
 import {
@@ -61,7 +62,7 @@ function normalizeTx(input: TxInput) {
     category_id: transfer ? null : (input.category_id ?? null),
     occurred_on: input.occurred_on,
     occurred_time: toDbTime(input.occurred_time),
-    title: input.title?.trim() || null,
+    title: input.title?.trim() ? clip(input.title.trim(), LIMITS.transactionTitle) : null,
     note: input.note?.trim() || null,
     task_id: input.task_id ?? null,
   };
@@ -253,7 +254,7 @@ export function useFinanceActions() {
           wallet_id: base.wallet_id,
           to_wallet_id: base.to_wallet_id,
           category_id: base.category_id,
-          title: v.title.trim(),
+          title: clip(v.title.trim(), LIMITS.recurringTitle),
           note: v.note?.trim() || null,
           rrule: v.rrule,
           start_on: v.start_on,
@@ -332,7 +333,7 @@ export function useFinanceActions() {
         if (v.amount <= 0) throw new Error('Nominal harus lebih dari 0');
         const row = withMeta(userId, {
           direction: v.direction,
-          counterparty: v.counterparty.trim(),
+          counterparty: clip(v.counterparty.trim(), LIMITS.counterparty),
           amount: v.amount,
           due_date: v.due_date,
           note: v.note?.trim() || null,
