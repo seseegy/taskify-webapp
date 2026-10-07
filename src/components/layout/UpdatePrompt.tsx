@@ -27,11 +27,12 @@ export function UpdatePrompt() {
 
   return (
     <div
-      role="alert"
+      // Tidak mendesak → "status" (polite). "alert" akan menyela apa pun yang sedang dibacakan.
+      role="status"
       className="fixed inset-x-4 bottom-24 z-40 mx-auto flex max-w-md animate-fade-up items-center gap-3 rounded-2xl p-4 glass-strong lg:bottom-6"
     >
       <div className="shine flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
-        <Sparkles className="size-5" />
+        <Sparkles className="size-5" aria-hidden="true" />
       </div>
       <p className="flex-1 text-sm font-medium">
         {needRefresh ? 'Versi baru Taskify tersedia.' : 'Taskify siap dipakai offline.'}

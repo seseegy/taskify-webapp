@@ -2,6 +2,7 @@ import { CalendarHeart, Flame, History, NotebookPen } from 'lucide-react';
 import { Link } from 'react-router';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { diffLocalDays, formatLocalDate, type LocalDate } from '@/lib/date';
+import { formatDecimal } from '@/lib/number';
 import { cn } from '@/lib/utils';
 import { useJournalDays, useMoodSeries, useOnThisDay } from '../journal-queries';
 import { journalStreak, plainExcerpt } from '../journal-utils';
@@ -45,7 +46,7 @@ export function JournalInsights({ today, compact }: { today: LocalDate; compact?
           value={
             avg ? (
               <span className="flex items-center gap-1.5">
-                <MoodIcon mood={avg} className="size-5" /> {avg.toFixed(1)}
+                <MoodIcon mood={avg} className="size-5" /> {formatDecimal(avg)}
               </span>
             ) : (
               '–'

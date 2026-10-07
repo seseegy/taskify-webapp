@@ -1,4 +1,5 @@
 import { formatLocalDate } from '@/lib/date';
+import { formatDecimal } from '@/lib/number';
 import type { MoodPoint } from '../journal-queries';
 import { moodOf } from '../mood';
 
@@ -36,8 +37,7 @@ export function MoodChart({ points }: { points: MoodPoint[] }) {
   const avg = recorded.length
     ? recorded.reduce((sum, p) => sum + p.mood, 0) / recorded.length
     : null;
-  const avgText =
-    avg === null ? null : new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(avg);
+  const avgText = avg === null ? null : formatDecimal(avg);
   const summary =
     avg === null
       ? `Grafik mood ${points.length} hari terakhir: belum ada data`

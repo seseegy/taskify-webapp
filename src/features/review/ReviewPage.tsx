@@ -27,6 +27,7 @@ import { moodOf } from '@/features/journal/mood';
 import { diffLocalDays, formatLocalDate, todayLocal, type LocalDate } from '@/lib/date';
 import { Progress } from '@/components/ui/Progress';
 import { formatIDR, formatIDRCompact } from '@/lib/money';
+import { formatDecimal } from '@/lib/number';
 import { cn } from '@/lib/utils';
 import { ActivityHeatmap } from './ActivityHeatmap';
 import {
@@ -181,7 +182,7 @@ export function ReviewPage() {
                 now.mood_avg ? (
                   <span className="inline-flex items-center gap-1">
                     <MoodIcon mood={now.mood_avg} className="size-3.5" /> mood{' '}
-                    {now.mood_avg.toFixed(1)}
+                    {formatDecimal(now.mood_avg)}
                   </span>
                 ) : (
                   'belum ada mood'

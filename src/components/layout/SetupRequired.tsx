@@ -9,10 +9,10 @@ export function SetupRequired() {
     <div className="flex min-h-dvh items-center justify-center p-6">
       <Card className="max-w-lg animate-fade-up">
         <Logo withText className="mb-6" />
-        <div className="mb-3 flex items-center gap-2 font-bold text-warning">
-          <TriangleAlert className="size-5" />
+        <h1 className="mb-3 flex items-center gap-2 font-bold text-warning">
+          <TriangleAlert className="size-5" aria-hidden="true" />
           Konfigurasi belum lengkap
-        </div>
+        </h1>
         <p className="mb-4 text-sm text-muted">
           Salin <code className="font-mono">.env.example</code> menjadi{' '}
           <code className="font-mono">.env.local</code>, isi variabel berikut, lalu jalankan ulang{' '}
