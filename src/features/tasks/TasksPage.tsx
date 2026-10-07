@@ -180,7 +180,9 @@ export function TasksPage() {
             />
           )}
 
+          {/* key: state "tampilkan lebih banyak" ikut direset tiap pindah tampilan */}
           <TaskViewContent
+            key={view}
             view={view}
             today={today}
             lists={lists}
@@ -269,10 +271,7 @@ function TaskViewContent({
   const actions = useTaskActions();
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists]);
   const inList = isListView(view);
-  const [paging, setPaging] = useState<{ view: TaskView; count: number }>({
-    view,
-    count: PAGE_SIZE,
-  });
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   const groups: TaskGroup[] = useMemo(() => {
     if (view === 'today') {
@@ -301,8 +300,7 @@ function TaskViewContent({
   const empty = rows.length === 0;
 
   // Daftar bisa tumbuh tanpa batas (terutama Selesai & Sampah) → tampilkan bertahap agar DOM kecil.
-  // Dipotong lintas grup berurutan; batas kembali ke awal saat pindah tampilan.
-  const limit = paging.view === view ? paging.count : PAGE_SIZE;
+  // Dipotong lintas grup berurutan; batas kembali ke awal saat pindah tampilan (lewat `key`).
   const visibleGroups = groups.map((g, i) => {
     const before = groups.slice(0, i).reduce((n, x) => n + x.items.length, 0);
     return { ...g, items: g.items.slice(0, Math.max(0, limit - before)) };
@@ -392,7 +390,7 @@ function TaskViewContent({
 
       {hiddenCount > 0 && (
         <div className="flex justify-center pt-1">
-          <Button variant="secondary" onClick={() => setPaging({ view, count: limit + PAGE_SIZE })}>
+          <Button variant="secondary" onClick={() => setLimit(limit + PAGE_SIZE)}>
             Tampilkan {Math.min(PAGE_SIZE, hiddenCount)} lagi ({hiddenCount} tersisa)
           </Button>
         </div>
