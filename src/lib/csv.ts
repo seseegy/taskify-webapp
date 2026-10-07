@@ -5,10 +5,21 @@
  */
 export type CsvCell = string | number | null | undefined;
 
+/**
+ * Teks yang diawali = + - @ (atau tab/CR) dieksekusi sebagai FORMULA oleh Excel/Sheets
+ * ("CSV injection"), mis. judul transaksi `=HYPERLINK(...)` dari teks yang dibagikan aplikasi lain.
+ * Penawarnya: awali dengan tanda kutip tunggal agar dibaca sebagai teks. Angka bertanda
+ * (`-5000`) tidak diubah supaya tetap terbaca sebagai angka.
+ */
+const FORMULA_START = /^[=+\-@\t\r]/;
+const PLAIN_NUMBER = /^[+-]?\d+(?:[.,]\d+)?$/;
+
 export function toCsv(header: string[], rows: CsvCell[][], separator = ';'): string {
   const escape = (value: CsvCell) => {
     if (value === null || value === undefined) return '';
-    const s = String(value);
+    let s = String(value);
+    // Nominal bertipe number (termasuk negatif) tidak pernah dianggap formula
+    if (typeof value === 'string' && FORMULA_START.test(s) && !PLAIN_NUMBER.test(s)) s = `'${s}`;
     return /["\n\r;,]/.test(s) || s !== s.trim() ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return [header, ...rows].map((r) => r.map(escape).join(separator)).join('\r\n');

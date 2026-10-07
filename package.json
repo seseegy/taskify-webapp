@@ -16,7 +16,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm check:contrast",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm check:contrast && pnpm test",
     "check:contrast": "node scripts/check-contrast.mjs",
     "pwa:icons": "pwa-assets-generator",
     "vapid:generate": "node scripts/generate-vapid-keys.mjs",
@@ -73,6 +74,7 @@
     "vite": "^8.3.2",
     "vite-plugin-pwa": "^2.0.0",
     "vite-plugin-wasm": "^3.6.0",
+    "vitest": "^5.0.3",
     "workbox-window": "^7.4.1",
     "wrangler": "4.147.0"
   }
