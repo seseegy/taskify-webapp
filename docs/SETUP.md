@@ -145,6 +145,8 @@ Alur: **pg_cron** (tiap menit) → Edge Function **`send-reminders`** → Web Pu
 
 `pnpm db:push`, atau jalankan `supabase/migrations/20261006000100_reminders.sql` di SQL Editor.
 
+> **Memperbarui instalasi yang sudah berjalan** (migrasi `20261008000100_reminder_retry.sql`, pengingat dicoba ulang jika push gagal): deploy fungsi **dulu** (`pnpm fn:deploy`), baru `pnpm db:push`. Fungsi baru aman di atas skema lama; kebalikannya mengirim ulang pengingat karena fungsi lama tidak menandai terkirim.
+
 ### 7.2 Buat kunci VAPID
 
 ```bash
@@ -189,7 +191,7 @@ select status_code, content from net._http_response order by id desc limit 5; --
 
 Log fungsi ada di **Edge Functions → send-reminders → Logs**.
 
-> Kuota: cron tiap menit ≈ 43 ribu panggilan/bulan, masih jauh di bawah batas free tier (500 ribu). Pengingat yang terlambat lebih dari 24 jam (misalnya karena project ter-pause) tidak dikirim.
+> Kuota: cron tiap menit ≈ 43 ribu panggilan/bulan, masih jauh di bawah batas free tier (500 ribu). Pengingat yang terlambat lebih dari 24 jam (misalnya karena project ter-pause) tidak dikirim. Jika push gagal sesaat, pengingat dicoba lagi tiap 3 menit (maks. 5 kali).
 
 ## 8. Vault & lampiran (Cloudflare R2)
 

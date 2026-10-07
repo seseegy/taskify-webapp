@@ -3,7 +3,8 @@ import { defineConfig } from 'vitest/config';
 
 /**
  * Konfigurasi tes terpisah dari vite.config.ts (tanpa PWA/wasm/tailwind) supaya cepat.
- * Hanya untuk logika murni (tanggal, recurrence, parser, CSV) yang tidak butuh DOM atau database.
+ * Untuk logika murni (tanggal, recurrence, parser, CSV), query SQLite, dan migrasi Postgres
+ * (PGlite). Tidak butuh DOM maupun server.
  */
 export default defineConfig({
   resolve: {
@@ -11,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'supabase/tests/**/*.test.ts'],
     // Zona waktu proses tes sengaja bukan WIB agar kode yang diam-diam bergantung pada
     // zona waktu perangkat ketahuan.
     env: { TZ: 'America/Los_Angeles' },

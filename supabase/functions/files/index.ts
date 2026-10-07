@@ -152,7 +152,9 @@ async function cleanup() {
     const xml = await list.text();
     objects.push(...parseListing(xml));
     token = /<IsTruncated>true<\/IsTruncated>/.test(xml)
-      ? decodeXml(xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)?.[1] ?? '')
+      ? decodeXml(
+          xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)?.[1] ?? '',
+        )
       : null;
     if (!token) break;
     truncated = page === MAX_LIST_PAGES - 1;

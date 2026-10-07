@@ -38,9 +38,10 @@ src/
   lib/            env, supabase client, tanggal WIB, uang IDR, id
   styles/         Design system (lihat DESIGN.md)
 supabase/migrations/   Skema Postgres, RLS, publication, seed, pengingat
-supabase/functions/    Edge Function send-reminders (Deno)
+supabase/functions/    Edge Function send-reminders & files (Deno)
 supabase/sql/          SQL manual berisi secret (jadwal cron)
-scripts/               generate-vapid-keys.mjs
+supabase/tests/        Tes migrasi di Postgres (PGlite)
+scripts/               generate-vapid-keys.mjs, backup.sh, check-contrast.mjs
 powersync/sync-config.yaml   Sync Streams
 ```
 
@@ -82,13 +83,16 @@ PUT berurutan pada tabel yang sama digabung menjadi satu `upsert` massal.
 
 ## Kalender sebagai pusat
 
-`features/calendar/useCalendarActivity.ts` menjalankan satu query `UNION ALL` atas tugas, jurnal, transaksi, dan vault untuk rentang tanggal, lalu mengelompokkannya per hari. Query ini reaktif: modul baru cukup menambahkan cabang `UNION ALL` agar otomatis muncul di Kalender & Beranda.
+`features/calendar/useCalendarActivity.ts` menjalankan satu query `UNION ALL` atas jurnal, transaksi, dan vault untuk rentang tanggal, lalu mengelompokkannya per hari. **Tugas tidak ada di query itu**: `useDayActivity` menggabungkannya terpisah karena kejadian berulang bersifat virtual (dihitung dari rrule). Query ini reaktif: modul baru cukup menambahkan cabang `UNION ALL` (dan jenisnya di `ActivityKind`/`DayActivity`) agar otomatis muncul di Kalender.
+
+Aturan hitung aktivitas harus SAMA antar layar (Kalender, Review, heatmap): hanya tugas induk, dan vault = snippet + project + versi file baru. `HEATMAP_SQL` diuji terhadap SQLite.
 
 ## Tugas berulang (model bergulir)
 
 - `tasks.rrule` berisi RRULE (RFC 5545) dengan BY* eksplisit, misalnya `FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TH`. Lihat `features/tasks/recurrence.ts`.
 - Dalam satu seri (`series_id`) hanya **satu baris aktif** yang membawa `rrule`.
 - Saat dicentang: baris itu menjadi riwayat (`done`, `rrule = null`), lalu baris baru dibuat untuk kejadian berikutnya. Subtask ikut disalin dalam keadaan belum selesai, dan `remind_at` digeser sejumlah hari yang sama. Kalau tugas sudah lama terlambat, kejadian berikutnya melompat ke mulai hari ini.
+- **Tanggal 29–31** jatuh di hari terakhir bulan yang tidak punya tanggal itu (31 Jan → 28 Feb → 31 Mar), bukan dilewati seperti default RFC 5545. Rule dibuat sebagai `BYMONTHDAY=28,29,30,31;BYSETPOS=-1`, dan rule lama (`BYMONTHDAY=31`) dinormalkan saat dibaca (`clampToMonthEnd`) sehingga tanpa migrasi data. Berlaku juga untuk transaksi berulang dan 29 Feb tahunan.
 - Kejadian masa depan di Kalender bersifat **virtual** (dihitung dari rrule, tidak disimpan) dan ditandai ikon 🔁.
 - Semua operasi multi-baris dibungkus transaksi, dan bisa **Diurungkan** lewat toast.
 
@@ -100,6 +104,7 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
                                                    └─ Web Push (VAPID, aes128gcm) ──► push_subscriptions
 ```
 
+- **Pengiriman at-least-once**: `claim_due_reminders()` menulis log (`claimed_at`) lebih dulu agar cron yang tumpang tindih tidak mengirim dobel, tetapi baris baru dianggap selesai setelah Edge Function memanggil `mark_reminders_delivered()` (`delivered_at`) _sesudah_ push sukses. Jika push gagal, pengingat diklaim ulang setelah 3 menit, maksimal 5 percobaan, dalam jendela 24 jam. User tanpa langganan push atau semua langganannya sudah kedaluwarsa dianggap selesai (tidak ada tujuan).
 - `push_subscriptions` dan `task_reminder_log` **tidak disinkron** PowerSync. Langganan push ditulis langsung lewat supabase-js (mengaktifkan notifikasi memang butuh online), sedangkan log hanya diakses server.
 - Mengubah `remind_at` menghasilkan kunci log baru, jadi pengingat baru tetap terkirim, tanpa ada yang terkirim dobel.
 - Langganan yang kedaluwarsa (404/410) otomatis dihapus.
@@ -137,7 +142,7 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
   - Catat cepat didahulukan hanya jika ada sinyal jelas (nominal, waktu, prioritas, tag, `j:`). Teks biasa menampilkan hasil pencarian dulu.
 - **Tag** (`tags`/`taggings`): nama dinormalisasi (huruf kecil, `-`); keunikan dijaga di aplikasi, bukan constraint DB. Halaman `/tag/:id` menampilkan item lintas modul.
 - **Tautan** (`entity_links`) ditampilkan dua arah. "Catat sebagai transaksi" dari tugas membuat transaksi yang tertaut (dan mengisi `task_id`).
-- **Sampah** (`/sampah`) menggabungkan tugas, jurnal, dan transaksi. Item lebih dari 30 hari dihapus permanen otomatis setelah sync awal. Hapus permanen juga membersihkan tag & tautan (`db/refs.ts`), karena keduanya tidak punya foreign key.
+- **Sampah** (`/sampah`) menggabungkan tugas, jurnal, transaksi, snippet, dan project. Item lebih dari 30 hari dihapus permanen otomatis setelah sync awal. Hapus permanen juga membersihkan tag & tautan (`db/refs.ts`), karena keduanya tidak punya foreign key. Baris pendukung yang ter-soft-delete (anggaran, hutang, transaksi berulang, daftar tugas, tag) ikut dibersihkan setelah 30 hari (`purgeExpiredSupportRows`). **Dompet dan kategori sengaja tidak**: `transactions.wallet_id` ber-`RESTRICT` dan `budgets.category_id` ber-`CASCADE`, jadi menghapusnya bisa menolak sync atau menghapus anggaran yang masih aktif.
 - `Sheet` memfokuskan elemen ber-`data-autofocus` setelah `showModal()` (yang jika tidak akan memfokuskan tombol Tutup).
 
 ## Vault & lampiran (R2)
@@ -146,13 +151,16 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──sync──► Postgres
    │  (2) presign {key, size} ──► Edge Function files (cek JWT, key berawalan user_id/, ≤ 100 MB)
    │  (3) PUT langsung ke R2 (Content-Length ikut ditandatangani)
-   └─ (4) UPDATE status = 'uploaded' + simpan ke Cache Storage (bisa dibuka offline)
+   └─ (4) UPDATE status = 'uploaded' (file sudah ada di Cache Storage sejak langkah 0)
 ```
+
+- **Langkah 0**: file disimpan ke Cache Storage perangkat _sebelum_ diunggah. Jika offline/gagal/aplikasi ditutup, "Ulangi" tetap bisa memakai salinan itu, dan `useAttachmentOutbox` (AppShell) mengunggah otomatis saat online (maks. 3 percobaan per lampiran per sesi; hanya lampiran yang salinannya ada di perangkat ini). Cron server tetap menghapus lampiran yang belum terunggah setelah 2 hari.
 
 - Key R2 = `<user_id>/<attachment_id>/<nama file>`. Fungsi menolak key milik user lain.
 - Unduh/pratinjau: cache lokal dulu, baru presigned GET. Isi zip dibaca di browser (JSZip) tanpa ekstrak ke disk.
 - Sebelum upload, zip dianalisis (`features/vault/zip.ts`): file rahasia, node_modules, .git, hasil build. Duplikat dideteksi lewat SHA-256.
-- Hapus = soft delete lokal + hapus objek (best effort). Cron harian (`files` mode cleanup) membersihkan sisanya, termasuk objek yatim.
+- Hapus = soft delete lokal + hapus objek (best effort). Cron harian (`files` mode cleanup) membersihkan sisanya, termasuk objek yatim. Penelusuran bucket berhalaman (maks. 20 × 1000 objek dan 500 penghapusan per eksekusi).
+- **Logout** menghapus database lokal (`disconnectAndClear`) _dan_ Cache Storage lampiran + kotak masuk Bagikan (`clearDeviceData`).
 - Snippet: syntax highlight (prism-react-renderer + bahasa prismjs tambahan, dimuat lazy), variabel template `{{nama}}` diisi saat disalin.
 - Foto besar (>1,5 MB) diperkecil ke maks. 2000 px JPEG sebelum diunggah.
 
@@ -187,9 +195,22 @@ App lain ── Bagikan ──► POST /bagikan (multipart) ──► sw-extra.j
 - RLS `owner_*` di semua tabel + `FORCE ROW LEVEL SECURITY`; `anon` tidak punya akses.
 - Signup dimatikan; `seed_user_defaults` tidak bisa dipanggil dari client.
 - Key R2 tidak pernah ada di browser. Upload/unduh memakai presigned URL berumur pendek dari Edge Function `files`.
-- PIN = kunci tampilan per perangkat (PBKDF2-SHA256, 210k iterasi, 5 percobaan → jeda 30 dtk), **bukan** enkripsi data.
+- PIN = kunci tampilan per perangkat (PBKDF2-SHA256, 210k iterasi, 5 percobaan → jeda 30 dtk), **bukan** enkripsi data. Hitungan percobaan dan jeda disimpan di localStorage agar reload tidak mereset.
+- Ekspor CSV menetralkan sel teks berawalan `= + - @` (formula injection).
 
-Migrasi diuji di Postgres (PGlite): RLS antar-user, constraint, trigger seed, publication (16 tabel), dan replica identity.
+## Batas data & penolakan server
+
+- CHECK Postgres menolak baris yang melanggar batas (mis. `transactions.title` ≤ 120). Penolakan permanen masuk `upload_errors` (lokal), dan **sisa operasi dalam satu transaksi lokal ikut dibuang**; operasi sebelumnya sudah diterapkan, jadi satu transaksi lokal bisa berlaku sebagian di server. Karena itu semua jalur tulis memotong teks lewat `clip(…, LIMITS.x)` (`src/lib/limits.ts`, per code point seperti `char_length`). Ubah `LIMITS` bersamaan dengan CHECK-nya.
+- Pengaturan → Sinkronisasi menampilkan daftar penolakan (tabel, penyebab), dengan tombol salin JSON dan bersihkan.
+
+## Pengujian
+
+`pnpm test` (Vitest) bagian dari `pnpm check`. Tidak butuh DOM/server:
+
+- `src/**/*.test.ts`: logika murni (tanggal WIB, recurrence, parser, CSV, batas panjang), query SQLite (`node:sqlite`), dan store.
+- `supabase/tests/migrations.test.ts`: menjalankan semua migrasi berurutan di Postgres sungguhan (PGlite) lalu menguji RLS, publication, seed akun baru, CHECK, dan siklus pengingat (klaim, coba ulang, selesai, hak akses).
+- Proses tes berjalan di zona waktu `America/Los_Angeles` agar kode yang diam-diam bergantung pada zona waktu perangkat ketahuan.
+- Menambah migrasi: jalankan juga uji di atas; fungsi Edge (Deno) belum punya tes otomatis.
 
 ## Peta jalan
 
