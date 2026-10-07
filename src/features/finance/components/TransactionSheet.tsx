@@ -137,7 +137,17 @@ function TxForm({
         ]}
       />
 
-      <MoneyInput value={amount} onChange={setAmount} size="lg" autoFocus={!tx} tone={kind} />
+      <div>
+        <Label htmlFor="tx-amount">Nominal</Label>
+        <MoneyInput
+          id="tx-amount"
+          value={amount}
+          onChange={setAmount}
+          size="lg"
+          autoFocus={!tx}
+          tone={kind}
+        />
+      </div>
 
       {kind !== 'transfer' && (
         <div>

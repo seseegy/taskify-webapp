@@ -54,6 +54,8 @@ export function VaultPage() {
         gradient="bg-gradient-vault"
         actions={
           <Button
+            // Di HP tombol hanya berupa ikon → wajib punya nama aksesibel
+            aria-label={tab === 'snippet' ? 'Snippet baru' : 'Project baru'}
             onClick={() =>
               tab === 'snippet'
                 ? set({ tab: 'snippet', snippet: 'baru' })

@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 interface Props {
@@ -31,6 +31,9 @@ export function Sheet({
   wide,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Judul dipakai sebagai nama aksesibel dialog (dibacakan pembaca layar saat dibuka)
+  const titleId = useId();
+  const hasTitle = title !== undefined && title !== null && title !== '';
 
   useEffect(() => {
     const dialog = ref.current;
@@ -46,6 +49,7 @@ export function Sheet({
   return (
     <dialog
       ref={ref}
+      aria-labelledby={open && hasTitle ? titleId : undefined}
       onClose={onClose}
       onCancel={(e) => {
         e.preventDefault();
@@ -80,7 +84,9 @@ export function Sheet({
             {variant === 'side' && (
               <span className="absolute top-2 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-line sm:hidden" />
             )}
-            <div className="min-w-0 text-base font-bold">{title}</div>
+            <div id={hasTitle ? titleId : undefined} className="min-w-0 text-base font-bold">
+              {title}
+            </div>
             <button
               type="button"
               onClick={onClose}
