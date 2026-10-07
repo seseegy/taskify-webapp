@@ -10,15 +10,15 @@ export function MoodPicker({
   onChange: (v: number | null) => void;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Mood">
+    // Bukan radio: klik mood yang aktif = mengosongkan (mood opsional) → tombol toggle
+    <div className="flex flex-wrap gap-1.5" role="group" aria-label="Mood">
       {MOODS.map((m) => {
         const active = value === m.value;
         return (
           <button
             key={m.value}
             type="button"
-            role="radio"
-            aria-checked={active}
+            aria-pressed={active}
             aria-label={m.label}
             title={m.label}
             onClick={() => onChange(active ? null : m.value)}

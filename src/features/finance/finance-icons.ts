@@ -77,6 +77,46 @@ export const FINANCE_ICONS: Record<string, LucideIcon> = {
 
 export const ICON_NAMES = Object.keys(FINANCE_ICONS);
 
+/** Nama ikon dalam Bahasa Indonesia (untuk pembaca layar; nama di DB tetap kunci Inggris). */
+export const ICON_LABELS: Record<string, string> = {
+  utensils: 'Makan',
+  coffee: 'Kopi',
+  'shopping-cart': 'Belanja bulanan',
+  car: 'Mobil',
+  fuel: 'Bensin',
+  plane: 'Pesawat',
+  receipt: 'Struk',
+  zap: 'Listrik',
+  droplets: 'Air',
+  wifi: 'Internet',
+  smartphone: 'Ponsel',
+  house: 'Rumah',
+  'shopping-bag': 'Tas belanja',
+  shirt: 'Pakaian',
+  'gamepad-2': 'Game',
+  film: 'Film',
+  'heart-pulse': 'Kesehatan',
+  dumbbell: 'Olahraga',
+  'graduation-cap': 'Pendidikan',
+  'book-open': 'Buku',
+  baby: 'Anak',
+  'paw-print': 'Hewan peliharaan',
+  wrench: 'Perbaikan',
+  repeat: 'Berulang',
+  gift: 'Hadiah',
+  wallet: 'Dompet',
+  laptop: 'Laptop',
+  briefcase: 'Pekerjaan',
+  'trending-up': 'Investasi',
+  'piggy-bank': 'Tabungan',
+  'hand-coins': 'Pinjaman',
+  banknote: 'Uang tunai',
+  landmark: 'Bank',
+  'circle-ellipsis': 'Lainnya',
+};
+
+export const iconLabel = (name: string) => ICON_LABELS[name] ?? name;
+
 export const iconOf = (name: string | null | undefined, fallback = 'circle-ellipsis') =>
   FINANCE_ICONS[name ?? ''] ?? FINANCE_ICONS[fallback]!;
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { onRadioGroupKeyDown, radioTabIndex } from '@/lib/radio-group';
 import { cn } from '@/lib/utils';
 
 export interface SegmentOption<T extends string> {
@@ -26,9 +27,10 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
+      onKeyDown={onRadioGroupKeyDown}
       className={cn('flex rounded-xl p-1 glass', className)}
     >
-      {options.map((opt) => {
+      {options.map((opt, i) => {
         const active = opt.value === value;
         return (
           <button
@@ -36,6 +38,11 @@ export function SegmentedControl<T extends string>({
             type="button"
             role="radio"
             aria-checked={active}
+            tabIndex={radioTabIndex(
+              active,
+              options.some((o) => o.value === value),
+              i,
+            )}
             onClick={() => onChange(opt.value)}
             className={cn(
               'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition [&_svg]:size-4',

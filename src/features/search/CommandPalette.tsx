@@ -42,6 +42,7 @@ import { TagChip } from '@/features/tags/TagPicker';
 import { useTheme } from '@/features/theme/theme-context';
 import { relativeDayLabel, todayLocal } from '@/lib/date';
 import { formatIDR } from '@/lib/money';
+import { onRadioGroupKeyDown, radioTabIndex } from '@/lib/radio-group';
 import { cn } from '@/lib/utils';
 import { usePalette } from './palette-store';
 import { splitSnippet, useGlobalSearch } from './useGlobalSearch';
@@ -239,6 +240,8 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
   }, [safeActive]);
 
   const onKeyDown = (e: KeyboardEvent) => {
+    // Radio jenis punya penanganan keyboard sendiri (panah/Enter/Spasi); jangan dibajak daftar hasil
+    if ((e.target as HTMLElement).closest('[role="radiogroup"]')) return;
     if (e.key === 'ArrowDown' && !e.altKey) {
       e.preventDefault();
       setActive((safeActive + 1) % Math.max(1, items.length));
@@ -301,9 +304,10 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
           className="mb-3 flex flex-wrap items-center gap-1.5"
           role="radiogroup"
           aria-label="Simpan sebagai"
+          onKeyDown={onRadioGroupKeyDown}
         >
           <span className="mr-1 text-xs font-semibold text-muted">Simpan sebagai</span>
-          {(Object.keys(KIND_META) as CaptureKind[]).map((k) => {
+          {(Object.keys(KIND_META) as CaptureKind[]).map((k, idx) => {
             const enabled = availableKinds(parsed!).includes(k);
             return (
               <button
@@ -311,6 +315,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
                 type="button"
                 role="radio"
                 aria-checked={cap.kind === k}
+                tabIndex={radioTabIndex(cap.kind === k, true, idx)}
                 disabled={!enabled}
                 onClick={() => setOverride(k)}
                 className={cn(

@@ -25,6 +25,7 @@ import { useTxSheet } from '@/features/finance/tx-sheet-store';
 import { LinksPanel } from '@/features/links/LinksPanel';
 import { TagPicker } from '@/features/tags/TagPicker';
 import { localeId, parseTimestamp, shortTime, todayLocal } from '@/lib/date';
+import { onRadioGroupKeyDown, radioTabIndex } from '@/lib/radio-group';
 import { cn } from '@/lib/utils';
 import { buildRule, parseRule } from '../recurrence';
 import { computeRemindAt, detectPreset } from '../reminder';
@@ -192,13 +193,23 @@ function TaskForm({ task }: { task: Task }) {
         )}
 
         <Field icon={Flag} label="Prioritas">
-          <div className="flex rounded-xl p-1 glass" role="radiogroup" aria-label="Prioritas">
-            {PRIORITIES.map((p) => (
+          <div
+            className="flex rounded-xl p-1 glass"
+            role="radiogroup"
+            aria-label="Prioritas"
+            onKeyDown={onRadioGroupKeyDown}
+          >
+            {PRIORITIES.map((p, i) => (
               <button
                 key={p.value}
                 type="button"
                 role="radio"
                 aria-checked={task.priority === p.value}
+                tabIndex={radioTabIndex(
+                  task.priority === p.value,
+                  PRIORITIES.some((x) => x.value === task.priority),
+                  i,
+                )}
                 onClick={() => save({ priority: p.value })}
                 className={cn(
                   'flex-1 rounded-lg py-2 text-xs font-bold transition',

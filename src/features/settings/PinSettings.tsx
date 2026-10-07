@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Input';
 import { useLockStore } from '@/features/lock/lock-store';
 import { AUTO_LOCK_OPTIONS, createLockConfig, isValidPin } from '@/features/lock/pin';
+import { onRadioGroupKeyDown, radioTabIndex } from '@/lib/radio-group';
 
 const AUTO_LOCK_LABEL: Record<number, string> = {
   0: 'Segera',
@@ -108,12 +109,26 @@ export function PinSettings() {
   return (
     <div className="space-y-4">
       <div>
-        <Label>Kunci otomatis setelah ditinggalkan</Label>
-        <div className="flex flex-wrap gap-2">
-          {AUTO_LOCK_OPTIONS.map((m) => (
+        <p id="autolock-label" className="mb-1.5 text-sm font-semibold">
+          Kunci otomatis setelah ditinggalkan
+        </p>
+        <div
+          className="flex flex-wrap gap-2"
+          role="radiogroup"
+          aria-labelledby="autolock-label"
+          onKeyDown={onRadioGroupKeyDown}
+        >
+          {AUTO_LOCK_OPTIONS.map((m, i) => (
             <Button
               key={m}
               size="sm"
+              role="radio"
+              aria-checked={config.autoLockMinutes === m}
+              tabIndex={radioTabIndex(
+                config.autoLockMinutes === m,
+                AUTO_LOCK_OPTIONS.some((o) => o === config.autoLockMinutes),
+                i,
+              )}
               variant={config.autoLockMinutes === m ? 'primary' : 'secondary'}
               onClick={() => setAutoLock(m)}
             >
