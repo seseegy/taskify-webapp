@@ -15,6 +15,7 @@ import {
 import { useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -327,7 +328,14 @@ function TaskViewContent({
             variant="ghost"
             className="text-danger"
             onClick={async () => {
-              if (!window.confirm('Kosongkan Sampah? Semua tugas di dalamnya dihapus permanen.'))
+              if (
+                !(await confirmDialog(
+                  'Kosongkan Sampah? Semua tugas di dalamnya dihapus permanen.',
+                  {
+                    confirmLabel: 'Kosongkan',
+                  },
+                ))
+              )
                 return;
               const n = await actions.emptyTrash();
               toast(`${n} tugas dihapus permanen`);

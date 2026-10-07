@@ -1,5 +1,6 @@
 import { Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { FieldError } from '@/components/ui/FieldError';
 import { Select, Textarea } from '@/components/ui/Field';
@@ -396,9 +397,12 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
           <Button
             variant="ghost"
             className="text-danger"
-            onClick={() => {
+            onClick={async () => {
               if (
-                !window.confirm(`Hapus "${item.title}"? Transaksi yang sudah tercatat tetap ada.`)
+                !(await confirmDialog(
+                  `Hapus "${item.title}"? Transaksi yang sudah tercatat tetap ada.`,
+                  { confirmLabel: 'Hapus' },
+                ))
               )
                 return;
               void actions.removeRecurring(item.id);

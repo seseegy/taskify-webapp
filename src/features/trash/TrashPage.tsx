@@ -1,8 +1,9 @@
 import { useQuery } from '@powersync/react';
 import { formatDistanceToNow } from 'date-fns';
 import { RotateCcw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -45,9 +46,24 @@ export function TrashPage() {
   const actions = useTrashActions();
   const [now] = useState(() => Date.now());
 
+  // Dialog konfirmasi asinkron: isi Sampah bisa berubah selama dialog terbuka (mis. item dipulihkan
+  // dari perangkat lain lewat sync). Simpan rujukan terbaru supaya yang dihapus hanya item yang
+  // (1) ikut dikonfirmasi DAN (2) masih berada di Sampah saat konfirmasi disetujui.
+  const latestRows = useRef(rows);
+  useEffect(() => {
+    latestRows.current = rows;
+  }, [rows]);
+
   const emptyAll = async () => {
-    if (!window.confirm(`Hapus permanen ${rows.length} item? Tindakan ini tidak bisa dibatalkan.`))
+    const confirmed = new Set(rows.map((r) => r.id));
+    if (
+      !(await confirmDialog(
+        `Hapus permanen ${rows.length} item? Tindakan ini tidak bisa dibatalkan.`,
+        { confirmLabel: 'Hapus semua' },
+      ))
+    )
       return;
+    const targets = latestRows.current.filter((r) => confirmed.has(r.id));
     for (const type of [
       'task',
       'journal_entry',
@@ -57,7 +73,7 @@ export function TrashPage() {
     ] as TrashType[]) {
       await actions.destroy(
         type,
-        rows.filter((r) => r.type === type).map((r) => r.id),
+        targets.filter((r) => r.type === type).map((r) => r.id),
       );
     }
     toast('Sampah dikosongkan');
@@ -135,8 +151,13 @@ export function TrashPage() {
                       variant="ghost"
                       className="text-danger"
                       aria-label={`Hapus permanen ${r.title}`}
-                      onClick={() => {
-                        if (window.confirm('Hapus permanen?')) void actions.destroy(r.type, [r.id]);
+                      onClick={async () => {
+                        if (
+                          await confirmDialog(`Hapus permanen "${r.title}"?`, {
+                            confirmLabel: 'Hapus permanen',
+                          })
+                        )
+                          void actions.destroy(r.type, [r.id]);
                       }}
                     >
                       <Trash2 />

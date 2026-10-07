@@ -2,6 +2,7 @@ import { Download, NotebookPen, Pin, Plus, Search, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -254,8 +255,12 @@ function EntryList({
           <button
             type="button"
             className="hit-area font-bold text-danger hover:underline"
-            onClick={() => {
-              if (window.confirm('Hapus permanen semua catatan di Sampah?'))
+            onClick={async () => {
+              if (
+                await confirmDialog('Hapus permanen semua catatan di Sampah?', {
+                  confirmLabel: 'Hapus permanen',
+                })
+              )
                 void actions.emptyTrash();
             }}
           >

@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigation, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { useRouteA11y } from '@/app/useRouteA11y';
+import { ConfirmHost } from '@/components/ui/ConfirmHost';
 import { Toaster } from '@/components/ui/Toaster';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
 import { useRecurringProcessor } from '@/features/finance/finance-actions';
@@ -70,6 +71,7 @@ export function AppShell() {
       <TaskDetailSheet />
       <TransactionSheet />
       <CommandPalette />
+      <ConfirmHost />
       <Toaster />
     </div>
   );

@@ -12,6 +12,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -327,10 +328,15 @@ export function DebtTab() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label="Hapus"
+                      aria-label={`Hapus catatan utang ${d.counterparty}`}
                       className="text-danger"
-                      onClick={() => {
-                        if (window.confirm('Hapus catatan ini beserta transaksi dompet terkait?'))
+                      onClick={async () => {
+                        if (
+                          await confirmDialog(
+                            'Hapus catatan ini beserta transaksi dompet terkait?',
+                            { confirmLabel: 'Hapus' },
+                          )
+                        )
                           void actions.removeDebt(d);
                       }}
                     >

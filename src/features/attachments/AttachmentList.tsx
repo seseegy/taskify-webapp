@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { Sheet } from '@/components/ui/Sheet';
@@ -183,8 +184,9 @@ export function AttachmentViewer({
               <Button
                 variant="ghost"
                 className="text-danger"
-                onClick={() => {
-                  if (!window.confirm(`Hapus ${att.file_name}?`)) return;
+                onClick={async () => {
+                  if (!(await confirmDialog(`Hapus ${att.file_name}?`, { confirmLabel: 'Hapus' })))
+                    return;
                   void actions.remove(att);
                   onClose();
                 }}

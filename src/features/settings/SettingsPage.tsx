@@ -19,6 +19,7 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { SyncStatus } from '@/components/layout/SyncStatus';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -195,7 +196,7 @@ function AccountSection() {
       stats.count > 0
         ? `Masih ada ${stats.count} perubahan yang BELUM terunggah dan akan HILANG. Tetap keluar?`
         : 'Keluar dan hapus data lokal dari perangkat ini? (Data tetap aman di server.)';
-    if (!window.confirm(warning)) return;
+    if (!(await confirmDialog(warning, { title: 'Keluar', confirmLabel: 'Keluar' }))) return;
 
     setLoading(true);
     try {

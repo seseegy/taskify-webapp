@@ -1,5 +1,6 @@
 import { Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Field';
 import { Input, Label } from '@/components/ui/Input';
@@ -67,7 +68,8 @@ function WalletForm({
   };
 
   const remove = async () => {
-    if (!wallet || !window.confirm(`Hapus dompet "${wallet.name}"?`)) return;
+    if (!wallet) return;
+    if (!(await confirmDialog(`Hapus dompet "${wallet.name}"?`, { confirmLabel: 'Hapus' }))) return;
     await actions.removeWallet(wallet.id);
     onClose();
   };
@@ -188,7 +190,7 @@ function CategoryForm({
     const msg = category.tx_count
       ? `Hapus kategori "${category.name}"? ${category.tx_count} transaksi lama tetap menyimpan nama kategori ini.`
       : `Hapus kategori "${category.name}"?`;
-    if (!window.confirm(msg)) return;
+    if (!(await confirmDialog(msg, { confirmLabel: 'Hapus' }))) return;
     await actions.removeCategory(category.id);
     onClose();
   };
