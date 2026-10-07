@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import { SQLITE_TZ_MODIFIER, type LocalDate } from '@/lib/date';
 
 /** Jenis aktivitas yang tampil di kalender. */
-export type ActivityKind = 'task' | 'journal' | 'expense' | 'income' | 'vault';
+export type ActivityKind = 'journal' | 'expense' | 'income' | 'vault';
 
 export interface DayActivity {
   tasks: number;
@@ -76,10 +76,6 @@ export function useCalendarActivity(from: LocalDate, to: LocalDate) {
     for (const row of data) {
       const entry = map.get(row.day) ?? { ...EMPTY_DAY };
       switch (row.kind) {
-        case 'task':
-          entry.tasks += row.count;
-          entry.tasksDone += row.done;
-          break;
         case 'journal':
           entry.journal += row.count;
           entry.mood = row.amount === null ? null : Math.round(row.amount);
