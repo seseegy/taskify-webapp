@@ -78,6 +78,24 @@ export const PALETTE = {
 } as const;
 
 export type PaletteColor = keyof typeof PALETTE;
+
+/** Nama warna dalam Bahasa Indonesia (untuk pembaca layar; nama di DB tetap kunci Inggris). */
+export const PALETTE_LABELS: Record<PaletteColor, string> = {
+  violet: 'Ungu',
+  indigo: 'Nila',
+  sky: 'Biru langit',
+  teal: 'Hijau toska',
+  emerald: 'Hijau zamrud',
+  amber: 'Kuning amber',
+  orange: 'Jingga',
+  red: 'Merah',
+  rose: 'Mawar',
+  pink: 'Merah muda',
+  fuchsia: 'Fuchsia',
+  slate: 'Abu-abu',
+};
+
+export const colorLabel = (name: string) => PALETTE_LABELS[name as PaletteColor] ?? name;
 export const PALETTE_NAMES = Object.keys(PALETTE) as PaletteColor[];
 
 export const paletteOf = (name: string | null | undefined, fallback: PaletteColor = 'violet') =>

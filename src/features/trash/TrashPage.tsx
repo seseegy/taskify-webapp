@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingRows } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/toast-store';
 import { ENTITY_META } from '@/features/entities/entities';
 import { entitySubtitle } from '@/features/entities/entity-format';
@@ -40,7 +41,7 @@ const SQL = `
 
 /** Sampah gabungan: tugas, jurnal, transaksi. */
 export function TrashPage() {
-  const { data: rows } = useQuery<TrashRow>(SQL);
+  const { data: rows, isLoading } = useQuery<TrashRow>(SQL);
   const actions = useTrashActions();
   const [now] = useState(() => Date.now());
 
@@ -78,7 +79,9 @@ export function TrashPage() {
         }
       />
       <Card className="animate-fade-up">
-        {rows.length === 0 ? (
+        {isLoading ? (
+          <LoadingRows label="Memuat sampah…" />
+        ) : rows.length === 0 ? (
           <EmptyState
             icon={Trash2}
             gradient="bg-gradient-settings"

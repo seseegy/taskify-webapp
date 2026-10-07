@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card';
 import { CodeBlock } from '@/components/ui/CodeBlock';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Select } from '@/components/ui/Field';
+import { Progress } from '@/components/ui/Progress';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { Snippet } from '@/db/schema';
 import { useTagMap } from '@/features/tags/tag-actions';
@@ -85,12 +86,13 @@ export function VaultPage() {
         >
           <HardDrive className="size-4" />
           R2: {formatBytes(usage.bytes)} / 10 GB · {usage.files} file
-          <span className="h-1.5 w-20 overflow-hidden rounded-full bg-surface">
-            <span
-              className="block h-full rounded-full bg-gradient-vault"
-              style={{ width: `${Math.min(100, (usage.bytes / R2_FREE_BYTES) * 100)}%` }}
-            />
-          </span>
+          <Progress
+            decorative
+            value={usage.bytes}
+            max={R2_FREE_BYTES}
+            className="w-20"
+            barClassName="bg-gradient-vault"
+          />
         </span>
       </div>
 
@@ -293,6 +295,7 @@ function ProjectsTab({
           <button
             key={p.id}
             type="button"
+            aria-current={p.id === activeId ? 'true' : undefined}
             onClick={() => onOpen(p.id)}
             className={cn(
               'flex w-full items-center gap-3 rounded-2xl p-3 text-left glass transition',
@@ -306,7 +309,13 @@ function ProjectsTab({
               <span className="flex items-center gap-1.5">
                 <span className="truncate text-sm font-bold">{p.name}</span>
                 {p.is_favorite ? (
-                  <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />
+                  <>
+                    <Star
+                      className="size-3.5 shrink-0 fill-amber-400 text-amber-400"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">(favorit)</span>
+                  </>
                 ) : null}
               </span>
               <span className="block truncate text-xs text-muted">
@@ -315,7 +324,12 @@ function ProjectsTab({
                   : 'Belum ada versi'}
               </span>
             </span>
-            {p.versions > 0 && <Badge>{p.versions}</Badge>}
+            {p.versions > 0 && (
+              <Badge title={`${p.versions} versi`}>
+                {p.versions}
+                <span className="sr-only"> versi</span>
+              </Badge>
+            )}
           </button>
         ))}
       </div>

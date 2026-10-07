@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Textarea } from '@/components/ui/Field';
 import { Input, Label } from '@/components/ui/Input';
+import { Progress } from '@/components/ui/Progress';
 import { Sheet } from '@/components/ui/Sheet';
 import type { Attachment, CodeProject } from '@/db/schema';
 import {
@@ -163,6 +164,7 @@ function VersionRow({
           )}
         >
           {att.version_label ?? '—'}
+          {latest && <span className="ml-1.5 font-semibold">· Terbaru</span>}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold">{att.note || att.file_name}</span>
@@ -177,12 +179,13 @@ function VersionRow({
         </span>
         {uploading ? (
           <span className="flex items-center gap-2 text-xs font-bold text-primary">
-            <Loader2 className="size-4 animate-spin" /> {Math.round(progress * 100)}%
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            <span aria-hidden="true">{Math.round(progress * 100)}%</span>
             <button
               type="button"
-              aria-label="Batalkan upload"
+              aria-label={`Batalkan upload ${att.file_name}`}
               onClick={() => actions.cancel(att.id)}
-              className="text-muted hover:text-fg"
+              className="relative text-muted before:absolute before:-inset-2 before:content-[''] hover:text-fg"
             >
               <X className="size-4" />
             </button>
@@ -237,12 +240,14 @@ function VersionRow({
         )}
       </div>
       {uploading && (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface">
-          <div
-            className="h-full rounded-full bg-gradient-vault transition-all"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
+        <Progress
+          label={`Mengunggah ${att.file_name}`}
+          valueText={`${Math.round(progress * 100)} persen`}
+          value={progress}
+          max={1}
+          className="mt-2"
+          barClassName="bg-gradient-vault"
+        />
       )}
     </li>
   );

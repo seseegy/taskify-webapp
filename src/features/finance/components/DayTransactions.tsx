@@ -11,16 +11,17 @@ export function DayTransactions({ date }: { date: LocalDate }) {
 
   return (
     <div>
-      <h3 className="mb-2 flex items-center justify-between text-xs font-bold tracking-wide text-muted uppercase">
-        Keuangan
+      {/* Tombol di luar <h3>: kalau di dalam, teks tombol ikut menjadi nama heading */}
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-xs font-bold tracking-wide text-muted uppercase">Keuangan</h3>
         <button
           type="button"
           onClick={() => create({ date })}
-          className="flex items-center gap-1 rounded-lg px-2 py-1 font-bold text-primary normal-case hover:bg-surface"
+          className="flex min-h-9 items-center gap-1 rounded-lg px-2.5 text-xs font-bold text-primary hover:bg-surface"
         >
-          <Plus className="size-3.5" /> Catat
+          <Plus className="size-3.5" aria-hidden="true" /> Catat
         </button>
-      </h3>
+      </div>
       {rows.length === 0 ? (
         <p className="px-2 py-1 text-sm text-muted">Tidak ada transaksi.</p>
       ) : (

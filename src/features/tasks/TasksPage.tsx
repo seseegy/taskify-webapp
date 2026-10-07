@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingRows } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/toast-store';
 import type { Task, TaskList } from '@/db/schema';
 import {
@@ -60,6 +61,9 @@ const SMART_VIEWS: {
   { view: 'done', label: 'Selesai', icon: CircleCheckBig },
   { view: 'trash', label: 'Sampah', icon: Trash2, count: 'trash' },
 ];
+
+/** Jumlah tugas yang ditampilkan per tahap (tombol "Tampilkan lebih banyak"). */
+const PAGE_SIZE = 100;
 
 export function TasksPage() {
   const [params, setParams] = useSearchParams();
@@ -121,7 +125,7 @@ export function TasksPage() {
                 type="button"
                 aria-label="Daftar baru"
                 onClick={() => setDialog({ open: true, list: null })}
-                className="flex size-7 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-fg"
+                className="hit-area flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface hover:text-fg"
               >
                 <Plus className="size-4" />
               </button>
@@ -176,7 +180,9 @@ export function TasksPage() {
             />
           )}
 
+          {/* key: state "tampilkan lebih banyak" ikut direset tiap pindah tampilan */}
           <TaskViewContent
+            key={view}
             view={view}
             today={today}
             lists={lists}
@@ -265,6 +271,7 @@ function TaskViewContent({
   const actions = useTaskActions();
   const listById = useMemo(() => new Map(lists.map((l) => [l.id, l])), [lists]);
   const inList = isListView(view);
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   const groups: TaskGroup[] = useMemo(() => {
     if (view === 'today') {
@@ -288,9 +295,17 @@ function TaskViewContent({
     return groupByDate(rows, today);
   }, [rows, view, today]);
 
-  if (isLoading) return null;
+  if (isLoading) return <LoadingRows label="Memuat tugas…" />;
 
   const empty = rows.length === 0;
+
+  // Daftar bisa tumbuh tanpa batas (terutama Selesai & Sampah) → tampilkan bertahap agar DOM kecil.
+  // Dipotong lintas grup berurutan; batas kembali ke awal saat pindah tampilan (lewat `key`).
+  const visibleGroups = groups.map((g, i) => {
+    const before = groups.slice(0, i).reduce((n, x) => n + x.items.length, 0);
+    return { ...g, items: g.items.slice(0, Math.max(0, limit - before)) };
+  });
+  const hiddenCount = rows.length - visibleGroups.reduce((n, g) => n + g.items.length, 0);
 
   return (
     <div className="space-y-5">
@@ -325,7 +340,7 @@ function TaskViewContent({
 
       {empty && <EmptyView view={view} />}
 
-      {groups.map(
+      {visibleGroups.map(
         (g) =>
           g.items.length > 0 && (
             <section key={g.key}>
@@ -371,6 +386,14 @@ function TaskViewContent({
               </div>
             </section>
           ),
+      )}
+
+      {hiddenCount > 0 && (
+        <div className="flex justify-center pt-1">
+          <Button variant="secondary" onClick={() => setLimit(limit + PAGE_SIZE)}>
+            Tampilkan {Math.min(PAGE_SIZE, hiddenCount)} lagi ({hiddenCount} tersisa)
+          </Button>
+        </div>
       )}
     </div>
   );

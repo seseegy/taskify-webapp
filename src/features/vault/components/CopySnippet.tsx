@@ -47,11 +47,15 @@ export function CopySnippet({
           if (vars.length) setOpen(true);
           else if (await copyText(code)) flash();
         }}
-        aria-label="Salin kode"
       >
-        {done ? <Check /> : <Copy />}
+        {/* Tanpa aria-label: nama tombol = teks yang terlihat (WCAG 2.5.3 Label in Name) */}
+        {done ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
         {done ? 'Tersalin' : vars.length ? `Salin (${vars.length} variabel)` : 'Salin'}
       </Button>
+      {/* Konfirmasi untuk pembaca layar; teks tombol berubah tapi fokus tetap, jadi tidak otomatis dibacakan */}
+      <span role="status" className="sr-only">
+        {done ? 'Kode tersalin' : ''}
+      </span>
       <Sheet
         open={open}
         onClose={() => setOpen(false)}

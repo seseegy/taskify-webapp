@@ -1,5 +1,6 @@
 import { Plus, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { Progress } from '@/components/ui/Progress';
 import type { Task } from '@/db/schema';
 import { useTaskActions } from '../task-actions';
 import { useSubtasks } from '../task-queries';
@@ -21,12 +22,14 @@ export function SubtaskList({ parent }: { parent: Task }) {
   return (
     <div>
       {subtasks.length > 0 && (
-        <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-surface">
-          <div
-            className="h-full rounded-full bg-gradient-tasks transition-all"
-            style={{ width: `${(done / subtasks.length) * 100}%` }}
-          />
-        </div>
+        <Progress
+          label="Progres subtask"
+          valueText={`${done} dari ${subtasks.length} subtask selesai`}
+          value={done}
+          max={subtasks.length}
+          className="mb-2"
+          barClassName="bg-gradient-tasks"
+        />
       )}
       <ul className="space-y-1">
         {subtasks.map((s) => (
@@ -55,7 +58,7 @@ export function SubtaskList({ parent }: { parent: Task }) {
               type="button"
               aria-label={`Hapus subtask ${s.title}`}
               onClick={() => void actions.destroy([s.id])}
-              className="flex size-7 items-center justify-center rounded-lg text-muted opacity-60 transition group-hover:opacity-100 hover:bg-danger/10 hover:text-danger"
+              className="flex size-9 items-center justify-center rounded-lg text-muted opacity-70 transition group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-danger/10 hover:text-danger focus-visible:opacity-100 pointer-coarse:opacity-100"
             >
               <X className="size-4" />
             </button>

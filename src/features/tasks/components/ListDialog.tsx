@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Input';
 import { Sheet } from '@/components/ui/Sheet';
 import type { TaskList } from '@/db/schema';
+import { colorLabel } from '@/lib/palette';
+import { onRadioGroupKeyDown, radioTabIndex } from '@/lib/radio-group';
 import { cn } from '@/lib/utils';
 import { useTaskActions } from '../task-actions';
 import { LIST_COLORS, type ListColor } from '../task-utils';
@@ -64,14 +66,23 @@ function ListDialogInner({ open, onClose, list, onCreated, onDeleted }: Props) {
           />
         </div>
         <div>
-          <Label>Warna</Label>
-          <div className="flex flex-wrap gap-2">
-            {(Object.keys(LIST_COLORS) as ListColor[]).map((c) => (
+          <p id="list-color-label" className="mb-1.5 text-sm font-semibold">
+            Warna
+          </p>
+          <div
+            className="flex flex-wrap gap-2"
+            role="radiogroup"
+            aria-labelledby="list-color-label"
+            onKeyDown={onRadioGroupKeyDown}
+          >
+            {(Object.keys(LIST_COLORS) as ListColor[]).map((c, i) => (
               <button
                 key={c}
                 type="button"
-                aria-label={c}
-                aria-pressed={color === c}
+                role="radio"
+                aria-label={colorLabel(c)}
+                aria-checked={color === c}
+                tabIndex={radioTabIndex(color === c, color in LIST_COLORS, i)}
                 onClick={() => setColor(c)}
                 className={cn(
                   'flex size-9 items-center justify-center rounded-full text-white transition',

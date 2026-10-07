@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingRows } from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/toast-store';
 import type { JournalEntry } from '@/db/schema';
 import { formatLocalDate, relativeDayLabel, todayLocal, type LocalDate } from '@/lib/date';
@@ -252,7 +253,7 @@ function EntryList({
           Catatan di Sampah bisa dipulihkan.
           <button
             type="button"
-            className="font-bold text-danger hover:underline"
+            className="hit-area font-bold text-danger hover:underline"
             onClick={() => {
               if (window.confirm('Hapus permanen semua catatan di Sampah?'))
                 void actions.emptyTrash();
@@ -262,6 +263,8 @@ function EntryList({
           </button>
         </div>
       )}
+
+      {isLoading && <LoadingRows label="Memuat catatan…" />}
 
       {!isLoading && entries.length === 0 && (
         <EmptyState

@@ -1,3 +1,4 @@
+import { Progress } from '@/components/ui/Progress';
 import { formatIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import type { BudgetStatus } from '../finance-queries';
@@ -27,17 +28,17 @@ export function BudgetBar({ budget, onClick }: { budget: BudgetStatus; onClick?:
             {formatIDR(budget.spent)} / {formatIDR(budget.amount)}
           </span>
         </span>
-        <span className="mt-1.5 block h-2 overflow-hidden rounded-full bg-surface">
-          <span
-            className={cn(
-              'block h-full rounded-full transition-all',
-              level === 'ok' && 'bg-linear-to-r from-emerald-500 to-teal-400',
-              level === 'warn' && 'bg-linear-to-r from-amber-500 to-orange-400',
-              level === 'over' && 'bg-linear-to-r from-rose-600 to-red-500',
-            )}
-            style={{ width: `${pct}%` }}
-          />
-        </span>
+        {/* Dekoratif: "Sisa … · 87%" di bawahnya sudah menyampaikan angka yang sama */}
+        <Progress
+          decorative
+          value={pct}
+          className="mt-1.5 h-2"
+          barClassName={cn(
+            level === 'ok' && 'bg-linear-to-r from-emerald-500 to-teal-400',
+            level === 'warn' && 'bg-linear-to-r from-amber-500 to-orange-400',
+            level === 'over' && 'bg-linear-to-r from-rose-600 to-red-500',
+          )}
+        />
         <span
           className={cn(
             'mt-1 block text-xs font-medium',

@@ -150,6 +150,7 @@ function Tree({
     return (
       <button
         type="button"
+        aria-current={selected === node.path ? 'true' : undefined}
         onClick={() => onSelect(node.path)}
         style={pad}
         className={cn(
@@ -166,18 +167,22 @@ function Tree({
     <div>
       <button
         type="button"
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
         style={pad}
         className="flex w-full items-center gap-1 rounded-lg py-1 pr-2 text-left font-semibold hover:bg-surface"
       >
-        <ChevronRight className={cn('size-3.5 shrink-0 transition', open && 'rotate-90')} />
+        <ChevronRight
+          className={cn('size-3.5 shrink-0 transition', open && 'rotate-90')}
+          aria-hidden="true"
+        />
         {open ? (
           <FolderOpen className="size-3.5 shrink-0 text-mod-vault" />
         ) : (
           <Folder className="size-3.5 shrink-0 text-mod-vault" />
         )}
         <span className="truncate">{node.name}</span>
-        <span className="ml-auto shrink-0 text-[10px] font-normal text-muted">
+        <span className="ml-auto shrink-0 text-xs font-normal text-muted">
           {formatBytes(node.size)}
         </span>
       </button>
@@ -243,9 +248,9 @@ function FilePreview({ info, path }: { info: ZipInfo; path: string | null }) {
               type="button"
               aria-label="Unduh file ini"
               onClick={() => saveBlob(current.blob!, path.split('/').pop()!)}
-              className="rounded p-1 hover:bg-surface"
+              className="flex size-8 items-center justify-center rounded-lg hover:bg-surface"
             >
-              <Download className="size-3.5" />
+              <Download className="size-4" />
             </button>
           )}
         </span>

@@ -49,8 +49,17 @@ let seq = 0;
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
   push: ({ duration, tone = 'default', ...toast }) => {
-    const id = ++seq;
     const current = get().toasts;
+    // Pesan yang persis sama (tanpa aksi) sudah tampil → cukup segarkan timernya, jangan menumpuk
+    if (!toast.action) {
+      const same = current.find((t) => !t.action && t.message === toast.message && t.tone === tone);
+      if (same) {
+        forget(same.id);
+        start(same.id, duration ?? DEFAULT_MS);
+        return;
+      }
+    }
+    const id = ++seq;
     // Maks. 3 toast tampil sekaligus; yang terdorong keluar dibersihkan timernya
     current.slice(0, -2).forEach((t) => forget(t.id));
     set({ toasts: [...current.slice(-2), { ...toast, tone, id }] });

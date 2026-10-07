@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Progress } from '@/components/ui/Progress';
 import { Sheet } from '@/components/ui/Sheet';
 import type { Attachment, EntityType } from '@/db/schema';
 import { formatBytes } from '@/lib/bytes';
@@ -103,31 +104,45 @@ function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }
       </button>
       {uploading && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/45 text-xs font-bold text-white">
-          <Loader2 className="size-5 animate-spin" />
-          {Math.round(progress * 100)}%
+          {/* Progres untuk pembaca layar: saudara (bukan induk) tombol batal, supaya tombolnya tetap terbaca */}
+          <Progress
+            label={`Mengunggah ${att.file_name}`}
+            valueText={`${Math.round(progress * 100)} persen`}
+            value={progress}
+            max={1}
+            className="sr-only"
+          />
+          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          <span aria-hidden="true">{Math.round(progress * 100)}%</span>
           <button
             type="button"
-            aria-label="Batalkan upload"
+            aria-label={`Batalkan upload ${att.file_name}`}
             onClick={() => actions.cancel(att.id)}
-            className="absolute top-1 right-1 rounded-full bg-black/40 p-0.5"
+            className="absolute top-0.5 right-0.5 flex size-8 items-center justify-center rounded-full bg-black/40"
           >
-            <X className="size-3.5" />
+            <X className="size-4" />
           </button>
         </div>
       )}
       {!uploading && att.status !== 'uploaded' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-danger/70 p-1 text-center text-[10px] font-bold text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-danger/70 p-1 text-center text-xs font-bold text-white">
           {att.status === 'failed' ? 'Gagal' : 'Menunggu'}
           {hasFile && (
             <button
               type="button"
+              aria-label={`Ulangi upload ${att.file_name}`}
               onClick={() => void actions.retry(att)}
-              className="flex items-center gap-1 rounded-full bg-white/25 px-2 py-0.5"
+              className="flex min-h-8 items-center gap-1 rounded-full bg-white/25 px-2.5"
             >
-              <RotateCcw className="size-3" /> Ulangi
+              <RotateCcw className="size-3" aria-hidden="true" /> Ulangi
             </button>
           )}
-          <button type="button" onClick={() => void actions.remove(att)} className="underline">
+          <button
+            type="button"
+            aria-label={`Hapus ${att.file_name}`}
+            onClick={() => void actions.remove(att)}
+            className="min-h-8 px-2 underline"
+          >
             Hapus
           </button>
         </div>

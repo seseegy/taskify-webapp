@@ -1,11 +1,20 @@
-import { BellRing, CalendarDays, Clock, ListTree, NotebookText, Repeat } from 'lucide-react';
+import {
+  BellRing,
+  CalendarDays,
+  Clock,
+  Flag,
+  ListTree,
+  NotebookText,
+  Repeat,
+  TriangleAlert,
+} from 'lucide-react';
 import { useId, type ReactNode } from 'react';
 import type { Task, TaskList } from '@/db/schema';
 import { relativeDayLabel, shortTime, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import type { Progress } from '../task-queries';
 import { useTaskSheet } from '../task-sheet-store';
-import { listColor } from '../task-utils';
+import { listColor, PRIORITIES } from '../task-utils';
 import { TagChip } from '@/features/tags/TagPicker';
 import { TaskCheckbox } from './TaskCheckbox';
 
@@ -52,10 +61,30 @@ export function TaskRow({
         key="date"
         className={overdue ? 'text-danger' : date === today ? 'text-primary' : undefined}
       >
-        <CalendarDays /> {overdue && <span className="sr-only">Terlambat: </span>}
+        {overdue ? <TriangleAlert /> : <CalendarDays />}{' '}
+        {overdue && <span className="font-bold">Terlambat · </span>}
         {relativeDayLabel(date, today)}
       </Chip>,
     );
+  if (task.priority > 0 && !done && !cancelled) {
+    const p = PRIORITIES[task.priority];
+    meta.push(
+      <Chip
+        key="prio"
+        title={`Prioritas ${p?.label.toLowerCase()}`}
+        className={cn(
+          task.priority === 1 && 'text-sky-600 dark:text-sky-300',
+          task.priority === 2 && 'text-amber-600 dark:text-amber-300',
+          task.priority === 3 && 'text-rose-600 dark:text-rose-300',
+        )}
+      >
+        <Flag />
+        <span className="sr-only">Prioritas </span>
+        {!compact && p?.label}
+        {compact && <span className="sr-only">{p?.label}</span>}
+      </Chip>,
+    );
+  }
   if (task.due_time)
     meta.push(
       <Chip key="time">

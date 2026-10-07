@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { LoadingRows } from '@/components/ui/Skeleton';
 import { Select } from '@/components/ui/Field';
 import { toast } from '@/components/ui/toast-store';
 import type { TransactionKind } from '@/db/schema';
@@ -151,11 +152,13 @@ export function TransactionsTab({
             setSearch('');
             onWallet(null);
           }}
-          className="mb-3 inline-flex items-center gap-1 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted hover:text-fg"
+          className="mb-3 inline-flex min-h-9 items-center gap-1 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted hover:text-fg"
         >
           <X className="size-3" /> Hapus filter · {rows.length} transaksi
         </button>
       )}
+
+      {isLoading && <LoadingRows label="Memuat transaksi…" />}
 
       {!isLoading && rows.length === 0 && (
         <EmptyState

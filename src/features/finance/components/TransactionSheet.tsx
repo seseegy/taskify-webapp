@@ -165,21 +165,23 @@ function TxForm({
 
       {kind !== 'transfer' && (
         <div>
-          <Label>Kategori</Label>
+          <p id="tx-cat-label" className="mb-1.5 text-sm font-semibold">
+            Kategori <span className="font-normal text-muted">(opsional)</span>
+          </p>
+          {/* Bukan radio: ketuk kategori yang aktif = mengosongkan → tombol toggle */}
           <div
             className="grid grid-cols-4 gap-2 sm:grid-cols-5"
-            role="radiogroup"
-            aria-label="Kategori"
+            role="group"
+            aria-labelledby="tx-cat-label"
           >
             {categories.map((c) => (
               <button
                 key={c.id}
                 type="button"
-                role="radio"
-                aria-checked={categoryId === c.id}
+                aria-pressed={categoryId === c.id}
                 onClick={() => setCategoryId(categoryId === c.id ? null : c.id)}
                 className={cn(
-                  'flex flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center text-[11px] leading-tight font-semibold transition',
+                  'flex flex-col items-center gap-1 rounded-2xl px-1 py-2 text-center text-xs leading-tight font-semibold transition',
                   categoryId === c.id ? 'ring-2 glass-strong ring-primary/60' : 'hover:bg-surface',
                 )}
               >

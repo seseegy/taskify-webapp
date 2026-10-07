@@ -39,6 +39,8 @@
 
   --animate-blob: blob 22s ease-in-out infinite alternate;
   --animate-fade-up: fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* Muncul setelah jeda 300 ms: pemuatan singkat (query lokal) tidak menampilkan apa pun */
+  --animate-delayed-in: delayed-in 0.2s ease 0.3s both;
 
   @keyframes blob {
     0% {
@@ -49,6 +51,14 @@
     }
     100% {
       transform: translate3d(-4%, 5%, 0) scale(0.96);
+    }
+  }
+  @keyframes delayed-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
     }
   }
   @keyframes fade-up {
@@ -194,6 +204,18 @@
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
+}
+
+/* Perluas area ketuk tanpa mengubah tata letak (tombol teks/ikon kecil). Area tambahan 8px per sisi,
+   jadi target efektifnya ≥ 24px walau tampilannya kecil (WCAG 2.5.8). Jangan dipakai pada elemen
+   yang sudah `absolute`, dan hindari pada elemen yang berdempetan (areanya saling menimpa). */
+@utility hit-area {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -0.5rem;
+  }
 }
 
 /* Kilau tipis di tepi atas elemen bergradasi (tombol, ikon modul) */
