@@ -1,7 +1,8 @@
 import { CodeXml, Search, Settings } from 'lucide-react';
-import { useEffect } from 'react';
-import { NavLink, Outlet, useSearchParams } from 'react-router';
+import { useEffect, useRef } from 'react';
+import { NavLink, Outlet, useNavigation, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
+import { useRouteA11y } from '@/app/useRouteA11y';
 import { Toaster } from '@/components/ui/Toaster';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
 import { useRecurringProcessor } from '@/features/finance/finance-actions';
@@ -24,13 +25,42 @@ export function AppShell() {
   useTaskDeepLink();
   useRecurringProcessor();
   useTrashPurge();
+  const mainRef = useRef<HTMLElement>(null);
+  useRouteA11y(mainRef);
+  const navigating = useNavigation().state === 'loading';
   return (
     <div className="min-h-dvh lg:flex">
+      {/* Tautan lompat: muncul saat difokuskan (Tab pertama) */}
+      <a
+        href="#konten"
+        onClick={(e) => {
+          e.preventDefault();
+          mainRef.current?.focus();
+        }}
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[70] focus:rounded-xl focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:glass-strong"
+      >
+        Lewati ke konten utama
+      </a>
+      {/* Indikator muat saat chunk halaman diunduh (pindah rute) */}
+      <div role="status" className="sr-only">
+        {navigating ? 'Memuat halaman…' : ''}
+      </div>
+      {navigating && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-x-0 top-0 z-[65] h-0.5 animate-pulse bg-gradient-brand"
+        />
+      )}
       <Sidebar />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <MobileHeader />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-28 sm:px-6 lg:px-10 lg:pt-10 lg:pb-12">
+        <main
+          id="konten"
+          ref={mainRef}
+          tabIndex={-1}
+          className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-28 outline-none sm:px-6 lg:px-10 lg:pt-10 lg:pb-12"
+        >
           <Outlet />
         </main>
       </div>

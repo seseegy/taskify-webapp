@@ -15,12 +15,13 @@ import {
 } from 'lucide-react';
 import {
   createElement,
+  type KeyboardEvent,
+  type ReactNode,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
-  type ReactNode,
 } from 'react';
 import { useNavigate } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
@@ -100,6 +101,10 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
   const [override, setOverride] = useState<CaptureKind | null>(null);
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const baseId = useId();
+  const listId = `${baseId}-list`;
+  const hintId = `${baseId}-hint`;
+  const optionId = (i: number) => `${baseId}-opt-${i}`;
   const today = todayLocal();
   const navigate = useNavigate();
   const openEntity = useOpenEntity();
@@ -234,25 +239,33 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
   }, [safeActive]);
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown' && !e.altKey) {
       e.preventDefault();
       setActive((safeActive + 1) % Math.max(1, items.length));
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp' && !e.altKey) {
       e.preventDefault();
       setActive((safeActive - 1 + items.length) % Math.max(1, items.length));
-    } else if (e.key === 'Enter') {
+    } else if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void items[safeActive]?.run();
-    } else if (e.key === 'Tab' && cap) {
-      // Tab = ganti jenis catat cepat
+    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.altKey && cap) {
+      // Alt+↑/↓ = ganti jenis catat cepat. Tab tidak lagi dibajak agar fokus bisa berpindah
+      // ke pilihan jenis & tombol Tutup (navigasi keyboard standar).
       e.preventDefault();
       const kinds = availableKinds(parsed!);
       const idx = kinds.indexOf(cap.kind);
-      setOverride(kinds[(idx + (e.shiftKey ? kinds.length - 1 : 1)) % kinds.length]!);
+      const step = e.key === 'ArrowDown' ? 1 : kinds.length - 1;
+      setOverride(kinds[(idx + step) % kinds.length]!);
     }
   };
 
-  let lastSection = '';
+  // Kelompokkan item berurutan per seksi (role="group"), simpan indeks globalnya
+  const groups: { section: string; entries: { item: Item; index: number }[] }[] = [];
+  items.forEach((item, index) => {
+    const last = groups.at(-1);
+    if (last && last.section === item.section) last.entries.push({ item, index });
+    else groups.push({ section: item.section, entries: [{ item, index }] });
+  });
 
   return (
     <div onKeyDown={onKeyDown}>
@@ -268,6 +281,14 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
           }}
           placeholder='Cari, atau ketik "makan siang 25rb", "besok rapat jam 9 #kerja"…'
           aria-label="Cari atau catat cepat"
+          role="combobox"
+          aria-expanded={items.length > 0}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={items.length > 0 ? optionId(safeActive) : undefined}
+          aria-describedby={hintId}
+          autoComplete="off"
+          enterKeyHint="go"
           className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted/70"
         />
         <kbd className="hidden rounded-md border border-line px-1.5 py-0.5 text-[10px] font-bold text-muted sm:block">
@@ -293,7 +314,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
                 disabled={!enabled}
                 onClick={() => setOverride(k)}
                 className={cn(
-                  'rounded-full px-2.5 py-1 text-xs font-bold transition disabled:opacity-30',
+                  'min-h-8 rounded-full px-3 py-1 text-xs font-bold transition disabled:opacity-50',
                   cap.kind === k
                     ? cn('shine text-white shadow', KIND_META[k].gradient)
                     : 'text-muted glass hover:text-fg',
@@ -303,56 +324,71 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
               </button>
             );
           })}
-          <span className="ml-auto hidden text-[11px] text-muted sm:inline">Tab untuk ganti</span>
+          <span className="ml-auto hidden text-xs text-muted sm:inline">Alt + ↑↓ untuk ganti</span>
         </div>
       )}
 
-      <div
-        ref={listRef}
-        className="-mx-1 max-h-[55dvh] overflow-y-auto px-1"
-        role="listbox"
-        aria-label="Hasil"
-      >
-        {items.map((item, i) => {
-          const header = item.section !== lastSection ? item.section : null;
-          lastSection = item.section;
-          return (
-            <div key={item.key}>
-              {header && (
-                <p className="mt-2 mb-1 px-2 text-[11px] font-bold tracking-wide text-muted uppercase first:mt-0">
-                  {header}
-                </p>
-              )}
-              <button
-                type="button"
-                role="option"
-                data-index={i}
-                aria-selected={i === safeActive}
-                onMouseMove={() => i !== safeActive && setActive(i)}
-                onClick={() => void item.run()}
-                className={cn(
-                  'flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition',
-                  i === safeActive ? 'ring-1 glass-strong ring-primary/40' : 'hover:bg-surface',
-                )}
+      {/* Petunjuk + jumlah hasil untuk pembaca layar (tidak terlihat) */}
+      <span id={hintId} className="sr-only">
+        Ketik untuk mencari atau mencatat. Panah atas dan bawah memilih hasil, Enter menjalankan.
+        {cap && ' Alt dan panah atas atau bawah mengganti jenis catatan.'}
+      </span>
+      <div role="status" className="sr-only">
+        {items.length > 0
+          ? `${items.length} hasil tersedia`
+          : q && ready
+            ? `Tidak ada hasil untuk ${text.trim()}`
+            : ''}
+      </div>
+
+      <div ref={listRef} className="-mx-1 max-h-[55dvh] overflow-y-auto px-1">
+        <div id={listId} role="listbox" aria-label="Hasil" hidden={items.length === 0}>
+          {groups.map((group) => (
+            <div key={group.section} role="group" aria-labelledby={`${baseId}-g-${group.section}`}>
+              <p
+                id={`${baseId}-g-${group.section}`}
+                role="presentation"
+                className="mt-2 mb-1 px-2 text-xs font-bold tracking-wide text-muted uppercase first:mt-0"
               >
-                {item.icon}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{item.title}</span>
-                  {item.subtitle && (
-                    <span className="block truncate text-xs text-muted">{item.subtitle}</span>
+                {group.section}
+              </p>
+              {group.entries.map(({ item, index: i }) => (
+                <div
+                  key={item.key}
+                  id={optionId(i)}
+                  role="option"
+                  data-index={i}
+                  aria-selected={i === safeActive}
+                  onMouseMove={() => i !== safeActive && setActive(i)}
+                  // mencegah input kehilangan fokus saat opsi diklik
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => void item.run()}
+                  className={cn(
+                    'flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl px-2 py-2 text-left transition',
+                    i === safeActive ? 'ring-1 glass-strong ring-primary/40' : 'hover:bg-surface',
                   )}
-                </span>
-                {i === safeActive && <CornerDownLeft className="size-4 shrink-0 text-muted" />}
-              </button>
+                >
+                  {item.icon}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{item.title}</span>
+                    {item.subtitle && (
+                      <span className="block truncate text-xs text-muted">{item.subtitle}</span>
+                    )}
+                  </span>
+                  {i === safeActive && (
+                    <CornerDownLeft className="size-4 shrink-0 text-muted" aria-hidden="true" />
+                  )}
+                </div>
+              ))}
             </div>
-          );
-        })}
-        {q && ready && hits.length === 0 && tags.length === 0 && !captureItem && (
+          ))}
+        </div>
+        {q && ready && items.length === 0 && (
           <p className="px-2 py-3 text-sm text-muted">Tidak ada hasil untuk “{text.trim()}”.</p>
         )}
       </div>
 
-      <p className="mt-3 hidden flex-wrap items-center gap-x-1.5 border-t border-line pt-3 text-[11px] text-muted sm:flex">
+      <p className="mt-3 hidden flex-wrap items-center gap-x-1.5 border-t border-line pt-3 text-xs text-muted sm:flex">
         <Sparkles className="size-3.5 text-primary" />
         Ada nominal = transaksi · ada waktu = tugas · awali <b>j:</b> = jurnal · <b>#tag</b> · ↑↓
         lalu Enter

@@ -58,7 +58,7 @@ export function LinksPanel({ type, id }: { type: EntityType; id: string }) {
 
       {adding ? (
         <div className="rounded-xl p-2 glass">
-          <label className="flex items-center gap-2 px-1">
+          <label className="flex items-center gap-2 rounded-lg px-1 focus-within:ring-2 focus-within:ring-primary/50">
             <Search className="size-4 text-muted" />
             <input
               autoFocus
