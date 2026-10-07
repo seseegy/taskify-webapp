@@ -100,21 +100,52 @@ async function runCron() {
   // Sesekali (±1x/jam) bersihkan log lama
   if (new Date().getUTCMinutes() === 0) await admin.rpc('prune_reminder_log');
 
-  if (reminders.length === 0) return { reminders: 0, sent: 0, removed: 0 };
+  if (reminders.length === 0) return { reminders: 0, sent: 0, removed: 0, delivered: 0, retry: 0 };
 
   const userIds = [...new Set(reminders.map((r) => r.user_id))];
   const subsByUser = await loadSubscriptions(userIds);
 
   let sent = 0;
   let removed = 0;
+  const delivered: DueReminder[] = [];
   for (const r of reminders) {
-    for (const sub of subsByUser.get(r.user_id) ?? []) {
+    const subs = subsByUser.get(r.user_id) ?? [];
+    // Tanpa perangkat terdaftar tidak ada yang bisa dikirim → selesai (bukan "gagal").
+    let done = subs.length === 0;
+    let failed = false;
+    for (const sub of subs) {
       const result = await sendPush(sub, buildReminderPayload(r));
-      if (result === 'sent') sent++;
-      if (result === 'gone') removed++;
+      if (result === 'sent') {
+        sent++;
+        done = true;
+      } else if (result === 'gone') {
+        removed++;
+      } else {
+        failed = true;
+      }
     }
+    // Semua langganan sudah tidak berlaku (404/410) dan tidak ada yang gagal sementara → selesai.
+    if (!done && !failed) done = true;
+    if (done) delivered.push(r);
+    // Selain itu (push gagal sementara di semua perangkat) dibiarkan: database mengklaimnya
+    // ulang setelah 3 menit, maksimal 5 percobaan (migrasi 20261008000100_reminder_retry.sql).
   }
-  return { reminders: reminders.length, sent, removed };
+
+  if (delivered.length > 0) {
+    const { error: markError } = await admin.rpc('mark_reminders_delivered', {
+      p_task_ids: delivered.map((r) => r.task_id),
+      p_remind_ats: delivered.map((r) => r.remind_at),
+    });
+    // Jangan dilempar: push sudah terkirim. Paling buruk pengingat dikirim sekali lagi.
+    if (markError) console.error('[send-reminders] gagal menandai terkirim', markError.message);
+  }
+  return {
+    reminders: reminders.length,
+    sent,
+    removed,
+    delivered: delivered.length,
+    retry: reminders.length - delivered.length,
+  };
 }
 
 async function runTest(userId: string) {
