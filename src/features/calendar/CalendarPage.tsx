@@ -508,14 +508,14 @@ function ModuleChips({ activity: a }: { activity: DayActivity }) {
     <span className="flex flex-wrap gap-2 font-semibold tracking-normal normal-case">
       {a.journal > 0 && (
         <span className="inline-flex items-center gap-1 text-mod-journal">
-          <NotebookPen className="size-3" /> Jurnal
+          <NotebookPen className="size-3.5" aria-hidden="true" /> Jurnal
         </span>
       )}
       {a.expense > 0 && <span className="text-danger">−{formatIDRCompact(a.expense)}</span>}
       {a.income > 0 && <span className="text-success">+{formatIDRCompact(a.income)}</span>}
       {a.vault > 0 && (
         <span className="inline-flex items-center gap-1 text-mod-vault">
-          <CodeXml className="size-3" /> {a.vault}
+          <CodeXml className="size-3.5" aria-hidden="true" /> {a.vault}
         </span>
       )}
     </span>

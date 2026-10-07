@@ -40,6 +40,24 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 
 `Button` (primary/secondary/ghost/danger), `Card`, `Input`/`Label`, `Badge`, `SegmentedControl`, `EmptyState`, `PageHeader`. Font: **Plus Jakarta Sans** (self-hosted, tetap tersedia offline).
 
+## Ukuran ikon
+
+Hanya lima ukuran (skala Tailwind, kelipatan 4px kecuali yang terkecil). Jangan memakai nilai arbitrer seperti `size-[18px]`.
+
+| Kelas      | Piksel | Pakai untuk                                                         |
+| ---------- | ------ | ------------------------------------------------------------------- |
+| `size-3`   | 12     | Tanda status mungil (centang kecil, panah di baris transaksi)       |
+| `size-3.5` | 14     | Ikon di samping teks `text-xs` (chip, metadata, tombol kecil)       |
+| `size-4`   | 16     | Ikon di samping teks `text-sm` dan di dalam `Button` (default)      |
+| `size-5`   | 20     | Ikon navigasi, ikon kategori ukuran `md`, ikon di dalam ubin        |
+| `size-6`   | 24     | Ikon menonjol (tombol tengah Kalender, `EmptyState`, kategori `lg`) |
+
+Ikon dekoratif di samping teks yang terlihat harus `aria-hidden` (lucide sudah melakukannya otomatis bila tidak diberi `aria-label`/`title`).
+
+## Teks kecil
+
+Ukuran teks terkecil adalah `text-xs` (12px). Jangan memakai `text-[10px]`/`text-[11px]`. Untuk membuat teks lebih redup, pakai warna (`text-muted`), bukan `opacity-*` — opacity menurunkan kontras di bawah 4.5:1.
+
 ## Tata letak
 
 - **≥ 1024px**: sidebar kaca di kiri.

@@ -125,7 +125,7 @@ function Sidebar() {
                         : 'bg-surface group-hover:scale-105',
                     )}
                   >
-                    <item.icon className="size-[18px]" />
+                    <item.icon className="size-5" />
                   </span>
                   {item.label}
                 </>
@@ -229,7 +229,7 @@ function BottomNav() {
                           ),
                     )}
                   >
-                    <item.icon className={center ? 'size-6' : 'size-[18px]'} />
+                    <item.icon className={center ? 'size-6' : 'size-5'} />
                   </span>
                   {item.label}
                 </>
