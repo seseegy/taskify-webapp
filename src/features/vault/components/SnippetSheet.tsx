@@ -1,5 +1,5 @@
 import { Eye, Pencil, Star, Trash2 } from 'lucide-react';
-import { useState, type KeyboardEvent } from 'react';
+import { useId, useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { CodeBlock } from '@/components/ui/CodeBlock';
 import { Select } from '@/components/ui/Field';
@@ -59,6 +59,10 @@ function SnippetForm({
   const [code, setCode] = useState(snippet?.code ?? '');
   const [mode, setMode] = useState<'edit' | 'preview'>(snippet ? 'preview' : 'edit');
   const [saving, setSaving] = useState(false);
+  const tabsId = useId();
+  // Tab menyisipkan spasi di editor kode; Ctrl/⌘+M menukar supaya Tab memindahkan fokus
+  // (jalan keluar bagi pengguna keyboard — Esc tidak bisa dipakai karena menutup dialog).
+  const [tabMovesFocus, setTabMovesFocus] = useState(false);
   const dirty =
     !snippet ||
     title !== snippet.title ||
@@ -76,9 +80,14 @@ function SnippetForm({
     else setMode('preview');
   };
 
-  // Tab = 2 spasi; Ctrl/⌘+S = simpan
+  // Tab = 2 spasi; Ctrl/⌘+M = Tab pindah fokus; Ctrl/⌘+S = simpan
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Tab' && !e.shiftKey) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'm') {
+      e.preventDefault();
+      setTabMovesFocus((v) => !v);
+      return;
+    }
+    if (e.key === 'Tab' && !e.shiftKey && !tabMovesFocus) {
       e.preventDefault();
       const el = e.currentTarget;
       const { selectionStart: s, selectionEnd: end } = el;
@@ -129,16 +138,31 @@ function SnippetForm({
 
       <div className="overflow-hidden rounded-2xl glass">
         <div className="flex items-center justify-between gap-2 border-b border-line px-2 py-1.5">
-          <div className="flex rounded-lg bg-surface p-0.5" role="tablist">
+          <div
+            className="flex rounded-lg bg-surface p-0.5"
+            role="tablist"
+            aria-label="Mode kode"
+            onKeyDown={(e) => {
+              // Tab ARIA: ←/→ (atau Home/End) berpindah tab; fokus ikut dan tab langsung aktif
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+              e.preventDefault();
+              const next = mode === 'edit' ? 'preview' : 'edit';
+              setMode(next);
+              requestAnimationFrame(() => document.getElementById(`${tabsId}-${next}`)?.focus());
+            }}
+          >
             {(['edit', 'preview'] as const).map((m) => (
               <button
                 key={m}
+                id={`${tabsId}-${m}`}
                 type="button"
                 role="tab"
                 aria-selected={mode === m}
+                aria-controls={`${tabsId}-panel`}
+                tabIndex={mode === m ? 0 : -1}
                 onClick={() => setMode(m)}
                 className={cn(
-                  'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold',
+                  'flex min-h-8 items-center gap-1 rounded-md px-3 py-1 text-xs font-bold',
                   mode === m ? 'bg-gradient-vault text-white shadow' : 'text-muted',
                 )}
               >
@@ -147,29 +171,43 @@ function SnippetForm({
               </button>
             ))}
           </div>
-          <span className="flex items-center gap-2 text-[11px] text-muted">
+          <span className="flex items-center gap-2 text-xs text-muted">
             {code.split('\n').length} baris
             {code && <CopySnippet code={code} />}
           </span>
         </div>
-        {mode === 'edit' ? (
-          <textarea
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            onKeyDown={onKeyDown}
-            spellCheck={false}
-            aria-label="Kode"
-            placeholder={'// Tempel kode di sini\n// Pakai {{nama}} untuk variabel template'}
-            className="block min-h-72 w-full resize-y bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset"
-          />
-        ) : (
-          <div className="max-h-[50dvh] overflow-auto px-3 py-3">
-            {code ? (
-              <CodeBlock code={code} language={language} />
-            ) : (
-              <p className="text-sm text-muted">Belum ada kode.</p>
-            )}
-          </div>
+        <div id={`${tabsId}-panel`} role="tabpanel" aria-labelledby={`${tabsId}-${mode}`}>
+          {mode === 'edit' ? (
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={onKeyDown}
+              spellCheck={false}
+              aria-label="Kode"
+              aria-describedby={`${tabsId}-hint`}
+              placeholder={'// Tempel kode di sini\n// Pakai {{nama}} untuk variabel template'}
+              className="block min-h-72 w-full resize-y bg-transparent px-4 py-3 font-mono text-[13px] leading-relaxed whitespace-pre outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-inset"
+            />
+          ) : (
+            <div className="max-h-[50dvh] overflow-auto px-3 py-3">
+              {code ? (
+                <CodeBlock code={code} language={language} />
+              ) : (
+                <p className="text-sm text-muted">Belum ada kode.</p>
+              )}
+            </div>
+          )}
+        </div>
+        {mode === 'edit' && (
+          <p
+            id={`${tabsId}-hint`}
+            aria-live="polite"
+            className="border-t border-line px-4 py-1.5 text-xs text-muted"
+          >
+            {tabMovesFocus
+              ? 'Tab memindahkan fokus. Tekan Ctrl+M untuk kembali menyisipkan spasi.'
+              : 'Tab menyisipkan 2 spasi. Tekan Ctrl+M agar Tab memindahkan fokus.'}
+          </p>
         )}
       </div>
 
