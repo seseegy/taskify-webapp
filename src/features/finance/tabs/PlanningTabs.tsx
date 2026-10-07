@@ -12,6 +12,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -145,10 +146,7 @@ export function RecurringTab() {
             {items.map((r) => (
               <li
                 key={r.id}
-                className={cn(
-                  'flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-surface',
-                  !r.is_active && 'opacity-60',
-                )}
+                className={cn('flex items-center gap-3 rounded-2xl px-2 py-2 hover:bg-surface')}
               >
                 <button
                   type="button"
@@ -160,10 +158,18 @@ export function RecurringTab() {
                     color={r.category_color}
                     size="md"
                     special={r.kind === 'transfer' ? 'transfer' : undefined}
+                    className={cn(!r.is_active && 'opacity-50 grayscale')}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold">{r.title}</span>
+                      <span
+                        className={cn(
+                          'truncate text-sm font-semibold',
+                          !r.is_active && 'text-muted',
+                        )}
+                      >
+                        {r.title}
+                      </span>
                       {r.auto_post === 1 && <Badge tone="brand">Otomatis</Badge>}
                     </span>
                     <span className="block truncate text-xs text-muted">
@@ -268,12 +274,22 @@ export function DebtTab() {
                   key={d.id}
                   className={cn(
                     'flex flex-wrap items-center gap-3 rounded-2xl px-2 py-2 hover:bg-surface',
-                    d.settled_at && 'opacity-60',
                   )}
                 >
-                  <CategoryIcon icon={null} color={null} special="debt" size="md" />
+                  <CategoryIcon
+                    icon={null}
+                    color={null}
+                    special="debt"
+                    size="md"
+                    className={cn(d.settled_at && 'opacity-50 grayscale')}
+                  />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">
+                    <span
+                      className={cn(
+                        'block truncate text-sm font-semibold',
+                        d.settled_at && 'text-muted',
+                      )}
+                    >
                       {d.direction === 'lent'
                         ? `${d.counterparty} berutang ke saya`
                         : `Saya berutang ke ${d.counterparty}`}
@@ -312,10 +328,15 @@ export function DebtTab() {
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label="Hapus"
+                      aria-label={`Hapus catatan utang ${d.counterparty}`}
                       className="text-danger"
-                      onClick={() => {
-                        if (window.confirm('Hapus catatan ini beserta transaksi dompet terkait?'))
+                      onClick={async () => {
+                        if (
+                          await confirmDialog(
+                            'Hapus catatan ini beserta transaksi dompet terkait?',
+                            { confirmLabel: 'Hapus' },
+                          )
+                        )
                           void actions.removeDebt(d);
                       }}
                     >
@@ -416,12 +437,21 @@ export function ManageTab() {
                   onClick={() => setWalletDialog({ open: true, wallet: w })}
                   className={cn(
                     'flex w-full items-center gap-3 rounded-2xl px-2 py-2 text-left hover:bg-surface',
-                    w.is_archived && 'opacity-60',
                   )}
                 >
-                  <CategoryIcon icon={w.icon} color={w.color} size="md" />
+                  <CategoryIcon
+                    icon={w.icon}
+                    color={w.color}
+                    size="md"
+                    className={cn(w.is_archived && 'opacity-50 grayscale')}
+                  />
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 text-sm font-semibold">
+                    <span
+                      className={cn(
+                        'flex items-center gap-2 text-sm font-semibold',
+                        w.is_archived && 'text-muted',
+                      )}
+                    >
                       {w.name} {w.is_archived ? <Badge>Arsip</Badge> : null}
                     </span>
                     <span className="flex items-center gap-1 text-xs text-muted">

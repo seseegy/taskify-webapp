@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Select, Textarea } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
@@ -327,8 +328,13 @@ function Footer({ task, onClose }: { task: Task; onClose: () => void }) {
         <Button
           variant="ghost"
           className="text-danger"
-          onClick={() => {
-            if (!window.confirm('Hapus permanen? Tindakan ini tidak bisa dibatalkan.')) return;
+          onClick={async () => {
+            if (
+              !(await confirmDialog('Hapus permanen? Tindakan ini tidak bisa dibatalkan.', {
+                confirmLabel: 'Hapus permanen',
+              }))
+            )
+              return;
             void actions.destroy([task.id]);
             onClose();
           }}

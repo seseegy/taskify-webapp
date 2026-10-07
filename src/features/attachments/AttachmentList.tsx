@@ -10,6 +10,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { Sheet } from '@/components/ui/Sheet';
@@ -90,7 +91,7 @@ function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }
         {url ? (
           <img src={url} alt={att.file_name} className="size-full object-cover" />
         ) : (
-          <span className="flex flex-col items-center gap-1 px-1 text-center text-[10px] text-muted">
+          <span className="flex flex-col items-center gap-1 px-1 text-center text-xs text-muted">
             {isImage(att) ? (
               <ImageIcon className="size-6" />
             ) : att.mime_type?.includes('zip') ? (
@@ -183,8 +184,9 @@ export function AttachmentViewer({
               <Button
                 variant="ghost"
                 className="text-danger"
-                onClick={() => {
-                  if (!window.confirm(`Hapus ${att.file_name}?`)) return;
+                onClick={async () => {
+                  if (!(await confirmDialog(`Hapus ${att.file_name}?`, { confirmLabel: 'Hapus' })))
+                    return;
                   void actions.remove(att);
                   onClose();
                 }}

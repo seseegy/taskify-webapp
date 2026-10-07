@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { shouldFreezeBackdrop, useMotionStore, watchPowerSaver } from './motion-store';
 import {
   THEME_STORAGE_KEY,
   ThemeContext,
@@ -40,6 +41,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute('content', resolved === 'dark' ? '#1e1b4b' : '#ede9fe');
   }, [resolved]);
+
+  // Animasi latar: diam saat diminta (atau otomatis saat hemat daya) → kelas `save-power` di <html>
+  useEffect(() => watchPowerSaver(), []);
+  const freeze = useMotionStore(shouldFreezeBackdrop);
+  useEffect(() => {
+    document.documentElement.classList.toggle('save-power', freeze);
+  }, [freeze]);
 
   const setPreference = useCallback((pref: ThemePreference) => {
     localStorage.setItem(THEME_STORAGE_KEY, pref);

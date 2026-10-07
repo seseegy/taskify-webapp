@@ -94,6 +94,7 @@
   --blob-3: #a5f3fc;
   --blob-4: #fde68a;
   --blob-opacity: 0.7;
+  --surface-solid: #f3eefc; /* pengganti kaca saat perangkat meminta transparansi dikurangi */
   --glass-shadow: 0 8px 32px -8px rgb(76 29 149 / 0.18), inset 0 1px 0 rgb(255 255 255 / 0.7);
   --noise-opacity: 0.05;
 }
@@ -116,6 +117,7 @@
   --blob-3: #0e7490;
   --blob-4: #4338ca;
   --blob-opacity: 0.45;
+  --surface-solid: #1a1545;
   --glass-shadow: 0 8px 32px -8px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.06);
   --noise-opacity: 0.07;
 }
@@ -164,16 +166,20 @@
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(18px) saturate(160%);
+  /* Urutan penting: awalan vendor DULU, baru versi standar. Kalau dibalik, minifier (Lightning CSS)
+     membuang versi standar dan blur kaca mati di Chrome/Edge/Firefox. */
   -webkit-backdrop-filter: blur(18px) saturate(160%);
+  backdrop-filter: blur(18px) saturate(160%);
 }
 
 @utility glass-strong {
   background: var(--surface-strong);
   border: 1px solid var(--line);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(24px) saturate(170%);
+  /* Urutan penting: awalan vendor DULU, baru versi standar. Kalau dibalik, minifier (Lightning CSS)
+     membuang versi standar dan blur kaca mati di Chrome/Edge/Firefox. */
   -webkit-backdrop-filter: blur(24px) saturate(170%);
+  backdrop-filter: blur(24px) saturate(170%);
 }
 
 /* Gradasi brand & per modul */
@@ -268,6 +274,36 @@ select.glass:focus-visible,
 .glass:has(> :is(input, textarea, select):focus-visible) {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* -----------------------------------------------------------------------------
+   Performa latar & kaca (sengaja di luar @layer agar menang atas utility)
+   ----------------------------------------------------------------------------- */
+
+/* Kaca di dalam kaca: backdrop-filter bersarang hanya "melihat" latar induknya (induk adalah
+   backdrop root), jadi memburamkan ulang tidak mengubah tampilan — tetapi tetap dihitung tiap frame. */
+.glass :is(.glass, .glass-strong),
+.glass-strong :is(.glass, .glass-strong) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+/* Hemat daya: blob latar berhenti bergerak (lihat features/theme/motion-store.ts) */
+html.save-power .app-backdrop::before {
+  animation: none;
+}
+
+/* Perangkat meminta transparansi dikurangi: kaca jadi padat tanpa blur */
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .glass-strong {
+    background: var(--surface-solid);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .app-backdrop::before {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -13,6 +13,10 @@ interface Props {
   className?: string;
   /** Panel samping lebih lebar (editor kode, penampil zip) */
   wide?: boolean;
+  /** 'alertdialog' untuk konfirmasi yang menuntut jawaban (lihat ConfirmHost). */
+  role?: 'dialog' | 'alertdialog';
+  /** id elemen yang mendeskripsikan dialog (dibacakan setelah judul). */
+  describedBy?: string;
 }
 
 /**
@@ -29,6 +33,8 @@ export function Sheet({
   variant = 'side',
   className,
   wide,
+  role,
+  describedBy,
 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   // Judul dipakai sebagai nama aksesibel dialog (dibacakan pembaca layar saat dibuka)
@@ -49,7 +55,9 @@ export function Sheet({
   return (
     <dialog
       ref={ref}
+      role={role}
       aria-labelledby={open && hasTitle ? titleId : undefined}
+      aria-describedby={open ? describedBy : undefined}
       onClose={onClose}
       onCancel={(e) => {
         e.preventDefault();

@@ -1,5 +1,6 @@
 import { KeyRound, LockKeyhole, ShieldOff } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Input';
 import { useLockStore } from '@/features/lock/lock-store';
@@ -147,8 +148,13 @@ export function PinSettings() {
         <Button
           variant="ghost"
           className="text-danger"
-          onClick={() => {
-            if (confirm_('Matikan kunci PIN di perangkat ini?')) setConfig(null);
+          onClick={async () => {
+            if (
+              await confirmDialog('Matikan kunci PIN di perangkat ini?', {
+                confirmLabel: 'Matikan',
+              })
+            )
+              setConfig(null);
           }}
         >
           <ShieldOff /> Matikan
@@ -157,5 +163,3 @@ export function PinSettings() {
     </div>
   );
 }
-
-const confirm_ = (message: string) => window.confirm(message);

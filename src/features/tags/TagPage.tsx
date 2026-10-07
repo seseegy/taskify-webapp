@@ -3,6 +3,7 @@ import { Hash, Pencil, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -128,7 +129,12 @@ export function TagPage() {
               setEditing(false);
             }}
             onDelete={async () => {
-              if (!window.confirm(`Hapus tag #${tag.name} dari semua item?`)) return;
+              if (
+                !(await confirmDialog(`Hapus tag #${tag.name} dari semua item?`, {
+                  confirmLabel: 'Hapus tag',
+                }))
+              )
+                return;
               await actions.deleteTag(tag.id);
               setEditing(false);
               navigate('/');

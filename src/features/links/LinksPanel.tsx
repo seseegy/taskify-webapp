@@ -29,7 +29,6 @@ export function LinksPanel({ type, id }: { type: EntityType; id: string }) {
           key={l.link_id}
           className={cn(
             'group flex items-center gap-2.5 rounded-xl px-1.5 py-1.5 hover:bg-surface',
-            l.deleted_at && 'opacity-50',
           )}
         >
           <button
@@ -37,9 +36,18 @@ export function LinksPanel({ type, id }: { type: EntityType; id: string }) {
             onClick={() => openEntity(l)}
             className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
           >
-            <EntityIcon type={l.type} size="sm" />
+            <span className={cn(l.deleted_at && 'opacity-50 grayscale')}>
+              <EntityIcon type={l.type} size="sm" />
+            </span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-semibold">{l.title}</span>
+              <span
+                className={cn(
+                  'block truncate text-sm font-semibold',
+                  l.deleted_at && 'text-muted line-through',
+                )}
+              >
+                {l.title}
+              </span>
               <span className="block truncate text-xs text-muted">
                 {l.deleted_at ? 'Di Sampah' : entitySubtitle(l)}
               </span>

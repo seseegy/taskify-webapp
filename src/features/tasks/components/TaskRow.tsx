@@ -125,7 +125,7 @@ export function TaskRow({
       <span
         key="list"
         className={cn(
-          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+          'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
           c.soft,
         )}
       >
@@ -145,7 +145,6 @@ export function TaskRow({
       className={cn(
         'group flex w-full cursor-pointer items-start gap-3 rounded-2xl text-left transition focus-within:bg-surface hover:bg-surface',
         compact ? 'px-2 py-2' : 'px-3 py-2.5',
-        virtualDate && 'opacity-75',
       )}
     >
       <span className={compact ? 'pt-px' : 'pt-0.5'}>
@@ -170,6 +169,8 @@ export function TaskRow({
           className={cn(
             'block w-full cursor-pointer rounded-md text-left text-sm font-semibold break-words',
             (done || cancelled) && 'text-muted line-through decoration-primary/40 decoration-2',
+            // Kejadian berulang mendatang: redup lewat warna teks, bukan opacity (kontras tetap lolos)
+            virtualDate && 'text-muted',
           )}
         >
           {task.title}

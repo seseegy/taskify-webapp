@@ -1,5 +1,6 @@
 import { Check, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Input';
 import { Sheet } from '@/components/ui/Sheet';
@@ -39,7 +40,12 @@ function ListDialogInner({ open, onClose, list, onCreated, onDeleted }: Props) {
 
   const remove = async () => {
     if (!list) return;
-    if (!window.confirm(`Hapus daftar "${list.name}"? Tugas di dalamnya pindah ke "Tanpa daftar".`))
+    if (
+      !(await confirmDialog(
+        `Hapus daftar "${list.name}"? Tugas di dalamnya pindah ke "Tanpa daftar".`,
+        { confirmLabel: 'Hapus daftar' },
+      ))
+    )
       return;
     await actions.removeList(list.id);
     onDeleted?.();

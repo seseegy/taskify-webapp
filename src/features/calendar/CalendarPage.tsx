@@ -289,7 +289,7 @@ function MonthGrid({
               key={d}
               role="columnheader"
               aria-label={WEEKDAY_NAMES[i]}
-              className={cn('py-2', i === 6 && 'text-danger/80')}
+              className={cn('py-2', i === 6 && 'text-danger')}
             >
               {d}
             </div>
@@ -314,9 +314,9 @@ function MonthGrid({
                     onClick={() => onSelect(cell.date)}
                     className={cn(
                       'relative flex aspect-square w-full flex-col items-center justify-start gap-1 rounded-xl p-1 pt-1.5 text-sm transition sm:aspect-[1.1] sm:items-start sm:p-2',
-                      !cell.inMonth && 'opacity-40',
+                      !cell.inMonth && 'text-muted',
                       isSelected ? 'ring-2 glass-strong ring-primary/50' : 'hover:bg-surface',
-                      i === 6 && !isToday && 'text-danger/80',
+                      i === 6 && !isToday && 'text-danger',
                     )}
                   >
                     <span
@@ -336,11 +336,18 @@ function MonthGrid({
                         <MoodIcon mood={activity.mood} className="size-4" />
                       </span>
                     )}
-                    <ActivityDots activity={activity} className="sm:pl-1" decorative />
+                    <ActivityDots
+                      activity={activity}
+                      className={cn('sm:pl-1', !cell.inMonth && 'opacity-50')}
+                      decorative
+                    />
                     {open > 0 && (
                       <span
                         aria-hidden="true"
-                        className="hidden pl-1 text-[10px] font-semibold text-mod-tasks sm:block"
+                        className={cn(
+                          'hidden pl-1 text-xs font-semibold sm:block',
+                          cell.inMonth ? 'text-mod-tasks' : 'text-muted',
+                        )}
                       >
                         {open} tugas
                       </span>
@@ -348,7 +355,10 @@ function MonthGrid({
                     {activity.expense > 0 && (
                       <span
                         aria-hidden="true"
-                        className="hidden truncate pl-1 text-[10px] font-semibold text-danger sm:block"
+                        className={cn(
+                          'hidden truncate pl-1 text-xs font-semibold sm:block',
+                          cell.inMonth ? 'text-danger' : 'text-muted',
+                        )}
                       >
                         −{formatIDRCompact(activity.expense)}
                       </span>
@@ -420,7 +430,7 @@ function WeekView({
                   isToday ? 'shine bg-gradient-calendar text-white shadow-md' : 'bg-surface',
                 )}
               >
-                <span className="text-[10px] font-semibold uppercase opacity-80">
+                <span className="text-xs font-semibold uppercase opacity-80">
                   {formatLocalDate(day, 'EEE')}
                 </span>
                 <span className="text-lg font-extrabold">{formatLocalDate(day, 'd')}</span>
@@ -498,14 +508,14 @@ function ModuleChips({ activity: a }: { activity: DayActivity }) {
     <span className="flex flex-wrap gap-2 font-semibold tracking-normal normal-case">
       {a.journal > 0 && (
         <span className="inline-flex items-center gap-1 text-mod-journal">
-          <NotebookPen className="size-3" /> Jurnal
+          <NotebookPen className="size-3.5" aria-hidden="true" /> Jurnal
         </span>
       )}
       {a.expense > 0 && <span className="text-danger">−{formatIDRCompact(a.expense)}</span>}
       {a.income > 0 && <span className="text-success">+{formatIDRCompact(a.income)}</span>}
       {a.vault > 0 && (
         <span className="inline-flex items-center gap-1 text-mod-vault">
-          <CodeXml className="size-3" /> {a.vault}
+          <CodeXml className="size-3.5" aria-hidden="true" /> {a.vault}
         </span>
       )}
     </span>

@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { confirmDialog } from '@/components/ui/confirm-store';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Textarea } from '@/components/ui/Field';
@@ -208,10 +209,11 @@ function VersionRow({
               variant="ghost"
               aria-label="Hapus versi"
               className="text-danger"
-              onClick={() => {
+              onClick={async () => {
                 if (
-                  window.confirm(
+                  await confirmDialog(
                     `Hapus versi ${att.version_label ?? att.file_name}? File di R2 juga dihapus.`,
+                    { confirmLabel: 'Hapus versi' },
                   )
                 )
                   void actions.remove(att);

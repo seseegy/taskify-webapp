@@ -4,6 +4,27 @@ import { useToastStore } from './toast-store';
 
 const ICONS = { default: Info, success: CircleCheck, danger: CircleAlert };
 
+/** Emoji di pesan bersifat dekoratif → disembunyikan dari pembaca layar (yang lain tetap dibacakan). */
+function DecorateEmoji({ text }: { text: string }) {
+  // Satu emoji = pictograph + (variation selector)? + (ZWJ + pictograph)* — ditulis dengan alternasi
+  const parts = text.split(
+    /(\p{Extended_Pictographic}\uFE0F?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*)/u,
+  );
+  return (
+    <>
+      {parts.map((p, i) =>
+        i % 2 === 1 ? (
+          <span key={i} aria-hidden="true">
+            {p}
+          </span>
+        ) : (
+          p
+        ),
+      )}
+    </>
+  );
+}
+
 export function Toaster() {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
@@ -44,7 +65,9 @@ export function Toaster() {
                 t.tone === 'default' && 'text-primary',
               )}
             />
-            <span className="flex-1 font-medium">{t.message}</span>
+            <span className="flex-1 font-medium">
+              <DecorateEmoji text={t.message} />
+            </span>
             {t.action && (
               <button
                 type="button"

@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigation, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { useRouteA11y } from '@/app/useRouteA11y';
+import { ConfirmHost } from '@/components/ui/ConfirmHost';
 import { Toaster } from '@/components/ui/Toaster';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
 import { useRecurringProcessor } from '@/features/finance/finance-actions';
@@ -70,6 +71,7 @@ export function AppShell() {
       <TaskDetailSheet />
       <TransactionSheet />
       <CommandPalette />
+      <ConfirmHost />
       <Toaster />
     </div>
   );
@@ -123,7 +125,7 @@ function Sidebar() {
                         : 'bg-surface group-hover:scale-105',
                     )}
                   >
-                    <item.icon className="size-[18px]" />
+                    <item.icon className="size-5" />
                   </span>
                   {item.label}
                 </>
@@ -205,7 +207,7 @@ function BottomNav() {
               end={item.to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-1 flex-col items-center gap-1 text-[11px] font-semibold transition',
+                  'flex flex-1 flex-col items-center gap-1 text-xs font-semibold transition',
                   isActive ? 'text-fg' : 'text-muted',
                 )
               }
@@ -227,7 +229,7 @@ function BottomNav() {
                           ),
                     )}
                   >
-                    <item.icon className={center ? 'size-6' : 'size-[18px]'} />
+                    <item.icon className={center ? 'size-6' : 'size-5'} />
                   </span>
                   {item.label}
                 </>
@@ -251,7 +253,7 @@ function SearchButton() {
     >
       <Search className="size-4" />
       <span className="flex-1">Cari & catat cepat</span>
-      <kbd className="rounded-md border border-line px-1.5 text-[10px] font-bold">
+      <kbd className="rounded-md border border-line px-1.5 text-xs font-bold">
         {mac ? '⌘' : 'Ctrl'} K
       </kbd>
     </button>

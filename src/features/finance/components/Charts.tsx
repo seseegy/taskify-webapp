@@ -35,7 +35,7 @@ export function CategoryDonut({
         aria-label={`${label}: ${formatIDR(total)}`}
       >
         <div className="absolute inset-5 flex flex-col items-center justify-center rounded-full text-center glass-strong">
-          <span className="text-[11px] font-semibold text-muted">{label}</span>
+          <span className="text-xs font-semibold text-muted">{label}</span>
           <span className="text-base font-extrabold tracking-tight">{formatIDRCompact(total)}</span>
         </div>
       </div>
@@ -187,7 +187,7 @@ export function DailyBars({
         })}
       </div>
       <div
-        className="mt-1.5 flex justify-between text-[10px] font-semibold text-muted"
+        className="mt-1.5 flex justify-between text-xs font-semibold text-muted"
         aria-hidden="true"
       >
         <span>1</span>
