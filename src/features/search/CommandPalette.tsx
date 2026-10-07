@@ -409,9 +409,7 @@ function availableKinds(c: Capture): CaptureKind[] {
 
 function applyKind(c: Capture, kind: CaptureKind, today: string): Capture {
   if (kind === c.kind) return c;
-  if (kind === 'expense' || kind === 'income') {
-    return { ...c, kind, title: c.txTitle ?? c.title, date: c.date ?? today };
-  }
+  if (kind === 'expense' || kind === 'income') return { ...c, kind, date: c.date ?? today };
   if (kind === 'journal') return { ...c, kind, date: today };
   return { ...c, kind, date: c.kind === 'journal' ? undefined : c.date };
 }

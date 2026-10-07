@@ -198,6 +198,7 @@ App lain ── Bagikan ──► POST /bagikan (multipart) ──► sw-extra.j
 - Signup dimatikan; `seed_user_defaults` tidak bisa dipanggil dari client.
 - Key R2 tidak pernah ada di browser. Upload/unduh memakai presigned URL berumur pendek dari Edge Function `files`.
 - PIN = kunci tampilan per perangkat (PBKDF2-SHA256, 210k iterasi, 5 percobaan → jeda 30 dtk), **bukan** enkripsi data. Hitungan percobaan dan jeda disimpan di localStorage agar reload tidak mereset, dibagi antar tab (dibaca ulang sebelum menambah + event `storage`), dan jeda tersimpan dijepit ke 30 dtk agar jam perangkat yang pernah salah tidak mengunci berbulan-bulan.
+- PIN bersifat **per perangkat/browser** (hash di `localStorage`, tidak disinkron). **Lupa PIN**: tautan di layar kunci meminta password akun, memverifikasinya ke Supabase (`signInWithPassword`, percobaan dibatasi server), lalu mematikan PIN di perangkat ini. Butuh internet. Tanpa ini, satu-satunya jalan keluar adalah menghapus data situs (menghapus database lokal beserta perubahan yang belum terunggah).
 - Ekspor CSV menetralkan sel teks berawalan `= + - @` (formula injection).
 
 ## Batas data & penolakan server

@@ -61,51 +61,17 @@ describe('parseCapture · angka yang BUKAN uang', () => {
   });
 });
 
-describe('parseCapture · nominal + tanggal MENDATANG = rencana (tugas)', () => {
-  it('"besok"/"lusa" → tugas bertanggal, nominal tetap tersedia untuk ganti jenis', () => {
-    expect(parseCapture('besok bayar listrik 150rb', TODAY)).toMatchObject({
-      kind: 'task',
-      date: '2026-10-08',
-      title: 'bayar listrik 150rb',
-      amount: 150000,
-      txTitle: 'bayar listrik',
-    });
-    expect(parseCapture('lusa transfer 200rb ke ibu', TODAY)).toMatchObject({
-      kind: 'task',
-      date: '2026-10-09',
-      amount: 200000,
-      txTitle: 'transfer ke ibu',
-    });
-  });
-
-  it('"minggu depan" juga dianggap rencana', () => {
-    expect(parseCapture('bayar asuransi 500rb minggu depan', TODAY)).toMatchObject({
-      kind: 'task',
-      date: '2026-10-14',
-    });
-  });
-
-  it('pembelian/pemasukan yang kebetulan menyebut "besok" tetap transaksi (bukan rencana bayar)', () => {
-    for (const s of [
-      'beli kado 100rb untuk ulang tahun besok',
-      'isi bensin 50rb buat besok',
-      '+5jt gaji minggu depan',
-      'terima bonus 2jt lusa',
-    ]) {
-      const c = parseCapture(s, TODAY);
-      expect(['expense', 'income'], s).toContain(c.kind);
-      expect(c.amount, s).toBeGreaterThan(0);
-    }
+describe('parseCapture · kata tanggal tidak mengubah jenis', () => {
+  it('nominal + besok/lusa/minggu depan tetap transaksi (jenis bisa diganti di palette)', () => {
+    expect(parseCapture('beli kado 100rb untuk ulang tahun besok', TODAY).kind).toBe('expense');
     expect(parseCapture('+5jt gaji minggu depan', TODAY).kind).toBe('income');
   });
 
-  it('nama hari TANPA "depan" tetap dicatat sebagai transaksi (orang sering mencatat hari yang lalu)', () => {
+  it('"kemarin" mengatur tanggal, "hari ini" dibuang dari judul', () => {
     expect(parseCapture('makan siang 25rb senin', TODAY).kind).toBe('expense');
-  });
-
-  it('"hari ini" tetap transaksi', () => {
     expect(parseCapture('bensin 50rb hari ini', TODAY)).toMatchObject({
       kind: 'expense',
+      title: 'bensin',
       date: TODAY,
     });
   });

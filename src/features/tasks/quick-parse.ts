@@ -85,12 +85,10 @@ export function parseQuickAdd(input: string, today: LocalDate): QuickParse {
   // atau nomor versi ("versi 3.14", "beras 10.50"), jadi hanya diterima jika menitnya kelipatan 15
   // dan kata sebelumnya bukan penanda angka non-jam ("versi", "bab", "rp", …).
   if (!result.due_time) {
-    const m = text.match(/\s(\d{1,2})([.:])(\d{2})(\s*(?:wib|wita|wit))?(?=\s)/i);
+    const m = text.match(/\s(\d{1,2})([.:])(\d{2})(?=\s)/);
     if (m) {
       const prev = text.slice(0, m.index).trim().split(/\s+/).at(-1)?.toLowerCase() ?? '';
-      // Zona waktu ("9.05 WIB") menegaskan itu jam, berapa pun menitnya.
-      const plausible =
-        m[2] === ':' || !!m[4] || (DOT_MINUTES.has(m[3]!) && !NOT_A_CLOCK.has(prev));
+      const plausible = m[2] === ':' || (DOT_MINUTES.has(m[3]!) && !NOT_A_CLOCK.has(prev));
       if (plausible && setTime(m[1], m[3])) text = text.replace(m[0], ' ');
     }
   }
@@ -104,28 +102,16 @@ export function parseQuickAdd(input: string, today: LocalDate): QuickParse {
     take(/\sminggu\s+depan(?=\s)/i, () => ((result.due_date = addLocalDays(today, 7)), true));
   }
   if (!result.due_date) {
-    // "<hari> ini" = hari itu di pekan ini; "<hari> depan" = hari itu di pekan KALENDER berikutnya;
-    // tanpa penanda = kemunculan berikutnya. "minggu ini/lalu/ke-2/3" menyebut PEKAN, bukan hari
-    // Minggu, jadi dibiarkan di judul. Kata penanda ikut terhapus dari judul.
+    // Nama hari = kemunculan berikutnya (bukan hari ini). Kata "ini"/"depan" setelahnya ikut
+    // dihapus dari judul; "kamis ini" boleh jatuh hari ini. "minggu ini/lalu/N/ke-N" menyebut
+    // PEKAN, bukan hari Minggu, jadi dilewati dan pencarian lanjut ke nama hari berikutnya.
     take(
-      /\s(?:hari\s+)?(senin|selasa|rabu|kamis|jum'?at|sabtu|minggu|ahad)(\s+(?:depan|ini))?(?=\s)(?!\s+(?:lalu|kemarin|ke[-\s]?\d))/i,
+      /\s(?:hari\s+)?(senin|selasa|rabu|kamis|jum'?at|sabtu|ahad|minggu(?!\s+(?:ini|lalu|kemarin|\d|ke[-\s]?\d)))(\s+(?:depan|ini))?(?=\s)(?!\s+(?:lalu|kemarin|ke[-\s]?\d))/i,
       (m) => {
-        const name = m[1]!.toLowerCase();
-        const target = DAY_NAMES[name];
+        const target = DAY_NAMES[m[1]!.toLowerCase()];
         if (target === undefined) return false;
-        const modifier = m[2]?.trim().toLowerCase();
-        if (name === 'minggu' && modifier === 'ini') return false;
-        // "minggu 3" = pekan ke-3, bukan hari Minggu
-        const after = text.slice((m.index ?? 0) + m[0].length);
-        if (name === 'minggu' && /^\s*\d/.test(after)) return false;
-
-        const todayDow = weekdayOf(today);
-        let diff: number;
-        if (modifier === 'depan')
-          diff = 7 - todayDow + target; // Senin pekan depan + offset hari
-        else if (modifier === 'ini')
-          diff = (target - todayDow + 7) % 7; // 0 = hari ini
-        else diff = (target - todayDow + 7) % 7 || 7; // kemunculan berikutnya, bukan hari ini
+        const sameDayOk = m[2]?.trim().toLowerCase() === 'ini';
+        const diff = (target - weekdayOf(today) + 7) % 7 || (sameDayOk ? 0 : 7);
         result.due_date = addLocalDays(today, diff);
         return true;
       },

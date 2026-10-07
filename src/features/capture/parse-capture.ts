@@ -23,12 +23,6 @@ export interface Capture {
   priority?: number;
   /** Kata kunci untuk menebak kategori transaksi */
   categoryHint?: string;
-  /**
-   * Judul jika jenisnya diganti menjadi transaksi. Hanya diisi saat nominal terdeteksi tetapi
-   * kalimatnya dibaca sebagai rencana (tugas): `title` masih memuat nominal ("bayar listrik 150rb"),
-   * sedangkan `txTitle` sudah bersih ("bayar listrik").
-   */
-  txTitle?: string;
 }
 
 const INCOME_WORDS =
@@ -108,18 +102,6 @@ function findMoney(text: string): RegExpMatchArray | null {
   return null;
 }
 
-/** Penanda tanggal MENDATANG yang jelas. Nama hari tanpa "depan" sengaja tidak termasuk. */
-const FUTURE_WORD =
-  /\s(?:besok|lusa|minggu\s+depan|(?:senin|selasa|rabu|kamis|jum'?at|sabtu|minggu|ahad)\s+depan)(?=\s)/i;
-
-/**
- * Kata kerja yang menandakan RENCANA membayar/mengirim uang ("bayar listrik 150rb besok").
- * Tanpa ini, "beli kado 100rb untuk ulang tahun besok" (pembelian yang terjadi sekarang) salah
- * menjadi tugas hanya karena ada kata "besok".
- */
-const PLAN_VERB =
-  /\b(?:bayar|bayarkan|membayar|cicil|angsur|angsuran|lunasi|lunas|tagihan|transfer|kirim|setor|top\s?up|perpanjang|iuran|donasi|zakat|sedekah|sewa|kontrak)\b/i;
-
 export function parseCapture(input: string, today: LocalDate): Capture {
   let text = ` ${input.trim()} `;
 
@@ -143,30 +125,6 @@ export function parseCapture(input: string, today: LocalDate): Capture {
     const amount = parseIDR(money[3]!);
     if (amount && amount > 0) {
       let rest = text.replace(money[0], ' ');
-
-      // Nominal + "besok/lusa/minggu depan" + kata kerja rencana ("bayar", "transfer", …) = rencana
-      // membayar, bukan transaksi yang sudah terjadi. Pemasukan (awalan + / kata gaji) bukan rencana
-      // yang perlu diingatkan. Jadikan tugas bertanggal; nominal tetap disimpan agar jenisnya bisa
-      // diganti di palette.
-      const incomeLike = money[2] === '+' || INCOME_WORDS.test(rest);
-      if (!incomeLike && FUTURE_WORD.test(rest) && PLAN_VERB.test(rest)) {
-        const plan = parseQuickAdd(text, today);
-        const planTx = parseQuickAdd(rest, today);
-        if (plan.due_date && plan.due_date > today) {
-          return {
-            kind: 'task',
-            title: plan.title,
-            tags,
-            amount,
-            date: plan.due_date,
-            time: plan.due_time,
-            priority: plan.priority,
-            txTitle: planTx.title,
-            categoryHint: CATEGORY_KEYWORDS.find(([re]) => re.test(planTx.title))?.[1],
-          };
-        }
-      }
-
       let date: LocalDate = today;
       rest = rest.replace(/\s(kemarin|kmrn)(?=\s)/i, () => {
         date = addLocalDays(today, -1);

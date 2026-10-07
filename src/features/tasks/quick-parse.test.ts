@@ -45,14 +45,12 @@ describe('parseQuickAdd · "minggu" sebagai pekan vs hari Minggu', () => {
     });
   });
 
-  it('"<hari> depan" = hari itu di pekan KALENDER berikutnya, kata "depan" ikut terhapus', () => {
-    // 7 Okt 2026 = Rabu. Pekan depan mulai Senin 12 Okt.
+  it('"<hari> depan": kata "depan" ikut terhapus dari judul', () => {
     expect(parseQuickAdd('Rapat senin depan', TODAY)).toEqual({
       title: 'Rapat',
       due_date: '2026-10-12',
     });
-    expect(parseQuickAdd('Rapat kamis depan', TODAY).due_date).toBe('2026-10-15'); // bukan besok
-    expect(parseQuickAdd('Beres-beres ahad depan', TODAY).due_date).toBe('2026-10-18');
+    expect(parseQuickAdd('Rapat kamis depan', TODAY).title).toBe('Rapat');
     // Diucapkan hari Senin: "senin depan" = 7 hari lagi
     expect(parseQuickAdd('Rapat senin depan', '2026-10-05').due_date).toBe('2026-10-12');
   });
@@ -76,6 +74,14 @@ describe('parseQuickAdd · "minggu" sebagai pekan vs hari Minggu', () => {
     // Hari yang sudah lewat di pekan ini → kemunculan berikutnya
     expect(parseQuickAdd('Rapat senin ini', TODAY).due_date).toBe('2026-10-12');
     expect(parseQuickAdd('Beres-beres ahad ini', TODAY).due_date).toBe('2026-10-11');
+  });
+
+  it('"minggu ini <hari>": "minggu ini" dilewati, nama hari sesudahnya tetap terbaca', () => {
+    expect(parseQuickAdd('Rapat minggu ini jumat', TODAY)).toEqual({
+      title: 'Rapat minggu ini',
+      due_date: '2026-10-09',
+    });
+    expect(parseQuickAdd('Laporan minggu ini kamis', TODAY).due_date).toBe('2026-10-08');
   });
 
   it('"minggu ini/lalu/ke-2/3" bukan hari Minggu → dibiarkan di judul', () => {
@@ -103,14 +109,6 @@ describe('parseQuickAdd · angka berformat jam vs angka biasa', () => {
   it('penanda "jam/pukul" membuat angka apa pun dianggap jam', () => {
     expect(parseQuickAdd('Jemput jam 3.14', TODAY)).toMatchObject({ due_time: '03:14' });
     expect(parseQuickAdd('Sholat pukul 17:45', TODAY)).toMatchObject({ due_time: '17:45' });
-  });
-
-  it('zona waktu (WIB/WITA/WIT) menegaskan itu jam, berapa pun menitnya', () => {
-    expect(parseQuickAdd('Meeting 9.05 WIB', TODAY)).toMatchObject({
-      title: 'Meeting',
-      due_time: '09:05',
-    });
-    expect(parseQuickAdd('Webinar 16.40 wita', TODAY)).toMatchObject({ due_time: '16:40' });
   });
 
   it('format titik dua selalu jam; titik hanya untuk menit kelipatan 15', () => {

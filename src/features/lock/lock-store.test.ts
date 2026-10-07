@@ -134,4 +134,24 @@ describe('lock-store · percobaan PIN bertahan setelah reload', () => {
     onStorage!({ key: 'kunci-lain' }); // diabaikan
     expect(store.getState().failedAttempts).toBe(2);
   });
+
+  it('setConfig(null) (hasil "Lupa PIN") membuka kunci, mematikan PIN, dan membersihkan hitungan', async () => {
+    const data = stubStorage({ 'taskify-lock': CONFIG });
+    const store = await freshStore();
+    for (let i = 0; i < 5; i++) store.getState().registerFailure(); // sedang dalam jeda
+    expect(store.getState().cooldownUntil).not.toBeNull();
+
+    store.getState().setConfig(null);
+
+    expect(store.getState()).toMatchObject({
+      config: null,
+      locked: false,
+      failedAttempts: 0,
+      cooldownUntil: null,
+    });
+    expect(data.has('taskify-lock')).toBe(false);
+    expect(data.has('taskify-lock-attempts')).toBe(false);
+    // dan setelah reload tetap tanpa PIN
+    expect((await freshStore()).getState()).toMatchObject({ config: null, locked: false });
+  });
 });
