@@ -9,7 +9,18 @@ import { useDatabase } from '@/db/database-context';
 import type { AppDatabase } from '@/db/database';
 import { touch } from '@/db/mutations';
 import { deleteEntityRefs } from '@/db/refs';
-import { codeProjects, journalEntries, snippets, tasks, transactions } from '@/db/schema';
+import {
+  budgets,
+  codeProjects,
+  debts,
+  journalEntries,
+  recurringTransactions,
+  snippets,
+  tags,
+  taskLists,
+  tasks,
+  transactions,
+} from '@/db/schema';
 
 export type TrashType = 'task' | 'journal_entry' | 'transaction' | 'snippet' | 'code_project';
 export const TRASH_RETENTION_DAYS = 30;
@@ -74,6 +85,36 @@ export function useTrashActions() {
   );
 }
 
+/**
+ * Hapus keras baris pendukung yang sudah di-soft-delete > 30 hari. Tidak tampil di Sampah
+ * (pengguna tidak bisa memulihkannya dari UI), jadi tanpa ini menumpuk selamanya.
+ *
+ * Hanya tabel yang AMAN: tidak ada tabel lain yang mengacu padanya dengan RESTRICT/CASCADE yang
+ * bisa menolak sync atau menghapus data hidup. Dompet (transactions.wallet_id RESTRICT) dan
+ * kategori (budgets.category_id CASCADE) sengaja tidak termasuk.
+ *   task_lists / debts / recurring_transactions → referensi masuk ber-ON DELETE SET NULL
+ *   tags → taggings ikut terhapus (CASCADE) dan sudah dibersihkan saat tag dihapus
+ *   budgets → tidak ada yang mengacu
+ */
+export async function purgeExpiredSupportRows(db: AppDatabase, cutoff: string) {
+  await db
+    .delete(budgets)
+    .where(and(isNotNull(budgets.deleted_at), lt(budgets.deleted_at, cutoff)));
+  await db.delete(debts).where(and(isNotNull(debts.deleted_at), lt(debts.deleted_at, cutoff)));
+  await db
+    .delete(recurringTransactions)
+    .where(
+      and(
+        isNotNull(recurringTransactions.deleted_at),
+        lt(recurringTransactions.deleted_at, cutoff),
+      ),
+    );
+  await db
+    .delete(taskLists)
+    .where(and(isNotNull(taskLists.deleted_at), lt(taskLists.deleted_at, cutoff)));
+  await db.delete(tags).where(and(isNotNull(tags.deleted_at), lt(tags.deleted_at, cutoff)));
+}
+
 /** Hapus permanen isi Sampah yang lebih tua dari 30 hari (sekali per sesi, setelah sync awal). */
 export function useTrashPurge() {
   const { db } = useDatabase();
@@ -102,6 +143,7 @@ export function useTrashPurge() {
             rows.map((r) => r.id),
           );
         }
+        await purgeExpiredSupportRows(db, cutoff);
       } catch (e) {
         console.error('[trash] pembersihan otomatis gagal', e);
       }

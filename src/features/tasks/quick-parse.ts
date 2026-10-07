@@ -30,6 +30,34 @@ const DAY_NAMES: Record<string, number> = {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+/** Menit yang masuk akal untuk jam berformat titik tanpa penanda ("14.15", "9.30"). */
+const DOT_MINUTES = new Set(['00', '15', '30', '45']);
+
+/** Kata sebelum "N.NN" yang menandakan itu bukan jam (versi, bab, harga, nomor, …). */
+const NOT_A_CLOCK = new Set([
+  'versi',
+  'ver',
+  'v',
+  'bab',
+  'pasal',
+  'ayat',
+  'hal',
+  'halaman',
+  'no',
+  'nomor',
+  'seri',
+  'bagian',
+  'langkah',
+  'step',
+  'lantai',
+  'rp',
+  'ios',
+  'android',
+  'python',
+  'node',
+  'php',
+]);
+
 export function parseQuickAdd(input: string, today: LocalDate): QuickParse {
   let text = ` ${input.trim()} `;
   const result: Omit<QuickParse, 'title'> = {};
@@ -50,23 +78,44 @@ export function parseQuickAdd(input: string, today: LocalDate): QuickParse {
   // Prioritas: !1 !2 !3
   take(/\s!([1-3])(?=\s)/, (m) => ((result.priority = Number(m[1])), true));
 
-  // Jam: "jam 9", "jam 14.30", "pukul 7:15", "14:30", "14.30"
+  // Jam berpenanda: "jam 9", "jam 14.30", "pukul 7:15" — angka apa pun setelah penanda adalah jam.
   take(/\s(?:jam|pukul|pkl\.?)\s+(\d{1,2})(?:[.:](\d{2}))?(?=\s)/i, (m) => setTime(m[1], m[2]));
-  if (!result.due_time) take(/\s(\d{1,2})[.:](\d{2})(?=\s)/, (m) => setTime(m[1], m[2]));
+
+  // Jam tanpa penanda. "14:30" (titik dua) hampir pasti jam. "14.30" (titik) ambigu dengan harga
+  // atau nomor versi ("versi 3.14", "beras 10.50"), jadi hanya diterima jika menitnya kelipatan 15
+  // dan kata sebelumnya bukan penanda angka non-jam ("versi", "bab", "rp", …).
+  if (!result.due_time) {
+    const m = text.match(/\s(\d{1,2})([.:])(\d{2})(?=\s)/);
+    if (m) {
+      const prev = text.slice(0, m.index).trim().split(/\s+/).at(-1)?.toLowerCase() ?? '';
+      const plausible = m[2] === ':' || (DOT_MINUTES.has(m[3]!) && !NOT_A_CLOCK.has(prev));
+      if (plausible && setTime(m[1], m[3])) text = text.replace(m[0], ' ');
+    }
+  }
 
   // Tanggal relatif
   take(/\shari ini(?=\s)/i, () => ((result.due_date = today), true));
   take(/\sbesok(?=\s)/i, () => ((result.due_date = addLocalDays(today, 1)), true));
   take(/\slusa(?=\s)/i, () => ((result.due_date = addLocalDays(today, 2)), true));
+  // "minggu depan" = pekan depan, BUKAN hari Minggu (harus dicek sebelum nama hari).
   if (!result.due_date) {
-    take(/\s(?:hari\s+)?(senin|selasa|rabu|kamis|jum'?at|sabtu|minggu|ahad)(?=\s)/i, (m) => {
-      const target = DAY_NAMES[m[1]!.toLowerCase()];
-      if (target === undefined) return false;
-      // Hari bernama berikutnya (bukan hari ini)
-      const diff = (target - weekdayOf(today) + 7) % 7 || 7;
-      result.due_date = addLocalDays(today, diff);
-      return true;
-    });
+    take(/\sminggu\s+depan(?=\s)/i, () => ((result.due_date = addLocalDays(today, 7)), true));
+  }
+  if (!result.due_date) {
+    // Nama hari = kemunculan berikutnya (bukan hari ini). Kata "ini"/"depan" setelahnya ikut
+    // dihapus dari judul; "kamis ini" boleh jatuh hari ini. "minggu ini/lalu/N/ke-N" menyebut
+    // PEKAN, bukan hari Minggu, jadi dilewati dan pencarian lanjut ke nama hari berikutnya.
+    take(
+      /\s(?:hari\s+)?(senin|selasa|rabu|kamis|jum'?at|sabtu|ahad|minggu(?!\s+(?:ini|lalu|kemarin|\d|ke[-\s]?\d)))(\s+(?:depan|ini))?(?=\s)(?!\s+(?:lalu|kemarin|ke[-\s]?\d))/i,
+      (m) => {
+        const target = DAY_NAMES[m[1]!.toLowerCase()];
+        if (target === undefined) return false;
+        const sameDayOk = m[2]?.trim().toLowerCase() === 'ini';
+        const diff = (target - weekdayOf(today) + 7) % 7 || (sameDayOk ? 0 : 7);
+        result.due_date = addLocalDays(today, diff);
+        return true;
+      },
+    );
   }
 
   // Jam tanpa tanggal → hari ini

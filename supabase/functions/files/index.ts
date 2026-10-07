@@ -20,6 +20,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AwsClient } from 'npm:aws4fetch@1.0.20';
 
 const MAX_BYTES = 100 * 1024 * 1024;
+// Batas kerja satu eksekusi cleanup (Edge Function punya batas waktu): 20 halaman × 1000 objek
+// dan maks. 500 penghapusan objek yatim. Sisanya diselesaikan eksekusi harian berikutnya.
+const MAX_LIST_PAGES = 20;
+const MAX_ORPHAN_DELETES = 500;
 const UPLOAD_TTL = 15 * 60;
 const DOWNLOAD_TTL = 10 * 60;
 
@@ -134,34 +138,55 @@ async function cleanup() {
     if (e2) throw e2;
   }
 
-  // 2) Objek yatim: ada di R2 tetapi tidak punya baris, dan berumur > 2 hari
-  let orphans = 0;
-  const list = await r2.fetch(`${ENDPOINT}/${BUCKET}?list-type=2&max-keys=1000`);
-  if (list.ok) {
+  // 2) Objek yatim: ada di R2 tetapi tidak punya baris, dan berumur > 2 hari.
+  //    Bucket ditelusuri per halaman (S3 ListObjectsV2 hanya memberi ≤ 1000 objek sekali panggil;
+  //    tanpa continuation-token, objek setelah yang ke-1000 tidak pernah diperiksa).
+  const objects: { key: string; modified: number }[] = [];
+  let token: string | null = null;
+  let truncated = false;
+  for (let page = 0; page < MAX_LIST_PAGES; page++) {
+    const params = new URLSearchParams({ 'list-type': '2', 'max-keys': '1000' });
+    if (token) params.set('continuation-token', token);
+    const list = await r2.fetch(`${ENDPOINT}/${BUCKET}?${params}`);
+    if (!list.ok) break;
     const xml = await list.text();
-    const objects = [...xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)].map((m) => ({
-      key: decodeXml(m[1]!.match(/<Key>([\s\S]*?)<\/Key>/)?.[1] ?? ''),
-      modified: Date.parse(m[1]!.match(/<LastModified>([\s\S]*?)<\/LastModified>/)?.[1] ?? ''),
-    }));
-    // Hanya key berformat lampiran (<user>/<lampiran>/<file>). Objek lain di bucket
-    // (mis. backups/…) TIDAK pernah disentuh.
-    const old = objects.filter(
-      (o) => KEY_RE.test(o.key) && Date.now() - o.modified > 2 * 86400_000,
-    );
-    if (old.length) {
-      const { data: known, error: e3 } = await admin.rpc('attachment_keys', {
-        p_keys: old.map((o) => o.key),
-      });
-      if (e3) throw e3;
-      const knownSet = new Set((known ?? []) as string[]);
-      for (const o of old) {
-        if (knownSet.has(o.key)) continue;
-        const res = await r2.fetch(objectUrl(o.key), { method: 'DELETE' });
-        if (res.ok) orphans++;
-      }
-    }
+    objects.push(...parseListing(xml));
+    token = /<IsTruncated>true<\/IsTruncated>/.test(xml)
+      ? decodeXml(
+          xml.match(/<NextContinuationToken>([\s\S]*?)<\/NextContinuationToken>/)?.[1] ?? '',
+        )
+      : null;
+    if (!token) break;
+    truncated = page === MAX_LIST_PAGES - 1;
   }
-  return { purged: removed.length, orphans };
+
+  // Hanya key berformat lampiran (<user>/<lampiran>/<file>). Objek lain di bucket
+  // (mis. backups/…) TIDAK pernah disentuh.
+  const old = objects.filter((o) => KEY_RE.test(o.key) && Date.now() - o.modified > 2 * 86400_000);
+  const knownSet = new Set<string>();
+  for (let i = 0; i < old.length; i += 500) {
+    const { data: known, error: e3 } = await admin.rpc('attachment_keys', {
+      p_keys: old.slice(i, i + 500).map((o) => o.key),
+    });
+    if (e3) throw e3;
+    for (const k of (known ?? []) as string[]) knownSet.add(k);
+  }
+
+  let orphans = 0;
+  for (const o of old) {
+    if (knownSet.has(o.key)) continue;
+    if (orphans >= MAX_ORPHAN_DELETES) break; // sisanya dibersihkan pada eksekusi harian berikutnya
+    const res = await r2.fetch(objectUrl(o.key), { method: 'DELETE' });
+    if (res.ok) orphans++;
+  }
+  return { purged: removed.length, orphans, scanned: objects.length, truncated };
+}
+
+function parseListing(xml: string) {
+  return [...xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)].map((m) => ({
+    key: decodeXml(m[1]!.match(/<Key>([\s\S]*?)<\/Key>/)?.[1] ?? ''),
+    modified: Date.parse(m[1]!.match(/<LastModified>([\s\S]*?)<\/LastModified>/)?.[1] ?? ''),
+  }));
 }
 
 function decodeXml(s: string) {

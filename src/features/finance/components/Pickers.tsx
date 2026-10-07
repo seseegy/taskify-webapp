@@ -1,15 +1,10 @@
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import {
-  addMonthsLocal,
-  formatLocalDate,
-  monthStart,
-  todayLocal,
-  type LocalDate,
-} from '@/lib/date';
+import { addMonthsLocal, formatLocalDate, monthStart, type LocalDate } from '@/lib/date';
 import { PALETTE, PALETTE_NAMES, paletteOf } from '@/lib/palette';
 import { cn } from '@/lib/utils';
 import { FINANCE_ICONS, ICON_NAMES } from '../finance-icons';
+import { useToday } from '@/lib/useToday';
 
 export function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   return (
@@ -81,7 +76,7 @@ export function MonthSwitcher({
   month: LocalDate;
   onChange: (m: LocalDate) => void;
 }) {
-  const current = monthStart(todayLocal());
+  const current = monthStart(useToday());
   return (
     <div className="flex items-center gap-1 rounded-xl p-1 glass">
       <Button

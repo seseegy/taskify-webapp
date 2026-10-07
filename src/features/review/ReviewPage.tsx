@@ -24,7 +24,7 @@ import { CategoryIcon } from '@/features/finance/components/CategoryIcon';
 import { useCategoryBreakdown } from '@/features/finance/finance-queries';
 import { MoodIcon } from '@/features/journal/components/MoodIcon';
 import { moodOf } from '@/features/journal/mood';
-import { diffLocalDays, formatLocalDate, todayLocal, type LocalDate } from '@/lib/date';
+import { diffLocalDays, formatLocalDate, type LocalDate } from '@/lib/date';
 import { formatIDR, formatIDRCompact } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { ActivityHeatmap } from './ActivityHeatmap';
@@ -38,10 +38,11 @@ import {
   type Range,
   type ReviewPeriod,
 } from './review-queries';
+import { useToday } from '@/lib/useToday';
 
 /** URL: ?periode=minggu|bulan&tanggal=YYYY-MM-DD */
 export function ReviewPage() {
-  const today = todayLocal();
+  const today = useToday();
   const [params, setParams] = useSearchParams();
   const period: ReviewPeriod = params.get('periode') === 'bulan' ? 'bulan' : 'minggu';
   const anchor = /^\d{4}-\d{2}-\d{2}$/.test(params.get('tanggal') ?? '')

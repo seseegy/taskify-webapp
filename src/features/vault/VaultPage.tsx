@@ -28,6 +28,7 @@ import {
   useStorageUsage,
   useVaultActions,
 } from './vault-data';
+import { useToday } from '@/lib/useToday';
 
 type Tab = 'snippet' | 'project';
 const R2_FREE_BYTES = 10 * 1024 ** 3;
@@ -264,7 +265,7 @@ function ProjectsTab({
   const [search, setSearch] = useState('');
   const { projects, isLoading } = useProjects(search);
   const active = useProject(activeId);
-  const today = todayLocal();
+  const today = useToday();
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[340px_1fr]">

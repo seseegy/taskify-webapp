@@ -4,6 +4,7 @@ import { NavLink, Outlet, useNavigation, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { useRouteA11y } from '@/app/useRouteA11y';
 import { Toaster } from '@/components/ui/Toaster';
+import { useAttachmentOutbox } from '@/features/attachments/attachment-actions';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
 import { useRecurringProcessor } from '@/features/finance/finance-actions';
 import { CommandPalette } from '@/features/search/CommandPalette';
@@ -24,6 +25,7 @@ import { UpdatePrompt } from './UpdatePrompt';
 export function AppShell() {
   useTaskDeepLink();
   useRecurringProcessor();
+  useAttachmentOutbox();
   useTrashPurge();
   const mainRef = useRef<HTMLElement>(null);
   useRouteA11y(mainRef);

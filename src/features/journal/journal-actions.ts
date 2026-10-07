@@ -7,6 +7,7 @@ import { journalEntries } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
 import { destroyEntities } from '@/features/trash/trash-actions';
 import type { LocalDate } from '@/lib/date';
+import { clip, LIMITS } from '@/lib/limits';
 
 export interface JournalPatch {
   entry_date?: LocalDate;
@@ -31,7 +32,7 @@ export function useJournalActions() {
       async create(values: JournalPatch & { entry_date: LocalDate }) {
         const row = withMeta(userId, {
           entry_date: values.entry_date,
-          title: values.title?.trim() || null,
+          title: values.title?.trim() ? clip(values.title.trim(), LIMITS.journalTitle) : null,
           content: values.content ?? '',
           mood: values.mood ?? null,
           is_pinned: values.is_pinned ?? 0,
@@ -41,7 +42,10 @@ export function useJournalActions() {
       },
       async update(id: string, patch: JournalPatch) {
         const values = { ...patch };
-        if ('title' in values) values.title = values.title?.trim() || null;
+        if ('title' in values)
+          values.title = values.title?.trim()
+            ? clip(values.title.trim(), LIMITS.journalTitle)
+            : null;
         await db.update(journalEntries).set(touch(values)).where(eq(journalEntries.id, id));
       },
       async remove(id: string) {

@@ -5,7 +5,8 @@
 import { supabase } from './supabase';
 
 export const MAX_FILE_BYTES = 100 * 1024 * 1024;
-const CACHE_NAME = 'taskify-files-v1';
+/** Cache Storage berisi isi file lampiran yang pernah dibuka/diunggah di perangkat ini. */
+export const FILE_CACHE_NAME = 'taskify-files-v1';
 
 async function callFiles<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>('files', { body });
@@ -83,7 +84,7 @@ const cacheReq = (attachmentId: string) =>
 
 export async function putCachedFile(attachmentId: string, blob: Blob) {
   if (!('caches' in window)) return;
-  const cache = await caches.open(CACHE_NAME);
+  const cache = await caches.open(FILE_CACHE_NAME);
   await cache.put(
     cacheReq(attachmentId),
     new Response(blob, { headers: { 'Content-Type': blob.type } }),
@@ -92,12 +93,12 @@ export async function putCachedFile(attachmentId: string, blob: Blob) {
 
 export async function getCachedFile(attachmentId: string): Promise<Blob | null> {
   if (!('caches' in window)) return null;
-  const res = await (await caches.open(CACHE_NAME)).match(cacheReq(attachmentId));
+  const res = await (await caches.open(FILE_CACHE_NAME)).match(cacheReq(attachmentId));
   return res ? res.blob() : null;
 }
 
 export async function deleteCachedFile(attachmentId: string) {
-  if ('caches' in window) await (await caches.open(CACHE_NAME)).delete(cacheReq(attachmentId));
+  if ('caches' in window) await (await caches.open(FILE_CACHE_NAME)).delete(cacheReq(attachmentId));
 }
 
 /** Ambil isi file: cache lokal dulu (offline), lalu R2 (lalu disimpan ke cache). */

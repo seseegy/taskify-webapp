@@ -1,8 +1,15 @@
 import { create } from 'zustand';
-import { readLockConfig, writeLockConfig, type LockConfig } from './pin';
+import {
+  ATTEMPTS_KEY,
+  COOLDOWN_MS,
+  readLockAttempts,
+  readLockConfig,
+  writeLockAttempts,
+  writeLockConfig,
+  type LockConfig,
+} from './pin';
 
 const MAX_ATTEMPTS = 5;
-const COOLDOWN_MS = 30_000;
 
 interface LockState {
   config: LockConfig | null;
@@ -21,26 +28,37 @@ interface LockState {
 
 export const useLockStore = create<LockState>((set, get) => {
   const initial = readLockConfig();
+  const attempts = readLockAttempts();
   return {
     config: initial,
     locked: initial !== null, // terkunci saat aplikasi dibuka jika PIN aktif
-    failedAttempts: 0,
-    cooldownUntil: null,
+    failedAttempts: attempts.failedAttempts,
+    cooldownUntil: attempts.cooldownUntil,
     hiddenAt: null,
 
     setConfig: (config) => {
       writeLockConfig(config);
-      set({ config, locked: false });
+      writeLockAttempts({ failedAttempts: 0, cooldownUntil: null });
+      set({ config, locked: false, failedAttempts: 0, cooldownUntil: null });
     },
     lock: () => {
       if (get().config) set({ locked: true });
     },
-    unlock: () => set({ locked: false, failedAttempts: 0, cooldownUntil: null }),
+    unlock: () => {
+      writeLockAttempts({ failedAttempts: 0, cooldownUntil: null });
+      set({ locked: false, failedAttempts: 0, cooldownUntil: null });
+    },
     registerFailure: () => {
-      const failedAttempts = get().failedAttempts + 1;
+      // Baca ulang dari penyimpanan: tab lain mungkin sudah menambah hitungan. Tanpa ini tiap tab
+      // menghitung sendiri dan batas 5 percobaan efektif berlaku per tab.
+      const stored = readLockAttempts();
+      const failedAttempts = Math.max(get().failedAttempts, stored.failedAttempts) + 1;
       if (failedAttempts >= MAX_ATTEMPTS) {
-        set({ failedAttempts: 0, cooldownUntil: Date.now() + COOLDOWN_MS });
+        const next = { failedAttempts: 0, cooldownUntil: Date.now() + COOLDOWN_MS };
+        writeLockAttempts(next);
+        set(next);
       } else {
+        writeLockAttempts({ failedAttempts, cooldownUntil: get().cooldownUntil });
         set({ failedAttempts });
       }
     },
@@ -53,5 +71,14 @@ export const useLockStore = create<LockState>((set, get) => {
     },
   };
 });
+
+// Tab lain mengubah hitungan/jeda → ikuti, agar jeda 30 dtk berlaku di semua tab.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== ATTEMPTS_KEY && e.key !== null) return;
+    const { failedAttempts, cooldownUntil } = readLockAttempts();
+    useLockStore.setState({ failedAttempts, cooldownUntil });
+  });
+}
 
 export const LOCK_MAX_ATTEMPTS = MAX_ATTEMPTS;

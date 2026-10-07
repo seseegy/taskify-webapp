@@ -2,6 +2,7 @@ import { Delete, LockKeyhole } from 'lucide-react';
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { Logo } from '@/components/layout/Logo';
 import { cn } from '@/lib/utils';
+import { ForgotPinScreen } from './ForgotPinScreen';
 import { LOCK_MAX_ATTEMPTS, useLockStore } from './lock-store';
 import { verifyPin } from './pin';
 
@@ -27,6 +28,7 @@ export function LockScreen() {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [forgot, setForgot] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
 
@@ -34,9 +36,10 @@ export function LockScreen() {
   const pinLength = config?.length ?? 4;
   const busy = cooling || checking;
 
+  // Fokus ke kolom PIN saat tampil, dan saat kembali dari layar "Lupa PIN"
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!forgot) inputRef.current?.focus();
+  }, [forgot]);
 
   useEffect(() => {
     if (!cooling) return;
@@ -113,6 +116,8 @@ export function LockScreen() {
     window.addEventListener('keydown', onWindowKey);
     return () => window.removeEventListener('keydown', onWindowKey);
   });
+
+  if (forgot) return <ForgotPinScreen onBack={() => setForgot(false)} />;
 
   const secondsLeft = cooling ? Math.ceil((cooldownUntil - now) / 1000) : 0;
   const attemptsLeft = LOCK_MAX_ATTEMPTS - failedAttempts;
@@ -211,6 +216,14 @@ export function LockScreen() {
           ),
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setForgot(true)}
+        className="min-h-11 rounded-xl px-4 text-sm font-semibold text-primary hover:bg-surface"
+      >
+        Lupa PIN?
+      </button>
     </div>
   );
 }

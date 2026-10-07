@@ -20,13 +20,7 @@ import { MoodIcon } from '@/features/journal/components/MoodIcon';
 import { QuickAdd } from '@/features/tasks/components/QuickAdd';
 import { useTaskLists } from '@/features/tasks/task-queries';
 import { dayGroupLabel } from '@/features/tasks/task-utils';
-import {
-  addLocalDays,
-  formatLocalDate,
-  relativeDayLabel,
-  todayLocal,
-  type LocalDate,
-} from '@/lib/date';
+import { addLocalDays, formatLocalDate, relativeDayLabel, type LocalDate } from '@/lib/date';
 import { formatIDRCompact } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { ActivityDots } from './ActivityDots';
@@ -43,12 +37,13 @@ import {
 import { DayTaskList } from './DayTaskList';
 import { EMPTY_DAY, type DayActivity } from './useCalendarActivity';
 import { useDayActivity, type CalendarTaskItem } from './useDayActivity';
+import { useToday } from '@/lib/useToday';
 
 type CalView = 'bulan' | 'minggu' | 'agenda';
 const AGENDA_DAYS = 30;
 
 export function CalendarPage() {
-  const today = todayLocal();
+  const today = useToday();
   const [params, setParams] = useSearchParams();
   const view =
     (['bulan', 'minggu', 'agenda'] as const).find((v) => v === params.get('tampilan')) ?? 'bulan';

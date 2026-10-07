@@ -45,6 +45,7 @@ import {
   type ViewCounts,
 } from './task-queries';
 import { groupByDate, listColor, type TaskGroup } from './task-utils';
+import { useToday } from '@/lib/useToday';
 
 const SMART_VIEWS: {
   view: SmartView;
@@ -70,7 +71,7 @@ export function TasksPage() {
       return p;
     });
 
-  const today = todayLocal();
+  const today = useToday();
   const lists = useTaskLists();
   const counts = useViewCounts(today);
   const listCounts = useListCounts();

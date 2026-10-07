@@ -53,6 +53,55 @@ export const CATEGORY_KEYWORDS: [RegExp, string][] = [
 const MONEY =
   /(^|\s)(\+?)((?:rp\.?\s?)\d[\d.,]*(?:\s?(?:rb|ribu|k|jt|juta))?|\d+(?:[.,]\d+)?\s?(?:rb|ribu|k|jt|juta)|\d{1,3}(?:\.\d{3})+|\d{4,})(?=\s|$)/i;
 
+/**
+ * Kata yang, jika mengikuti angka polos, menandakan itu BUKAN uang ("1000 kata", "10000 langkah").
+ * Sengaja tidak memuat kata waktu (hari/jam/tahun) karena "50000 hari ini" adalah nominal + tanggal.
+ */
+const COUNT_UNITS = new Set([
+  'kata',
+  'karakter',
+  'langkah',
+  'kali',
+  'orang',
+  'halaman',
+  'hal',
+  'baris',
+  'item',
+  'pcs',
+  'km',
+  'kg',
+  'gram',
+  'meter',
+  'liter',
+  'mb',
+  'gb',
+  'kb',
+  'kalori',
+  'kkal',
+  'step',
+  'steps',
+  'words',
+]);
+
+/** Nominal pertama yang masuk akal. Angka polos yang mirip nomor telepon/ID atau berisi satuan dilewati. */
+function findMoney(text: string): RegExpMatchArray | null {
+  for (const m of text.matchAll(new RegExp(MONEY.source, 'gi'))) {
+    const raw = m[3]!;
+    if (/^[\d.,]+$/.test(raw)) {
+      // Tanpa "rp" maupun sufiks (rb/jt/…). Nomor telepon/ID: berawalan 0 atau lebih dari 9 digit.
+      if (/^\d+$/.test(raw) && (raw.startsWith('0') || raw.length > 9)) continue;
+      const next = text
+        .slice(m.index! + m[0].length)
+        .trim()
+        .split(/\s+/)[0]
+        ?.toLowerCase();
+      if (next && COUNT_UNITS.has(next)) continue;
+    }
+    return m;
+  }
+  return null;
+}
+
 export function parseCapture(input: string, today: LocalDate): Capture {
   let text = ` ${input.trim()} `;
 
@@ -68,7 +117,7 @@ export function parseCapture(input: string, today: LocalDate): Capture {
   if (journal) return { kind: 'journal', title: journal[1]!.trim(), tags, date: today };
 
   // Transaksi: ada nominal uang
-  const money = text.match(MONEY);
+  const money = findMoney(text);
   // Angka 4 digit 1900–2100 tanpa penanda uang kemungkinan besar tahun, bukan nominal
   const looksLikeYear =
     money && /^\d{4}$/.test(money[3]!) && Number(money[3]) >= 1900 && Number(money[3]) <= 2100;

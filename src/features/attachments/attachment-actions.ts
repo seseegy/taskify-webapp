@@ -2,19 +2,21 @@
  * Lampiran (file di Cloudflare R2, metadata di tabel `attachments` yang disinkron).
  *
  * Alur upload (local-first):
- *   1. Baris `attachments` dibuat di SQLite lokal (status 'pending') → ikut antrean sync
+ *   1. File disimpan ke Cache Storage perangkat DULU, baris `attachments` dibuat di SQLite lokal
+ *      (status 'pending') → ikut antrean sync. Dengan begitu file tidak hilang saat offline/reload.
  *   2. Minta presigned URL ke Edge Function `files`, PUT langsung ke R2 (dengan progres)
- *   3. Sukses → status 'uploaded' + file disimpan ke cache offline; gagal → 'failed' (bisa diulang)
+ *   3. Sukses → status 'uploaded'; gagal → 'failed'. File diambil lagi dari cache untuk "Ulangi",
+ *      dan `useAttachmentOutbox` mengulang otomatis saat perangkat kembali online.
  * Hapus: soft delete lokal (instan, bisa offline) + coba hapus objek di R2; sisanya dibersihkan cron.
  */
-import { useQuery } from '@powersync/react';
+import { useQuery, useStatus } from '@powersync/react';
 import { and, eq, isNull } from 'drizzle-orm';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { create } from 'zustand';
 import { toast } from '@/components/ui/toast-store';
 import { useDatabase } from '@/db/database-context';
 import { softDeleted, touch, withMeta } from '@/db/mutations';
-import { attachments, type Attachment, type EntityType } from '@/db/schema';
+import { attachments, type Attachment, type AttachmentStatus, type EntityType } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
 import { formatBytes } from '@/lib/bytes';
 import { nowIso } from '@/lib/date';
@@ -23,6 +25,7 @@ import {
   deleteCachedFile,
   deleteFromR2,
   fetchFileBlob,
+  getCachedFile,
   MAX_FILE_BYTES,
   putCachedFile,
   saveBlob,
@@ -30,6 +33,7 @@ import {
   storageKey,
   uploadToR2,
 } from '@/lib/files';
+import { canAutoRetry, MAX_PER_RUN, withUploadLock, type AutoAttempt } from './upload-policy';
 
 // --------------------------------------------------------------------------- progres upload
 interface UploadState {
@@ -72,12 +76,15 @@ export interface UploadOptions {
   compress?: boolean;
 }
 
+/** Lampiran yang unggahannya DIBATALKAN pengguna: jangan diulang otomatis oleh outbox. */
+const userCancelled = new Set<string>();
+
 export function useAttachmentActions() {
   const { db, powerSync } = useDatabase();
   const userId = useUser().id;
 
   return useMemo(() => {
-    const send = async (row: Pick<Attachment, 'id' | 'storage_key'>, file: File) => {
+    const send = async (row: Pick<Attachment, 'id' | 'storage_key'>, file: File, quiet = false) => {
       const controller = new AbortController();
       useUploads.setState((s) => ({
         files: { ...s.files, [row.id]: file },
@@ -90,7 +97,6 @@ export function useAttachmentActions() {
           .update(attachments)
           .set(touch({ status: 'uploaded' as const, uploaded_at: nowIso() }))
           .where(eq(attachments.id, row.id));
-        await putCachedFile(row.id, file).catch(() => undefined);
         useUploads.setState((s) => {
           const files = { ...s.files };
           delete files[row.id];
@@ -103,14 +109,48 @@ export function useAttachmentActions() {
           .update(attachments)
           .set(touch({ status: 'failed' as const }))
           .where(eq(attachments.id, row.id));
-        toast(aborted ? 'Upload dibatalkan' : e instanceof Error ? e.message : String(e), {
-          tone: aborted ? 'default' : 'danger',
-        });
+        if (!quiet) {
+          if (aborted) toast('Upload dibatalkan');
+          else if (!navigator.onLine)
+            toast(
+              'Tidak ada koneksi. File disimpan di perangkat dan diunggah otomatis saat online.',
+            );
+          else toast(e instanceof Error ? e.message : String(e), { tone: 'danger' });
+        }
         return false;
       } finally {
         setProgress(row.id, null);
       }
     };
+
+    /**
+     * Satu percobaan unggah, dilindungi kunci antar-tab. Status dibaca ulang DI DALAM kunci:
+     * jika tab lain sudah menyelesaikannya, jangan diturunkan kembali ke 'pending'.
+     */
+    const attempt = (
+      att: Pick<Attachment, 'id' | 'storage_key'>,
+      file: File,
+      opts: { quiet?: boolean; markPending?: boolean } = {},
+    ) =>
+      withUploadLock(
+        att.id,
+        async () => {
+          const current = await powerSync.getOptional<{
+            status: AttachmentStatus;
+            deleted_at: string | null;
+          }>('SELECT status, deleted_at FROM attachments WHERE id = ?', [att.id]);
+          if (!current || current.deleted_at) return false;
+          if (current.status === 'uploaded') return true;
+          userCancelled.delete(att.id);
+          if (opts.markPending)
+            await db
+              .update(attachments)
+              .set(touch({ status: 'pending' as const }))
+              .where(eq(attachments.id, att.id));
+          return send(att, file, opts.quiet);
+        },
+        false,
+      );
 
     return {
       /** Cari file identik (SHA-256) milik user yang masih ada. */
@@ -147,24 +187,38 @@ export function useAttachmentActions() {
           uploaded_at: null,
         });
         row.storage_key = storageKey(userId, row.id, file.name);
-        await db.insert(attachments).values(row);
-        const ok = await send(row, file);
+        // Simpan salinan di perangkat SEBELUM mencoba mengunggah: jika offline/gagal/reload, file
+        // masih ada untuk "Ulangi" & outbox. Gagal menyimpan (kuota) tidak menghalangi upload.
+        await putCachedFile(row.id, file).catch(() => undefined);
+        try {
+          await db.insert(attachments).values(row);
+        } catch (e) {
+          await deleteCachedFile(row.id).catch(() => undefined); // jangan tinggalkan salinan yatim
+          throw e;
+        }
+        const ok = await attempt(row, file);
         if (ok) toast(`${file.name} terunggah`, { tone: 'success' });
         return row.id;
       },
 
-      /** Ulangi upload yang gagal (file masih di memori sesi ini). */
-      async retry(att: Attachment, file?: File) {
-        const f = file ?? useUploads.getState().files[att.id];
-        if (!f) return false;
-        await db
-          .update(attachments)
-          .set(touch({ status: 'pending' as const }))
-          .where(eq(attachments.id, att.id));
-        return send(att, f);
+      /**
+       * Ulangi upload yang gagal. File diambil dari memori sesi, atau dari cache perangkat
+       * (bertahan setelah reload/tutup aplikasi). `quiet` = tanpa toast (untuk outbox otomatis).
+       */
+      async retry(att: Attachment, opts: { file?: File; quiet?: boolean } = {}) {
+        const f = opts.file ?? useUploads.getState().files[att.id] ?? (await fileFromCache(att));
+        if (!f) {
+          if (!opts.quiet)
+            toast('File aslinya tidak ada di perangkat ini. Hapus lalu unggah ulang.', {
+              tone: 'danger',
+            });
+          return false;
+        }
+        return attempt(att, f, { quiet: opts.quiet, markPending: true });
       },
 
       cancel(id: string) {
+        userCancelled.add(id);
         useUploads.getState().controllers[id]?.abort();
       },
 
@@ -194,4 +248,70 @@ export async function downloadAttachment(
   } catch (e) {
     toast(e instanceof Error ? e.message : String(e), { tone: 'danger' });
   }
+}
+
+/** Salinan file di Cache Storage perangkat ini (null jika tidak ada, mis. diunggah dari perangkat lain). */
+async function fileFromCache(att: Pick<Attachment, 'id' | 'file_name' | 'mime_type'>) {
+  const blob = await getCachedFile(att.id).catch(() => null);
+  return blob ? new File([blob], att.file_name, { type: att.mime_type ?? blob.type }) : null;
+}
+
+const OUTBOX_INTERVAL_MS = 2 * 60_000;
+/** Percobaan otomatis per lampiran: jumlah & waktu terakhir (jeda mencegah koneksi yang berkedip menghabiskannya). */
+const autoAttempts = new Map<string, AutoAttempt>();
+
+/**
+ * Outbox lampiran: mengunggah otomatis lampiran yang belum terunggah (dibuat saat offline atau
+ * gagal) begitu perangkat online & sync pertama selesai. Hanya memproses lampiran yang salinan
+ * filenya ada di perangkat INI (baris dari perangkat lain tidak punya cache → dilewati).
+ * Setiap lampiran dicoba maksimal 3 kali per sesi, dengan jeda minimal 1 menit, agar kegagalan
+ * permanen atau koneksi yang berkedip tidak menghabiskan percobaan/berulang terus. Upload yang
+ * DIBATALKAN pengguna tidak diulang. Pasang sekali di AppShell.
+ */
+export function useAttachmentOutbox() {
+  const { powerSync } = useDatabase();
+  const actions = useAttachmentActions();
+  const { connected, hasSynced } = useStatus();
+
+  useEffect(() => {
+    if (!connected || !hasSynced) return;
+    let alive = true;
+    let running = false;
+
+    const run = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const rows = await powerSync.getAll<Attachment>(
+          `SELECT * FROM attachments WHERE deleted_at IS NULL AND status <> 'uploaded'
+            ORDER BY created_at`,
+        );
+        let handled = 0;
+        for (const att of rows) {
+          if (!alive || handled >= MAX_PER_RUN) break;
+          if (userCancelled.has(att.id)) continue;
+          if (useUploads.getState().progress[att.id] !== undefined) continue; // sedang diunggah
+          const prev = autoAttempts.get(att.id);
+          if (!canAutoRetry(prev, Date.now())) continue;
+          // Baris dari perangkat lain tidak punya salinan di sini → dilewati (tanpa memakan jatah)
+          if (!(await getCachedFile(att.id).catch(() => null))) continue;
+          autoAttempts.set(att.id, { n: (prev?.n ?? 0) + 1, at: Date.now() });
+          handled++;
+          const ok = await actions.retry(att, { quiet: true });
+          if (ok) toast(`${att.file_name} terunggah`, { tone: 'success' });
+        }
+      } catch (e) {
+        console.error('[attachments] outbox gagal', e);
+      } finally {
+        running = false;
+      }
+    };
+
+    void run();
+    const timer = setInterval(() => void run(), OUTBOX_INTERVAL_MS);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [connected, hasSynced, powerSync, actions]);
 }

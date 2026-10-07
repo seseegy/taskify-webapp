@@ -11,7 +11,7 @@ import {
 import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
-import { monthStart, todayLocal, type LocalDate } from '@/lib/date';
+import { monthStart, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { MonthSwitcher } from './components/Pickers';
 import { usePeriodTotals } from './finance-queries';
@@ -21,6 +21,7 @@ import { TransactionsTab } from './tabs/TransactionsTab';
 import { useTxSheet } from './tx-sheet-store';
 import { formatIDR } from '@/lib/money';
 import { monthEnd } from '@/lib/date';
+import { useToday } from '@/lib/useToday';
 
 export type FinanceTab = 'ringkasan' | 'transaksi' | 'anggaran' | 'berulang' | 'hutang' | 'kelola';
 
@@ -36,9 +37,10 @@ const TABS: { value: FinanceTab; label: string; icon: typeof Wallet; monthly?: b
 export function FinancePage() {
   const [params, setParams] = useSearchParams();
   const tab = TABS.find((t) => t.value === params.get('tab'))?.value ?? 'ringkasan';
+  const today = useToday();
   const rawMonth = params.get('bulan');
   const month: LocalDate =
-    rawMonth && /^\d{4}-\d{2}$/.test(rawMonth) ? `${rawMonth}-01` : monthStart(todayLocal());
+    rawMonth && /^\d{4}-\d{2}$/.test(rawMonth) ? `${rawMonth}-01` : monthStart(today);
   const walletId = params.get('dompet');
   const createTx = useTxSheet((s) => s.create);
   const totals = usePeriodTotals(month, monthEnd(month));

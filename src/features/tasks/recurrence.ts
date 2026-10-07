@@ -10,6 +10,12 @@
  * Rule selalu dibuat dengan BY* eksplisit (BYDAY / BYMONTHDAY / BYMONTH) sehingga tidak
  * bergantung pada DTSTART — DTSTART = due_date baris aktif.
  *
+ * Tanggal 29–31: menurut RFC 5545 bulan yang tidak punya tanggal itu DILEWATI, sehingga
+ * "tiap tanggal 31" tidak pernah jatuh di Feb/Apr/Jun/Sep/Nov. Itu bukan yang diharapkan untuk
+ * gaji atau tagihan, jadi di sini jatuh di HARI TERAKHIR bulan itu: BYMONTHDAY=28,29,30,31 +
+ * BYSETPOS=-1 (ambil yang terakhir yang ada). Rule lama yang tersimpan sebagai
+ * `BYMONTHDAY=31` dinormalkan saat dibaca (lihat `clampToMonthEnd`), jadi tanpa migrasi data.
+ *
  * Semua aritmetika memakai Date UTC tengah malam sebagai "tanggal mengambang" agar
  * tidak terpengaruh zona waktu perangkat.
  */
@@ -24,6 +30,12 @@ export interface RecurrenceState {
   /** 0 = Senin … 6 = Minggu (konvensi rrule) */
   byDay: number[];
   until: LocalDate | null;
+  /**
+   * Bulanan saja: tanggal yang dimaksud rule (1–31). Dibawa apa adanya agar rule "tiap tgl 31"
+   * tidak berubah menjadi "tiap tgl 28" hanya karena kejadian yang sedang aktif jatuh di 28 Feb
+   * lalu interval/batas diedit. Kosong = ikuti tanggal jatuh tempo (`anchor`).
+   */
+  monthDay?: number;
 }
 
 export const NO_RECURRENCE: RecurrenceState = { freq: 'none', interval: 1, byDay: [], until: null };
@@ -32,6 +44,29 @@ export const WEEKDAY_SHORT = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
 const toUTC = (date: LocalDate) => new Date(`${date}T00:00:00Z`);
 const fromUTC = (date: Date): LocalDate => date.toISOString().slice(0, 10);
+
+const asArray = (value: number | number[] | null | undefined): number[] =>
+  value === null || value === undefined ? [] : Array.isArray(value) ? value : [value];
+
+/** 29 → [28, 29], 30 → [28, 29, 30], 31 → [28, 29, 30, 31] (dipakai bersama BYSETPOS=-1). */
+const monthEndDays = (day: number) => Array.from({ length: day - 27 }, (_, i) => 28 + i);
+
+/**
+ * Ubah rule "tanggal N" (N = 29–31, atau 29 Feb tahunan) menjadi "tanggal N, atau hari terakhir
+ * bulan itu bila tidak ada". Rule yang sudah memakai BYSETPOS dibiarkan.
+ */
+function clampToMonthEnd(options: Partial<Options>): Partial<Options> {
+  if (options.bysetpos !== null && options.bysetpos !== undefined) return options;
+  const days = asArray(options.bymonthday);
+  if (days.length !== 1) return options;
+  const day = days[0]!;
+  const months = asArray(options.bymonth);
+  const clamp =
+    options.freq === RRule.MONTHLY
+      ? day >= 29 && day <= 31
+      : options.freq === RRule.YEARLY && day === 29 && months.length === 1 && months[0] === 2;
+  return clamp ? { ...options, bymonthday: monthEndDays(day), bysetpos: [-1] } : options;
+}
 
 /** Hari dalam minggu untuk tanggal lokal, 0 = Senin. */
 export const weekdayOf = (date: LocalDate) => (toUTC(date).getUTCDay() + 6) % 7;
@@ -58,7 +93,11 @@ export function buildRule(state: RecurrenceState, anchor: LocalDate): string | n
       break;
     case 'monthly':
       opts.freq = RRule.MONTHLY;
-      opts.bymonthday = [anchorDate.getUTCDate()];
+      opts.bymonthday = [
+        state.monthDay && state.monthDay >= 1 && state.monthDay <= 31
+          ? state.monthDay
+          : anchorDate.getUTCDate(),
+      ];
       break;
     case 'yearly':
       opts.freq = RRule.YEARLY;
@@ -67,6 +106,7 @@ export function buildRule(state: RecurrenceState, anchor: LocalDate): string | n
       break;
   }
   if (state.until) opts.until = new Date(`${state.until}T23:59:59Z`);
+  Object.assign(opts, clampToMonthEnd(opts));
 
   // Format kanonik: tanpa prefix "RRULE:", FREQ di depan (mis. FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TH)
   const parts = RRule.optionsToString(opts)
@@ -76,6 +116,18 @@ export function buildRule(state: RecurrenceState, anchor: LocalDate): string | n
     ...parts.filter((p) => p.startsWith('FREQ=')),
     ...parts.filter((p) => !p.startsWith('FREQ=')),
   ].join(';');
+}
+
+/**
+ * Sesuaikan rule dengan tanggal jatuh tempo baru (mis. pengguna memindahkan tanggal atau
+ * mengubah jam). Jika rule yang ada MASIH menghasilkan tanggal itu, rule dibiarkan apa adanya:
+ * rule akhir-bulan yang sedang jatuh di 28 Feb tetap "akhir bulan" (bukan jadi "tiap tgl 28").
+ * Jika tidak (tanggal dipindah ke hari lain), rule dibangun ulang dari tanggal baru.
+ */
+export function retargetRule(rule: string | null | undefined, anchor: LocalDate): string | null {
+  if (!rule) return null;
+  if (occurrencesBetween(rule, anchor, anchor, anchor, 1).length === 1) return rule;
+  return buildRule({ ...parseRule(rule), monthDay: undefined }, anchor);
 }
 
 /** Parse string RRULE kembali ke state editor. String tak dikenal → 'none'. */
@@ -94,8 +146,12 @@ export function parseRule(rule: string | null | undefined): RecurrenceState {
         if (interval === 1 && byDay.join() === '0,1,2,3,4')
           return { freq: 'weekdays', interval: 1, byDay, until };
         return { freq: 'weekly', interval, byDay, until };
-      case RRule.MONTHLY:
-        return { freq: 'monthly', interval, byDay: [], until };
+      case RRule.MONTHLY: {
+        const monthDay = asArray(o.bymonthday).length
+          ? Math.max(...asArray(o.bymonthday))
+          : undefined;
+        return { freq: 'monthly', interval, byDay: [], until, monthDay };
+      }
       case RRule.YEARLY:
         return { freq: 'yearly', interval, byDay: [], until };
       default:
@@ -116,8 +172,19 @@ function toWeekdayNumbers(value: Options['byweekday'] | undefined): number[] {
 }
 
 function makeRule(rule: string, dtstart: LocalDate) {
-  const options = RRule.parseString(rule.replace(/^RRULE:/, ''));
+  const options = clampToMonthEnd(RRule.parseString(rule.replace(/^RRULE:/, '')));
   return new RRule({ ...options, dtstart: toUTC(dtstart) });
+}
+
+/** Tanggal dalam bulan untuk rule bulanan (untuk deskripsi). Rule akhir-bulan → tanggal terbesar. */
+function monthlyDay(rule: string | null | undefined, anchor?: LocalDate | null) {
+  try {
+    const days = asArray(RRule.parseString((rule ?? '').replace(/^RRULE:/, '')).bymonthday);
+    if (days.length) return Math.max(...days);
+  } catch {
+    /* jatuh ke anchor */
+  }
+  return anchor ? Number(anchor.slice(8)) : '';
 }
 
 /** Kejadian berikutnya SETELAH `after` (eksklusif). null = seri berakhir. */
@@ -188,8 +255,8 @@ export function describeRule(rule: string | null | undefined, anchor?: LocalDate
       text = `${every('minggu')}: ${s.byDay.map((d) => WEEKDAY_SHORT[d]).join(', ')}`;
       break;
     case 'monthly': {
-      const day = rule?.match(/BYMONTHDAY=(\d+)/)?.[1] ?? (anchor ? Number(anchor.slice(8)) : '');
-      text = `${every('bulan')} tgl ${day}`;
+      const day = monthlyDay(rule, anchor);
+      text = `${every('bulan')} tgl ${day}${Number(day) > 28 ? ' (atau hari terakhir bulan)' : ''}`;
       break;
     }
     case 'yearly':

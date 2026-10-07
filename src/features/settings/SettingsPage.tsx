@@ -33,8 +33,10 @@ import { Link } from 'react-router';
 import { useTheme, type ThemePreference } from '@/features/theme/theme-context';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/toast-store';
+import { clearDeviceData } from './clear-device-data';
 import { exportAllData } from './export-data';
 import { PinSettings } from './PinSettings';
+import { UploadErrors } from './UploadErrors';
 import { formatBytes, useStorageInfo } from './useStorageInfo';
 
 export function SettingsPage() {
@@ -165,6 +167,7 @@ function SyncSection() {
           <span className="font-mono text-xs">{vfs}</span>
         </Row>
       </dl>
+      {failed > 0 && <UploadErrors />}
       <p className="mt-4 text-xs text-muted">
         Semua data tersimpan di perangkat & bisa dipakai offline. Perubahan dikirim ke server
         otomatis saat online.
@@ -200,6 +203,7 @@ function AccountSection() {
     setLoading(true);
     try {
       await powerSync.disconnectAndClear();
+      await clearDeviceData();
       await signOut();
       location.assign('/');
     } finally {

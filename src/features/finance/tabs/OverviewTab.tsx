@@ -5,13 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import {
-  formatLocalDate,
-  monthEnd,
-  relativeDayLabel,
-  todayLocal,
-  type LocalDate,
-} from '@/lib/date';
+import { formatLocalDate, monthEnd, relativeDayLabel, type LocalDate } from '@/lib/date';
 import { formatIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { BudgetBar } from '../components/BudgetBar';
@@ -30,6 +24,7 @@ import {
   useWallets,
 } from '../finance-queries';
 import type { FinanceTab } from '../FinancePage';
+import { useToday } from '@/lib/useToday';
 
 export function OverviewTab({
   month,
@@ -38,7 +33,7 @@ export function OverviewTab({
   month: LocalDate;
   goTab: (t: FinanceTab, extra?: Record<string, string>) => void;
 }) {
-  const today = todayLocal();
+  const today = useToday();
   const last = monthEnd(month);
   const navigate = useNavigate();
   const { wallets } = useWallets();
