@@ -20,7 +20,7 @@ Panduan setup lengkap (Supabase, PowerSync, deploy, install di Android, backup o
 | -------------------- | ------------------------------------------------------ |
 | `pnpm dev`           | Server pengembangan                                    |
 | `pnpm build`         | Build produksi + service worker PWA                    |
-| `pnpm check`         | Typecheck + lint + format check                        |
+| `pnpm check`         | Typecheck + lint + format check + kontras warna        |
 | `pnpm format`        | Rapikan kode (Prettier)                                |
 | `pnpm db:push`       | Terapkan migrasi ke Supabase (setelah `supabase link`) |
 | `pnpm db:new <nama>` | Buat file migrasi baru                                 |

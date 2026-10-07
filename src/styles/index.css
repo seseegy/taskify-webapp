@@ -74,9 +74,12 @@
   --surface-strong: rgb(255 255 255 / 0.78);
   --line: rgb(99 102 241 / 0.16);
   --primary: #6d28d9;
-  --danger: #e11d48;
-  --success: #059669;
-  --warning: #d97706;
+  /* Status: diukur terhadap latar terburuk di bawah kaca (termasuk blob) DAN sebagai teks di atas
+     tint `bg-<token>/10..15` (Badge, banner). Semuanya ≥ 4.5:1 (WCAG 1.4.3). Seri 800 Tailwind:
+     rose-800 / emerald-800 / amber-800. Jangan dicerahkan tanpa mengukur ulang. */
+  --danger: #9f1239;
+  --success: #065f46;
+  --warning: #92400e;
 
   --backdrop-base: linear-gradient(135deg, #ede9fe 0%, #fce7f3 45%, #e0f2fe 100%);
   --blob-1: #c4b5fd;
@@ -96,7 +99,9 @@
   --surface-strong: rgb(30 27 75 / 0.72);
   --line: rgb(167 139 250 / 0.16);
   --primary: #a78bfa;
-  --danger: #fb7185;
+  /* danger rose-300: #fb7185 (rose-400) lolos sebagai teks polos (4.83) tapi gagal di atas tint
+     Badge (3.97) dan dengan opacity /80 (3.56). success & warning sudah lolos di semua konteks. */
+  --danger: #fda4af;
   --success: #34d399;
   --warning: #fbbf24;
 

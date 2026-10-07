@@ -36,6 +36,29 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | Vault    | cyan → blue     | `#06b6d4`      |
 | Kalender | indigo → sky    | `#6366f1`      |
 
+## Kontras warna
+
+Teks normal wajib ≥ **4.5:1** (WCAG 1.4.3) di tema terang **dan** gelap. Pengukuran memakai kasus
+terburuk, bukan satu sampel: setiap stop gradasi dasar dan setiap blob di bawah kaca
+(`--surface` dan `--surface-strong`), serta token status sebagai teks di atas tint `bg-<token>/10`
+dan `/15` (Badge, banner) dan `text-danger/80`.
+
+| Token (terang) | Nilai     | Catatan                               |
+| -------------- | --------- | ------------------------------------- |
+| `danger`       | `#9f1239` | rose-800                              |
+| `success`      | `#065f46` | emerald-800                           |
+| `warning`      | `#92400e` | amber-800                             |
+| `danger` gelap | `#fda4af` | rose-300; rose-400 gagal di atas tint |
+
+Jangan mencerahkan token ini "supaya lebih cantik" tanpa mengukur ulang. Jalankan:
+
+```bash
+pnpm check:contrast   # membaca token langsung dari src/styles/index.css; ikut dalam `pnpm check`
+```
+
+Latar yang **tidak** ikut tema (mis. overlay di atas gambar) tidak boleh memakai token status;
+pakai warna tetap seperti `bg-rose-800/90`.
+
 ## Komponen
 
 `Button` (primary/secondary/ghost/danger), `Card`, `Input`/`Label`, `Badge`, `SegmentedControl`, `EmptyState`, `PageHeader`. Font: **Plus Jakarta Sans** (self-hosted, tetap tersedia offline).

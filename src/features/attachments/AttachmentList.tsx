@@ -116,7 +116,7 @@ function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }
         </div>
       )}
       {!uploading && att.status !== 'uploaded' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-danger/70 p-1 text-center text-[10px] font-bold text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-rose-800/90 p-1 text-center text-[10px] font-bold text-white">
           {att.status === 'failed' ? 'Gagal' : 'Menunggu'}
           {hasFile && (
             <button
