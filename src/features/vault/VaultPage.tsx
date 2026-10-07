@@ -295,6 +295,7 @@ function ProjectsTab({
           <button
             key={p.id}
             type="button"
+            aria-current={p.id === activeId ? 'true' : undefined}
             onClick={() => onOpen(p.id)}
             className={cn(
               'flex w-full items-center gap-3 rounded-2xl p-3 text-left glass transition',
@@ -308,7 +309,13 @@ function ProjectsTab({
               <span className="flex items-center gap-1.5">
                 <span className="truncate text-sm font-bold">{p.name}</span>
                 {p.is_favorite ? (
-                  <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />
+                  <>
+                    <Star
+                      className="size-3.5 shrink-0 fill-amber-400 text-amber-400"
+                      aria-hidden="true"
+                    />
+                    <span className="sr-only">(favorit)</span>
+                  </>
                 ) : null}
               </span>
               <span className="block truncate text-xs text-muted">
@@ -317,7 +324,12 @@ function ProjectsTab({
                   : 'Belum ada versi'}
               </span>
             </span>
-            {p.versions > 0 && <Badge>{p.versions}</Badge>}
+            {p.versions > 0 && (
+              <Badge title={`${p.versions} versi`}>
+                {p.versions}
+                <span className="sr-only"> versi</span>
+              </Badge>
+            )}
           </button>
         ))}
       </div>

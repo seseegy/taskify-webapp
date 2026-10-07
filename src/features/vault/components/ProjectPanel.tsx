@@ -164,6 +164,7 @@ function VersionRow({
           )}
         >
           {att.version_label ?? '—'}
+          {latest && <span className="ml-1.5 font-semibold">· Terbaru</span>}
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold">{att.note || att.file_name}</span>
