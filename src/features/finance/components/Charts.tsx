@@ -51,11 +51,13 @@ export function CategoryDonut({
                   <span className="shrink-0 font-bold tabular-nums">{formatIDR(s.total)}</span>
                 </span>
                 <span className="mt-1 flex items-center gap-2">
-                  <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
-                    <span
-                      className="block h-full rounded-full"
-                      style={{ width: `${pct}%`, background: paletteOf(s.color, 'slate').hex }}
-                    />
+                  <span className="relative block h-1.5 flex-1" aria-hidden="true">
+                    <span className="absolute inset-0 overflow-hidden rounded-full bg-surface">
+                      <span
+                        className="block h-full rounded-full"
+                        style={{ width: `${pct}%`, background: paletteOf(s.color, 'slate').hex }}
+                      />
+                    </span>
                   </span>
                   <span className="w-8 text-right text-xs text-muted">{pct}%</span>
                 </span>

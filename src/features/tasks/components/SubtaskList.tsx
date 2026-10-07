@@ -1,5 +1,6 @@
 import { Plus, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { Progress } from '@/components/ui/Progress';
 import type { Task } from '@/db/schema';
 import { useTaskActions } from '../task-actions';
 import { useSubtasks } from '../task-queries';
@@ -21,12 +22,14 @@ export function SubtaskList({ parent }: { parent: Task }) {
   return (
     <div>
       {subtasks.length > 0 && (
-        <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-surface">
-          <div
-            className="h-full rounded-full bg-gradient-tasks transition-all"
-            style={{ width: `${(done / subtasks.length) * 100}%` }}
-          />
-        </div>
+        <Progress
+          label="Progres subtask"
+          valueText={`${done} dari ${subtasks.length} subtask selesai`}
+          value={done}
+          max={subtasks.length}
+          className="mb-2"
+          barClassName="bg-gradient-tasks"
+        />
       )}
       <ul className="space-y-1">
         {subtasks.map((s) => (

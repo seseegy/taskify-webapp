@@ -25,6 +25,7 @@ import { useCategoryBreakdown } from '@/features/finance/finance-queries';
 import { MoodIcon } from '@/features/journal/components/MoodIcon';
 import { moodOf } from '@/features/journal/mood';
 import { diffLocalDays, formatLocalDate, todayLocal, type LocalDate } from '@/lib/date';
+import { Progress } from '@/components/ui/Progress';
 import { formatIDR, formatIDRCompact } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { ActivityHeatmap } from './ActivityHeatmap';
@@ -425,12 +426,13 @@ function TopCategories({ range, total }: { range: Range; total: number }) {
                   <span className="truncate font-semibold">{s.name}</span>
                   <span className="font-bold tabular-nums">{formatIDR(s.total)}</span>
                 </span>
-                <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface">
-                  <span
-                    className="block h-full rounded-full bg-linear-to-r from-rose-500 to-orange-400"
-                    style={{ width: `${total ? (s.total / total) * 100 : 0}%` }}
-                  />
-                </span>
+                <Progress
+                  decorative
+                  value={s.total}
+                  max={total}
+                  className="mt-1"
+                  barClassName="bg-linear-to-r from-rose-500 to-orange-400"
+                />
               </span>
             </li>
           ))}
