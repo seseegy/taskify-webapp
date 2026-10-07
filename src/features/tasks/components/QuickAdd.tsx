@@ -42,7 +42,13 @@ export function QuickAdd({ defaultDate = null, listId = null, placeholder, class
   };
 
   return (
-    <form onSubmit={submit} className={cn('rounded-2xl px-3 py-2 glass', className)}>
+    <form
+      onSubmit={submit}
+      className={cn(
+        'rounded-2xl px-3 py-2 glass focus-within:ring-2 focus-within:ring-primary/50',
+        className,
+      )}
+    >
       <div className="flex items-center gap-2">
         <span className="shine flex size-7 shrink-0 items-center justify-center rounded-lg bg-gradient-tasks text-white">
           <Plus className="size-4" />

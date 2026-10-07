@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { formatIDR, isIncompleteIDR, parseIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,8 @@ interface Props {
   size?: 'md' | 'lg';
   tone?: 'expense' | 'income' | 'transfer' | 'neutral';
   placeholder?: string;
+  /** Error dari form induk (mis. "Isi nominal terlebih dahulu"); ditampilkan & diumumkan. */
+  error?: string;
 }
 
 const TONE = {
@@ -21,6 +23,12 @@ const TONE = {
   transfer: 'text-primary',
   neutral: 'text-fg',
 };
+
+/** Tombol pintas sufiks: keyboard angka di HP tidak punya huruf, jadi "rb"/"jt" disediakan di sini. */
+const SUFFIX_CHIPS = [
+  { suffix: 'rb', label: 'ribu' },
+  { suffix: 'jt', label: 'juta' },
+] as const;
 
 /**
  * Input nominal rupiah yang menerima "25000", "25.000", "25rb", "1,5jt".
@@ -36,11 +44,13 @@ export function MoneyInput({
   size = 'md',
   tone = 'neutral',
   placeholder = '0',
+  error,
 }: Props) {
   const autoId = useId();
   const inputId = id ?? autoId;
   const unitId = `${inputId}-unit`;
   const hintId = `${inputId}-hint`;
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const [text, setText] = useState(() =>
     value ? new Intl.NumberFormat('id-ID').format(value) : '',
@@ -49,8 +59,17 @@ export function MoneyInput({
   const parsed = text.trim() ? parseIDR(text) : null;
   // "25r" sedang diketik menuju "25rb" → jangan tampilkan error dulu selama masih fokus
   const typingSuffix = focused && isIncompleteIDR(text);
-  const invalid = text.trim() !== '' && parsed === null && !typingSuffix;
+  const badFormat = text.trim() !== '' && parsed === null && !typingSuffix;
+  const message = badFormat ? 'Format tidak dikenali — contoh: 25000, 25rb, 1,5jt' : error;
+  const invalid = !!message;
   const usesSuffix = /[a-z]/i.test(text.replace(/^\s*rp/i, ''));
+  // Chip hanya saat angka murni (belum ada sufiks) — tidak membuat "25rbrb"
+  const showChips = /^[\d.,\s]*\d[\d.,\s]*$/.test(text);
+
+  const update = (next: string) => {
+    setText(next);
+    onChange(next.trim() ? parseIDR(next) : null);
+  };
 
   return (
     <div>
@@ -68,6 +87,7 @@ export function MoneyInput({
           Rp
         </span>
         <input
+          ref={inputRef}
           id={inputId}
           value={text}
           data-autofocus={autoFocus ? '' : undefined}
@@ -78,33 +98,49 @@ export function MoneyInput({
           aria-invalid={invalid || undefined}
           aria-describedby={`${unitId} ${hintId}`}
           onFocus={() => setFocused(true)}
-          onChange={(e) => {
-            setText(e.target.value);
-            onChange(e.target.value.trim() ? parseIDR(e.target.value) : null);
-          }}
+          onChange={(e) => update(e.target.value)}
           onBlur={() => {
             setFocused(false);
             if (parsed) setText(new Intl.NumberFormat('id-ID').format(parsed));
           }}
           className={cn(
-            'min-w-0 flex-1 bg-transparent font-extrabold tracking-tight outline-none placeholder:text-muted/50',
+            'min-w-0 flex-1 bg-transparent font-extrabold tracking-tight outline-none placeholder:text-muted',
             size === 'lg' ? 'text-3xl' : 'text-base',
             TONE[tone],
           )}
         />
       </div>
-      <p
-        id={hintId}
-        className={cn('mt-1 min-h-4 px-1 text-xs', invalid ? 'text-danger' : 'text-muted')}
-      >
-        {invalid ? (
-          <span role="alert">Format tidak dikenali — contoh: 25000, 25rb, 1,5jt</span>
-        ) : usesSuffix && parsed ? (
-          `= ${formatIDR(parsed)}`
-        ) : (
-          ''
+      <div className="mt-1 flex min-h-8 items-start justify-between gap-2 px-1">
+        <p id={hintId} className={cn('pt-1 text-xs', invalid ? 'text-danger' : 'text-muted')}>
+          {invalid ? (
+            <span role="alert">{message}</span>
+          ) : usesSuffix && parsed ? (
+            `= ${formatIDR(parsed)}`
+          ) : (
+            ''
+          )}
+        </p>
+        {showChips && (
+          <div className="flex shrink-0 gap-1.5" role="group" aria-label="Tambah satuan">
+            {SUFFIX_CHIPS.map((c) => (
+              <button
+                key={c.suffix}
+                type="button"
+                aria-label={`Tambah ${c.label}`}
+                // jaga fokus di input agar keyboard HP tidak menutup/membuka ulang
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  update(`${text.trim()}${c.suffix}`);
+                  inputRef.current?.focus();
+                }}
+                className="min-h-8 min-w-10 rounded-lg px-2.5 text-xs font-bold text-primary glass transition hover:bg-surface-strong"
+              >
+                {c.suffix}
+              </button>
+            ))}
+          </div>
         )}
-      </p>
+      </div>
     </div>
   );
 }

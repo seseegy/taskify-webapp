@@ -7,18 +7,33 @@ const ICONS = { default: Info, success: CircleCheck, danger: CircleAlert };
 export function Toaster() {
   const toasts = useToastStore((s) => s.toasts);
   const dismiss = useToastStore((s) => s.dismiss);
+  const pause = useToastStore((s) => s.pause);
+  const resume = useToastStore((s) => s.resume);
 
   return (
+    // Satu live region permanen (polite). Item TIDAK diberi role="status" lagi agar tidak
+    // diumumkan ganda. Di HP (< sm) posisinya di atas FAB "Catat transaksi" (bottom-28 + size-14).
     <div
+      role="region"
+      aria-label="Notifikasi"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-28 z-[60] flex flex-col items-center gap-2 px-4 lg:bottom-6"
+      className="pointer-events-none fixed inset-x-0 bottom-44 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-28 lg:bottom-6"
     >
       {toasts.map((t) => {
         const Icon = ICONS[t.tone];
         return (
           <div
             key={t.id}
-            role="status"
+            // Tahan hitung mundur saat dibaca: kursor mouse (bukan sentuhan) atau fokus keyboard
+            onPointerEnter={(e) => e.pointerType === 'mouse' && pause(t.id)}
+            onPointerLeave={(e) => {
+              if (e.pointerType === 'mouse' && !e.currentTarget.contains(document.activeElement))
+                resume(t.id);
+            }}
+            onFocus={() => pause(t.id)}
+            onBlur={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) resume(t.id);
+            }}
             className="pointer-events-auto flex w-full max-w-sm animate-fade-up items-center gap-3 rounded-2xl py-2.5 pr-2 pl-4 text-sm glass-strong"
           >
             <Icon
@@ -33,7 +48,7 @@ export function Toaster() {
             {t.action && (
               <button
                 type="button"
-                className="rounded-lg px-2.5 py-1.5 font-bold text-primary transition hover:bg-surface"
+                className="min-h-9 rounded-lg px-2.5 py-1.5 font-bold text-primary transition hover:bg-surface"
                 onClick={() => {
                   void t.action!.onClick();
                   dismiss(t.id);
@@ -46,7 +61,7 @@ export function Toaster() {
               type="button"
               aria-label="Tutup"
               onClick={() => dismiss(t.id)}
-              className="flex size-8 items-center justify-center rounded-lg text-muted hover:bg-surface"
+              className="flex size-9 items-center justify-center rounded-lg text-muted hover:bg-surface"
             >
               <X className="size-4" />
             </button>

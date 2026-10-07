@@ -98,6 +98,31 @@ export function useFinanceActions() {
         .where(eq(transactions.id, id));
     };
 
+    const restoreBudget = async (id: string) => {
+      const [row] = await db.select().from(budgets).where(eq(budgets.id, id));
+      if (!row) return;
+      // Sudah dibuat anggaran baru untuk kategori yang sama? Jangan membuat duplikat.
+      const clash = await db
+        .select({ id: budgets.id })
+        .from(budgets)
+        .where(
+          and(
+            row.category_id === null
+              ? isNull(budgets.category_id)
+              : eq(budgets.category_id, row.category_id),
+            isNull(budgets.deleted_at),
+          ),
+        );
+      if (clash.length > 0) {
+        toast('Sudah ada anggaran untuk kategori ini, jadi tidak dipulihkan', { tone: 'danger' });
+        return;
+      }
+      await db
+        .update(budgets)
+        .set(touch({ deleted_at: null }))
+        .where(eq(budgets.id, id));
+    };
+
     return {
       // ------------------------------------------------------------ Transaksi
       async createTx(input: TxInput) {
@@ -200,6 +225,9 @@ export function useFinanceActions() {
       },
       async removeBudget(id: string) {
         await db.update(budgets).set(softDeleted()).where(eq(budgets.id, id));
+        toast('Anggaran dihapus', {
+          action: { label: 'Urungkan', onClick: () => restoreBudget(id) },
+        });
       },
 
       // ------------------------------------------------------------ Berulang

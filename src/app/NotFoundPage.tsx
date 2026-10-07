@@ -7,6 +7,7 @@ export function NotFoundPage() {
   return (
     <Card>
       <EmptyState
+        as="h1"
         icon={Compass}
         title="Halaman tidak ditemukan"
         description="Alamat yang kamu buka tidak ada di Taskify."
