@@ -294,7 +294,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
           enterKeyHint="go"
           className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted/70"
         />
-        <kbd className="hidden rounded-md border border-line px-1.5 py-0.5 text-[10px] font-bold text-muted sm:block">
+        <kbd className="hidden rounded-md border border-line px-1.5 py-0.5 text-xs font-bold text-muted sm:block">
           ESC
         </kbd>
       </label>

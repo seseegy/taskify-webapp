@@ -359,7 +359,7 @@ function EntryItem({
           m ? cn('bg-linear-to-br text-white shadow-md', m.className) : 'bg-surface',
         )}
       >
-        <span className="text-[10px] font-semibold uppercase opacity-80">
+        <span className="text-xs font-semibold uppercase opacity-80">
           {formatLocalDate(entry.entry_date, 'EEE')}
         </span>
         <span className="text-lg font-extrabold">{formatLocalDate(entry.entry_date, 'd')}</span>

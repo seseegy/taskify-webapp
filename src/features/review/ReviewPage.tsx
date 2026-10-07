@@ -384,7 +384,7 @@ function DailyChart({
             </span>
             <span
               className={cn(
-                'text-[10px] font-semibold',
+                'text-xs font-semibold',
                 p.day === today ? 'text-primary' : 'text-muted',
               )}
             >

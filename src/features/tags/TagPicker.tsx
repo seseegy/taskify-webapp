@@ -20,7 +20,7 @@ export function TagChip({
   const p = paletteOf(tag.color);
   const cls = cn(
     'inline-flex items-center gap-0.5 rounded-full font-semibold',
-    size === 'sm' ? 'px-1.5 py-px text-[10px]' : 'px-2 py-0.5 text-xs',
+    size === 'sm' ? 'px-1.5 py-px text-xs' : 'px-2 py-0.5 text-xs',
     p.soft,
   );
   const body = (

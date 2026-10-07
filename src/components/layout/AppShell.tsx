@@ -205,7 +205,7 @@ function BottomNav() {
               end={item.to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-1 flex-col items-center gap-1 text-[11px] font-semibold transition',
+                  'flex flex-1 flex-col items-center gap-1 text-xs font-semibold transition',
                   isActive ? 'text-fg' : 'text-muted',
                 )
               }
@@ -251,7 +251,7 @@ function SearchButton() {
     >
       <Search className="size-4" />
       <span className="flex-1">Cari & catat cepat</span>
-      <kbd className="rounded-md border border-line px-1.5 text-[10px] font-bold">
+      <kbd className="rounded-md border border-line px-1.5 text-xs font-bold">
         {mac ? '⌘' : 'Ctrl'} K
       </kbd>
     </button>

@@ -90,7 +90,7 @@ function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }
         {url ? (
           <img src={url} alt={att.file_name} className="size-full object-cover" />
         ) : (
-          <span className="flex flex-col items-center gap-1 px-1 text-center text-[10px] text-muted">
+          <span className="flex flex-col items-center gap-1 px-1 text-center text-xs text-muted">
             {isImage(att) ? (
               <ImageIcon className="size-6" />
             ) : att.mime_type?.includes('zip') ? (

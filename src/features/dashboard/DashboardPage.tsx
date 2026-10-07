@@ -205,7 +205,7 @@ function WeekStrip({ today }: { today: string }) {
                 isToday ? 'shine bg-gradient-calendar text-white shadow-lg' : 'bg-surface',
               )}
             >
-              <span className={cn('text-[11px] font-semibold', !isToday && 'text-muted')}>
+              <span className={cn('text-xs font-semibold', !isToday && 'text-muted')}>
                 {formatLocalDate(day, 'EEEEEE')}
               </span>
               <span className="text-lg font-extrabold">{formatLocalDate(day, 'd')}</span>

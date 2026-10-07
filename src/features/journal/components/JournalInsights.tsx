@@ -83,7 +83,7 @@ export function JournalInsights({ today, compact }: { today: LocalDate; compact?
                 <span className="text-lg" title={d.label}>
                   <MoodIcon mood={d.value} className="size-5" />
                 </span>
-                <span className="text-[11px] font-semibold text-muted">{d.n}</span>
+                <span className="text-xs font-semibold text-muted">{d.n}</span>
               </div>
             ))}
           </div>
@@ -146,7 +146,7 @@ function Stat({
       >
         <Icon className="size-4" />
       </span>
-      <p className="text-[11px] font-semibold text-muted">{label}</p>
+      <p className="text-xs font-semibold text-muted">{label}</p>
       <p className="truncate text-base font-extrabold tracking-tight sm:text-lg">{value}</p>
     </Card>
   );

@@ -414,10 +414,14 @@ function groupByFinished(rows: Task[], view: 'done' | 'trash', today: LocalDate)
   }));
 }
 
-const EMPTY: Record<string, { title: string; description: string; icon: LucideIcon }> = {
+const EMPTY: Record<string, { title: string; description: ReactNode; icon: LucideIcon }> = {
   today: {
     title: 'Hari ini kosong',
-    description: 'Tambahkan tugas di atas, atau nikmati waktu luangmu ✨',
+    description: (
+      <>
+        Tambahkan tugas di atas, atau nikmati waktu luangmu <span aria-hidden="true">✨</span>
+      </>
+    ),
     icon: Sun,
   },
   upcoming: {
