@@ -201,6 +201,32 @@ App lain ── Bagikan ──► POST /bagikan (multipart) ──► sw-extra.j
 - PIN bersifat **per perangkat/browser** (hash di `localStorage`, tidak disinkron). **Lupa PIN**: tautan di layar kunci meminta password akun, memverifikasinya ke Supabase (`signInWithPassword`, percobaan dibatasi server), lalu mematikan PIN di perangkat ini. Butuh internet. Tanpa ini, satu-satunya jalan keluar adalah menghapus data situs (menghapus database lokal beserta perubahan yang belum terunggah).
 - Ekspor CSV menetralkan sel teks berawalan `= + - @` (formula injection).
 
+## Sandi (password manager)
+
+Brankas sandi **terenkripsi ujung ke ujung**, tersinkron antar-perangkat lewat PowerSync seperti modul lain. Kode: `src/features/sandi/` (rute `/sandi`).
+
+**Model ancaman.** Yang dilindungi: isi sandi dari siapa pun yang punya akses database, backup `pg_dump`, ekspor JSON, atau akun Supabase. Yang **tidak** dilindungi: perangkat yang sedang terbuka dan terinfeksi (XSS/malware bisa memakai kunci di memori), jumlah item dan waktu ubah (metadata), dan master password yang lemah (penyerang dengan salinan data bisa menebak offline; KDF hanya memperlambatnya).
+
+```
+master password ─PBKDF2-SHA256 600rb iterasi, salt acak─► KEK ─AES-GCM─► bungkus DEK
+kunci pemulihan (128 bit acak) ─HKDF-SHA256─► KEK-pemulihan ─AES-GCM─► bungkus DEK (salinan ke-2)
+DEK (256 bit acak) ─AES-256-GCM, IV acak, AAD = user + id item─► isi item (judul, URL, username, sandi, catatan)
+```
+
+- **DEK terpisah dari master password**: ganti master password hanya membungkus ulang satu kunci, item tidak dienkripsi ulang. Kunci pemulihan **ikut diganti** setiap kali master password diganti atau dipulihkan.
+- **AAD mengikat item ke akun + id barisnya**: ciphertext yang ditukar antar baris atau dipindah ke akun lain gagal diautentikasi. Plaintext dipadatkan ke kelipatan 256 byte agar panjang ciphertext tidak membocorkan panjang sandi.
+- Server hanya melihat `pw_keys` (parameter KDF + kunci terbungkus) dan `pw_items.enc`. CHECK Postgres menolak iterasi < 100 ribu dan salt/kunci yang terlalu pendek; satu brankas per user (UNIQUE, pengecualian dari aturan "hindari UNIQUE").
+- **Master password harus berbeda dari password akun Taskify** (server melihat password akun saat login). Syarat: ≥ 12 karakter dan ≥ 50 bit perkiraan (`masterPasswordProblem`); frasa 5 kata dari daftar EFF disarankan dan bisa dibuatkan di wizard.
+- **Lupa master password DAN kunci pemulihan = data tidak bisa dipulihkan siapa pun.** Kunci pemulihan ditampilkan sekali; pengguna wajib mengonfirmasi sudah menyimpannya sebelum brankas disimpan/diubah.
+
+**Siklus kunci.** DEK hanya ada di memori sebagai `CryptoKey` non-extractable (`sandi-store.ts`), tidak pernah ke storage. `useSandiAutoLock` (dipasang di AppShell, jadi berlaku di semua halaman) mengunci saat: tab disembunyikan ≥ batas pilihan (0/1/5/15 menit; 0 = segera), tidak ada interaksi selama batas itu, atau PIN aplikasi terkunci. Saat tab kembali terlihat, kunci diperiksa **sebelum** konten tampil. Hasil dekripsi hidup di komponen `UnlockedVault` yang hanya di-mount saat terbuka, jadi plaintext ikut hilang saat dikunci. Papan klip: sandi dihapus otomatis 30 detik setelah disalin dan saat dikunci (batasan browser: tidak bisa bila dokumen tidak fokus).
+
+**Sinkron & balapan.** Wizard hanya bisa dimulai setelah sinkron pertama selesai; `createKey` menolak bila sudah ada record kunci. Dua perangkat yang membuat brankas bersamaan (sangat jarang) menyebabkan item di salah satunya tidak terbaca; UI menampilkan "N sandi tidak bisa dibuka" dan datanya tidak dihapus. Sandi tidak masuk indeks FTS, palette, tag, maupun tautan (sengaja). Dihapus = soft delete + Urungkan (toast), dibersihkan permanen setelah 30 hari. Ekspor JSON dan backup memuat ciphertext saja.
+
+**Generator** (`generator.ts`, murni): `crypto.getRandomValues` + rejection sampling (tanpa bias modulo), tiap jenis karakter yang dipilih dijamin muncul, mode karakter (8–128) dan frasa sandi (EFF 7.776 kata, ±12,9 bit/kata, dimuat lazy). Hanya **pengaturan** generator yang diingat per perangkat, tidak pernah sandinya. Bisa dipakai tanpa membuka brankas.
+
+**Belum ada** (sengaja di luar cakupan awal): impor/ekspor CSV, kode TOTP, passkey/biometrik untuk membuka, pengecekan kebocoran (HIBP), Sampah khusus sandi.
+
 ## Batas data & penolakan server
 
 - CHECK Postgres menolak baris yang melanggar batas (mis. `transactions.title` ≤ 120). Penolakan permanen masuk `upload_errors` (lokal), dan **sisa operasi dalam satu transaksi lokal ikut dibuang**; operasi sebelumnya sudah diterapkan, jadi satu transaksi lokal bisa berlaku sebagian di server. Karena itu semua jalur tulis memotong teks lewat `clip(…, LIMITS.x)` (`src/lib/limits.ts`, per code point seperti `char_length`). Ubah `LIMITS` bersamaan dengan CHECK-nya.

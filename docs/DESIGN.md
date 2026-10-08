@@ -20,7 +20,7 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `glass` / `glass-strong`                                                                    | Kartu, panel, input, nav (kaca semi-transparan + blur) |
 | `bg-gradient-brand`                                                                         | Aksi utama, logo (indigo → ungu → pink)                |
-| `bg-gradient-{tasks,journal,finance,vault,calendar,settings}`                               | Identitas modul (ikon, header, sel aktif)              |
+| `bg-gradient-{tasks,journal,finance,vault,calendar,sandi,settings}`                         | Identitas modul (ikon, header, sel aktif)              |
 | `text-gradient-brand`                                                                       | Angka/judul penting (saldo, logo)                      |
 | `shine`                                                                                     | Kilau tipis di atas elemen bergradasi                  |
 | `text-fg`, `text-muted`, `bg-surface`, `border-line`, `text-primary/danger/success/warning` | Token warna yang otomatis menyesuaikan tema            |
@@ -35,6 +35,7 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | Keuangan | emerald → sky   | `#10b981`      |
 | Vault    | cyan → blue     | `#06b6d4`      |
 | Kalender | indigo → sky    | `#6366f1`      |
+| Sandi    | rose → violet   | `#f43f5e`      |
 
 ## Kontras warna
 
@@ -66,5 +67,5 @@ pakai warna tetap seperti `bg-rose-800/90`.
 ## Tata letak
 
 - **≥ 1024px**: sidebar kaca di kiri.
-- **< 1024px**: header atas (status sync, Vault, Pengaturan) + bottom nav. **Kalender** berada di tengah dan menonjol sebagai pusat aplikasi.
+- **< 1024px**: header atas (pencarian, status sync, Vault, Sandi, Pengaturan; teks logo disembunyikan di bawah 400px agar muat) + bottom nav. **Kalender** berada di tengah dan menonjol sebagai pusat aplikasi.
 - Safe-area iOS/Android dihormati (`env(safe-area-inset-*)`).

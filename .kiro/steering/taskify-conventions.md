@@ -14,3 +14,5 @@
 - Logika baru yang murni (parser, tanggal, recurrence, query) wajib disertai tes `*.test.ts`. Migrasi baru: tambahkan skenario di `supabase/tests/migrations.test.ts`.
 - Sebelum commit: `pnpm check` (sudah termasuk tes) dan `pnpm build` harus lolos.
 - Jangan pernah menaruh key R2 atau service_role Supabase di kode client / variabel `VITE_*`.
+- **Sandi** (`src/features/sandi`): isi item HANYA boleh ditulis ke DB lewat `encryptItem` (E2EE). Jangan menambah kolom plaintext (judul/URL/username) di `pw_items`, jangan memasukkannya ke FTS/palette/tag, jangan menyimpan DEK/master password di storage mana pun, dan jangan mencatat (log) isi item. URL dari item wajib lewat `safeUrl` sebelum jadi `href`. Rahasia disalin lewat `copySecret` (auto-hapus), bukan `clipboard.writeText` langsung.
+- Mengubah `powersync/sync-config.yaml` berarti HARUS di-deploy ulang manual di PowerSync Dashboard (tidak otomatis).

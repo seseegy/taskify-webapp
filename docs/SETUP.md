@@ -344,25 +344,37 @@ Selain backup otomatis, **Pengaturan → Data, tag & Sampah → Ekspor semua dat
 
 ---
 
+## 10. Sandi (password manager)
+
+Tidak butuh layanan baru, tetapi **dua langkah deploy wajib** supaya sinkron antar-perangkat jalan:
+
+1. `pnpm db:push`: menerapkan migrasi `20261009000100_sandi.sql` (tabel `pw_keys` dan `pw_items`, RLS, publication).
+2. **PowerSync Dashboard → Sync Streams**: tempel ulang isi [`powersync/sync-config.yaml`](../powersync/sync-config.yaml) → **Validate** → **Deploy**. Perubahan file ini **tidak** ikut otomatis; tanpa langkah ini tabel Sandi tidak tersinkron ke perangkat lain.
+
+Lalu buka **Sandi** di aplikasi: wizard 3 langkah meminta master password dan menampilkan kunci pemulihan **sekali**. Simpan kunci itu di tempat terpisah (dicetak atau di pengelola sandi lain). Brankas pertama harus dibuat saat online dan setelah sinkron pertama selesai.
+
+> **Penting:** lupa master password **dan** kunci pemulihan berarti data tidak bisa dipulihkan siapa pun, termasuk Anda dan pemilik Supabase. Backup mingguan (§9) hanya berisi data terenkripsi, jadi tidak membantu bila keduanya hilang.
+
 ## Troubleshooting
 
-| Gejala                                   | Penyebab & solusi                                                                      |
-| ---------------------------------------- | -------------------------------------------------------------------------------------- |
-| Layar "Konfigurasi belum lengkap"        | `.env.local` belum diisi / server dev belum di-restart                                 |
-| Status macet di _Menyinkron…_            | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)   |
-| Error `PSYNC_S2101` di console           | Client Auth PowerSync belum dicentang _Use Supabase Auth_                              |
-| Error `PSYNC_S2105` (aud)                | Tambahkan audience `authenticated` di Client Auth                                      |
-| Upload gagal `42501 permission denied`   | Migrasi 2 (grant) belum dijalankan                                                     |
-| Pengaturan menampilkan "Ditolak server"  | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`          |
-| Login "Tidak bisa terhubung"             | Login pertama butuh internet; setelah itu aplikasi jalan offline                       |
-| Notifikasi "Belum tersedia"              | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                       |
-| Notifikasi uji "Edge Function gagal"     | Fungsi belum di-deploy, atau Verify JWT masih menyala                                  |
-| Upload gagal "periksa koneksi atau CORS" | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)               |
-| "Edge Function gagal" saat upload        | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah         |
-| Uji berhasil tapi pengingat tidak datang | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi |
-| Backup gagal "Network is unreachable"    | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)        |
-| Backup gagal "server version mismatch"   | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`  |
-| "Bagikan" tidak menampilkan Taskify      | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                  |
+| Gejala                                   | Penyebab & solusi                                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Layar "Konfigurasi belum lengkap"        | `.env.local` belum diisi / server dev belum di-restart                                                             |
+| Sandi tidak muncul di perangkat lain     | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan |
+| Status macet di _Menyinkron…_            | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)                               |
+| Error `PSYNC_S2101` di console           | Client Auth PowerSync belum dicentang _Use Supabase Auth_                                                          |
+| Error `PSYNC_S2105` (aud)                | Tambahkan audience `authenticated` di Client Auth                                                                  |
+| Upload gagal `42501 permission denied`   | Migrasi 2 (grant) belum dijalankan                                                                                 |
+| Pengaturan menampilkan "Ditolak server"  | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`                                      |
+| Login "Tidak bisa terhubung"             | Login pertama butuh internet; setelah itu aplikasi jalan offline                                                   |
+| Notifikasi "Belum tersedia"              | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                                                   |
+| Notifikasi uji "Edge Function gagal"     | Fungsi belum di-deploy, atau Verify JWT masih menyala                                                              |
+| Upload gagal "periksa koneksi atau CORS" | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)                                           |
+| "Edge Function gagal" saat upload        | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah                                     |
+| Uji berhasil tapi pengingat tidak datang | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi                             |
+| Backup gagal "Network is unreachable"    | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)                                    |
+| Backup gagal "server version mismatch"   | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`                              |
+| "Bagikan" tidak menampilkan Taskify      | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                                              |
 
 ## Perawatan rutin
 
