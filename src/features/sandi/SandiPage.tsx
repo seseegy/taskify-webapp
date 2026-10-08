@@ -165,6 +165,9 @@ function VaultTab({ view }: { view: VaultView }) {
   const unlock = useSandiStore((s) => s.unlock);
   const actions = useSandiActions();
   const [recovering, setRecovering] = useState(false);
+  // Dipegang di sini (bukan di dalam TotpQuickCheck) supaya kunci yang ditempel saat brankas
+  // terkunci tetap ada setelah brankas dibuka.
+  const [quickText, setQuickText] = useState('');
   const remote = useRemoteKeyCheck(!isLoading && !row && hasSynced);
 
   // DEK di memori hanya sah untuk record kunci yang dipakai membukanya. Bila record berubah
@@ -280,7 +283,7 @@ function VaultTab({ view }: { view: VaultView }) {
         {/* Cek cepat tidak memerlukan kunci brankas, jadi tetap bisa dipakai saat terkunci */}
         {view === 'codes' && (
           <div className="mx-auto w-full max-w-md">
-            <TotpQuickCheck />
+            <TotpQuickCheck text={quickText} onTextChange={setQuickText} />
           </div>
         )}
         <UnlockScreen
@@ -302,7 +305,11 @@ function VaultTab({ view }: { view: VaultView }) {
     );
   }
 
-  return view === 'codes' ? <CodesVault dek={dek} /> : <UnlockedVault dek={dek} keyRow={row} />;
+  return view === 'codes' ? (
+    <CodesVault dek={dek} quickText={quickText} onQuickTextChange={setQuickText} />
+  ) : (
+    <UnlockedVault dek={dek} keyRow={row} />
+  );
 }
 
 // ============================================================================ terbuka
@@ -490,7 +497,15 @@ function UnlockedVault({ dek, keyRow }: { dek: CryptoKey; keyRow: PwKeys }) {
  * Taskify sebagai authenticator: hanya item yang punya kunci TOTP, dengan kode hidup dan hitung
  * mundur. Menyalin kode mencatatnya ke riwayat (`pw_totp_log`) tanpa mengubah item itu sendiri.
  */
-function CodesVault({ dek }: { dek: CryptoKey }) {
+function CodesVault({
+  dek,
+  quickText,
+  onQuickTextChange,
+}: {
+  dek: CryptoKey;
+  quickText: string;
+  onQuickTextChange: (value: string) => void;
+}) {
   const user = useUser();
   const { rows, isLoading } = usePwItemRows();
   const { items, ready } = useDecryptedItems(rows, dek, user.id);
@@ -549,6 +564,8 @@ function CodesVault({ dek }: { dek: CryptoKey }) {
       </div>
 
       <TotpQuickCheck
+        text={quickText}
+        onTextChange={onQuickTextChange}
         onSave={async (title, totp) => {
           await actions.saveItem(dek, { ...EMPTY_PAYLOAD, title, totp });
         }}

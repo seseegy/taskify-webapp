@@ -15,14 +15,21 @@ import { TotpCode } from './TotpCode';
  * tidak pernah dikirim ke mana pun.
  *
  * Tidak butuh kunci brankas, jadi tetap berguna saat brankas masih terkunci. `onSave` hanya
- * diberikan bila brankas terbuka (menyimpan perlu kunci enkripsi).
+ * diberikan bila brankas terbuka (menyimpan perlu kunci enkripsi); saat terkunci, pengguna
+ * diberi tahu bahwa membuka brankas memungkinkan kunci ini disimpan.
+ *
+ * `text` dikendalikan dari luar supaya kunci yang sudah ditempel TIDAK hilang saat brankas
+ * berpindah dari terkunci ke terbuka (komponen ini ikut berganti tempat).
  */
 export function TotpQuickCheck({
+  text,
+  onTextChange,
   onSave,
 }: {
+  text: string;
+  onTextChange: (value: string) => void;
   onSave?: (title: string, config: TotpConfig) => Promise<void>;
 }) {
-  const [text, setText] = useState('');
   const [title, setTitle] = useState('');
   const [titleTouched, setTitleTouched] = useState(false);
   const [titleError, setTitleError] = useState<string | null>(null);
@@ -37,7 +44,7 @@ export function TotpQuickCheck({
   const nameValue = titleTouched ? title : suggested;
 
   const reset = () => {
-    setText('');
+    onTextChange('');
     setTitle('');
     setTitleTouched(false);
     setTitleError(null);
@@ -80,7 +87,7 @@ export function TotpQuickCheck({
           spellCheck={false}
           aria-describedby="quick-totp-help"
           className="font-mono"
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => onTextChange(e.target.value)}
         />
         <p id="quick-totp-help" className="mt-1.5 text-xs text-muted">
           Kode muncul langsung. <strong>Tidak disimpan</strong> dan tidak masuk riwayat.
@@ -101,6 +108,13 @@ export function TotpQuickCheck({
             {parsed.config.digits} digit · {parsed.config.period} detik · {parsed.config.algorithm}
             {parsed.username && ` · ${parsed.username}`}
           </p>
+
+          {!onSave && (
+            <p className="rounded-xl bg-surface p-2.5 text-xs text-muted">
+              Buka brankas di bawah kalau kamu mau <strong>menyimpan kunci ini</strong> beserta
+              namanya. Kunci yang sudah kamu tempel di sini tidak akan hilang.
+            </p>
+          )}
 
           {onSave && (
             <div className="space-y-2">
