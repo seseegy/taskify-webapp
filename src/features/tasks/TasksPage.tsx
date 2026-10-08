@@ -46,6 +46,7 @@ import {
 } from './task-queries';
 import { groupByDate, listColor, type TaskGroup } from './task-utils';
 import { useToday } from '@/lib/useToday';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 const SMART_VIEWS: {
   view: SmartView;
@@ -312,12 +313,18 @@ function TaskViewContent({
             size="sm"
             variant="ghost"
             className="text-danger"
-            onClick={async () => {
-              if (!window.confirm('Kosongkan Sampah? Semua tugas di dalamnya dihapus permanen.'))
-                return;
-              const n = await actions.emptyTrash();
-              toast(`${n} tugas dihapus permanen`);
-            }}
+            onClick={() =>
+              void (async () => {
+                const ok = await askConfirm({
+                  title: 'Kosongkan Sampah?',
+                  description: 'Semua tugas di dalamnya dihapus permanen.',
+                  confirmLabel: 'Hapus permanen',
+                });
+                if (!ok) return;
+                const n = await actions.emptyTrash();
+                toast(`${n} tugas dihapus permanen`);
+              })()
+            }
           >
             <Trash2 /> Kosongkan
           </Button>

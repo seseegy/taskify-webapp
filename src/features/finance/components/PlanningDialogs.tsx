@@ -21,6 +21,7 @@ import {
   type RecurringRow,
 } from '../finance-queries';
 import { MoneyInput } from './MoneyInput';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 const errorToast = (e: unknown) =>
   toast(e instanceof Error ? e.message : String(e), { tone: 'danger' });
@@ -392,14 +393,18 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
           <Button
             variant="ghost"
             className="text-danger"
-            onClick={() => {
-              if (
-                !window.confirm(`Hapus "${item.title}"? Transaksi yang sudah tercatat tetap ada.`)
-              )
-                return;
-              void actions.removeRecurring(item.id);
-              onClose();
-            }}
+            onClick={() =>
+              void (async () => {
+                const ok = await askConfirm({
+                  title: `Hapus "${item.title}"?`,
+                  description: 'Transaksi yang sudah tercatat tetap ada.',
+                  confirmLabel: 'Hapus',
+                });
+                if (!ok) return;
+                await actions.removeRecurring(item.id);
+                onClose();
+              })()
+            }
           >
             <Trash2 /> Hapus
           </Button>

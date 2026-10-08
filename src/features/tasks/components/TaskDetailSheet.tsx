@@ -36,6 +36,7 @@ import { RecurrenceEditor } from './RecurrenceEditor';
 import { ReminderPicker } from './ReminderPicker';
 import { SubtaskList } from './SubtaskList';
 import { TaskCheckbox } from './TaskCheckbox';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 /** Panel detail tugas global (dipasang sekali di AppShell). */
 export function TaskDetailSheet() {
@@ -316,11 +317,17 @@ function Footer({ task, onClose }: { task: Task; onClose: () => void }) {
         <Button
           variant="ghost"
           className="text-danger"
-          onClick={() => {
-            if (!window.confirm('Hapus permanen? Tindakan ini tidak bisa dibatalkan.')) return;
-            void actions.destroy([task.id]);
-            onClose();
-          }}
+          onClick={() =>
+            void (async () => {
+              const ok = await askConfirm({
+                title: 'Hapus permanen?',
+                confirmLabel: 'Hapus permanen',
+              });
+              if (!ok) return;
+              await actions.destroy([task.id]);
+              onClose();
+            })()
+          }
         >
           <Trash2 /> Hapus permanen
         </Button>
