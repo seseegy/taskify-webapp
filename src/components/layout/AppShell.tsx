@@ -104,7 +104,17 @@ function Sidebar() {
       <div className="flex h-full flex-col rounded-3xl p-4 glass">
         <Logo withText className="mb-6 px-2 pt-2" />
         <SearchButton />
-        <nav className="flex flex-1 flex-col gap-1" aria-label="Navigasi utama">
+        {/*
+          Daftar menu HARUS bisa digulir: sidebar setinggi h-dvh, dan 9 menu + logo + pencarian +
+          footer butuh ~765px. Di laptop 1366x768 (viewport ~650px) menu terakhir (Sandi,
+          Pengaturan) terpotong dan tidak bisa diklik sama sekali.
+          `min-h-0` wajib: tanpa itu anak flex tidak mau menyusut di bawah tinggi isinya, jadi
+          `overflow-y-auto` tidak berpengaruh. Pola yang sama dipakai di ui/Sheet.tsx.
+        */}
+        <nav
+          className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
+          aria-label="Navigasi utama"
+        >
           {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
