@@ -537,14 +537,57 @@ describe('Sandi · pw_keys & pw_items', () => {
     expect(r!.deleted_at).not.toBeNull();
   });
 
+  it('pw_totp_log: RLS milik sendiri, anon tanpa akses, dan pemilik boleh menghapus (retensi)', async () => {
+    const id = await uuid();
+    await asUser(alice, () =>
+      pg.query(`INSERT INTO public.pw_totp_log (id, enc) VALUES ($1, $2)`, [id, b64(100)]),
+    );
+
+    // bob tidak melihat & tidak bisa menghapus
+    expect(await asUser(bob, () => rows(`SELECT id FROM public.pw_totp_log`))).toEqual([]);
+    await asUser(bob, () => pg.query(`DELETE FROM public.pw_totp_log WHERE id = $1`, [id]));
+    expect(await rows(`SELECT 1 FROM public.pw_totp_log WHERE id = $1`, [id])).toHaveLength(1);
+
+    // bob tidak bisa menulis atas nama alice
+    await expect(
+      asUser(bob, async () =>
+        pg.query(`INSERT INTO public.pw_totp_log (id, user_id, enc) VALUES ($1, $2, $3)`, [
+          await uuid(),
+          alice,
+          b64(100),
+        ]),
+      ),
+    ).rejects.toThrow(/row-level security/i);
+
+    await pg.exec('SET ROLE anon');
+    try {
+      await expect(pg.query(`SELECT * FROM public.pw_totp_log`)).rejects.toThrow(
+        /permission denied/i,
+      );
+    } finally {
+      await pg.exec('RESET ROLE');
+    }
+
+    // pemilik boleh menghapus — dipakai pembersihan retensi di klien
+    await asUser(alice, () => pg.query(`DELETE FROM public.pw_totp_log WHERE id = $1`, [id]));
+    expect(await rows(`SELECT 1 FROM public.pw_totp_log WHERE id = $1`, [id])).toEqual([]);
+  });
+
   it('menghapus akun menghapus seluruh brankas & sandinya (ON DELETE CASCADE)', async () => {
     const carol = (
       await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`)
     )[0]!.id;
     await asUser(carol, async () => key(await uuid()));
     await asUser(carol, async () => item(await uuid()));
+    const logId = await uuid();
+    await asUser(carol, () =>
+      pg.query(`INSERT INTO public.pw_totp_log (id, enc) VALUES ($1, $2)`, [logId, b64(100)]),
+    );
+    expect(await rows(`SELECT 1 FROM public.pw_totp_log WHERE id = $1`, [logId])).toHaveLength(1);
+
     await pg.query(`DELETE FROM auth.users WHERE id = $1`, [carol]);
     expect(await rows(`SELECT 1 FROM public.pw_keys WHERE user_id = $1`, [carol])).toEqual([]);
+    expect(await rows(`SELECT 1 FROM public.pw_totp_log WHERE user_id = $1`, [carol])).toEqual([]);
     expect(await rows(`SELECT 1 FROM public.pw_items WHERE user_id = $1`, [carol])).toEqual([]);
   });
 });

@@ -2,10 +2,12 @@ import { useStatus } from '@powersync/react';
 import {
   CloudOff,
   Dices,
+  History,
   KeyRound,
   LockKeyhole,
   Plus,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   Star,
   TriangleAlert,
@@ -20,12 +22,15 @@ import { toast } from '@/components/ui/toast-store';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { useUser } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
+import { env } from '@/lib/env';
 import { GeneratorPanel } from './components/GeneratorPanel';
-import { ItemRow } from './components/ItemRow';
+import { Avatar, ItemRow } from './components/ItemRow';
 import { ItemSheet } from './components/ItemSheet';
 import { RecoverScreen, type RecoverResult } from './components/RecoverScreen';
 import { SetupWizard } from './components/SetupWizard';
 import { UnlockScreen } from './components/UnlockScreen';
+import { TotpCode } from './components/TotpCode';
+import { TotpHistorySheet } from './components/TotpHistorySheet';
 import { VaultSettingsSheet } from './components/VaultSettingsSheet';
 import {
   resetPasswordWithRecovery,
@@ -37,22 +42,29 @@ import {
   fetchRemoteKeyState,
   toKeyRecord,
   useDecryptedItems,
+  useDecryptedTotpLog,
   usePwItemRows,
   usePwKey,
+  usePwTotpLogRows,
   useRejectedKeyUploads,
   useSandiActions,
   type DecryptedItem,
 } from './sandi-data';
+import { syncClockOffset } from './totp-clock';
 import { KEY_REJECTED_MESSAGE, REMOTE_KEY_MESSAGE, type RemoteKeyState } from './vault-guard';
 import { useSandiStore } from './sandi-store';
 import type { PwKeys } from '@/db/schema';
 
-type Tab = 'brankas' | 'generator';
+type Tab = 'brankas' | 'kode' | 'generator';
+
+/** Apa yang ditampilkan saat brankas sudah terbuka. */
+type VaultView = 'items' | 'codes';
 
 /** URL: ?tab=brankas|generator */
 export function SandiPage() {
   const [params, setParams] = useSearchParams();
-  const tab: Tab = params.get('tab') === 'generator' ? 'generator' : 'brankas';
+  const raw = params.get('tab');
+  const tab: Tab = raw === 'generator' ? 'generator' : raw === 'kode' ? 'kode' : 'brankas';
 
   return (
     <>
@@ -67,9 +79,10 @@ export function SandiPage() {
         label="Bagian sandi"
         value={tab}
         onChange={(t) => setParams(t === 'brankas' ? {} : { tab: t }, { replace: true })}
-        className="mb-5 w-full sm:w-80"
+        className="mb-5 w-full sm:w-96"
         options={[
           { value: 'brankas', label: 'Brankas', icon: <LockKeyhole /> },
+          { value: 'kode', label: 'Kode', icon: <ShieldCheck /> },
           { value: 'generator', label: 'Generator', icon: <Dices /> },
         ]}
       />
@@ -81,7 +94,7 @@ export function SandiPage() {
       ) : (
         <>
           <RejectedKeyBanner />
-          <VaultTab />
+          <VaultTab view={tab === 'kode' ? 'codes' : 'items'} />
         </>
       )}
     </>
@@ -140,7 +153,7 @@ function useRemoteKeyCheck(enabled: boolean) {
 }
 
 // ============================================================================ brankas
-function VaultTab() {
+function VaultTab({ view }: { view: VaultView }) {
   const user = useUser();
   const { row, isLoading } = usePwKey();
   const hasSynced = Boolean(useStatus().hasSynced);
@@ -279,7 +292,7 @@ function VaultTab() {
     );
   }
 
-  return <UnlockedVault dek={dek} keyRow={row} />;
+  return view === 'codes' ? <CodesVault dek={dek} /> : <UnlockedVault dek={dek} keyRow={row} />;
 }
 
 // ============================================================================ terbuka
@@ -440,6 +453,9 @@ function UnlockedVault({ dek, keyRow }: { dek: CryptoKey; keyRow: PwKeys }) {
       )}
 
       <ItemSheet
+        onUseCode={(item, code) =>
+          void actions.recordTotpUse(dek, item.id, item.payload.title, code)
+        }
         open={sheet !== null}
         item={sheet?.item ?? null}
         onClose={() => setSheet(null)}
@@ -456,5 +472,148 @@ function UnlockedVault({ dek, keyRow }: { dek: CryptoKey; keyRow: PwKeys }) {
         onReplaceVault={actions.replaceVault}
       />
     </div>
+  );
+}
+
+// ============================================================================ tab Kode
+/**
+ * Taskify sebagai authenticator: hanya item yang punya kunci TOTP, dengan kode hidup dan hitung
+ * mundur. Menyalin kode mencatatnya ke riwayat (`pw_totp_log`) tanpa mengubah item itu sendiri.
+ */
+function CodesVault({ dek }: { dek: CryptoKey }) {
+  const user = useUser();
+  const { rows, isLoading } = usePwItemRows();
+  const { items, ready } = useDecryptedItems(rows, dek, user.id);
+  const actions = useSandiActions();
+  const lock = useSandiStore((s) => s.lock);
+
+  const [search, setSearch] = useState('');
+  const [history, setHistory] = useState(false);
+
+  // Sekali saat tab dibuka: samakan jam dengan server dan buang riwayat kedaluwarsa.
+  useEffect(() => {
+    void syncClockOffset(`${env.supabaseUrl}/auth/v1/health`);
+    void actions.purgeTotpLog();
+  }, [actions]);
+
+  const q = search.trim().toLowerCase();
+  const codes = items
+    .filter((i) => i.payload.totp)
+    .filter(
+      (i) => !q || [i.payload.title, i.payload.username].some((f) => f.toLowerCase().includes(q)),
+    )
+    .toSorted((a, b) => Number(b.payload.favorite) - Number(a.payload.favorite));
+
+  const loading = isLoading || !ready;
+  const total = items.filter((i) => i.payload.totp).length;
+
+  return (
+    <div className="max-w-3xl space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex h-11 min-w-0 basis-full items-center gap-2 rounded-xl px-3 glass sm:flex-1 sm:basis-0">
+          <Search className="size-4 shrink-0 text-muted" aria-hidden="true" />
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari akun"
+            aria-label="Cari kode"
+            autoComplete="off"
+            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
+          />
+        </label>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button variant="secondary" onClick={() => setHistory(true)}>
+            <History aria-hidden="true" /> <span className="hidden sm:inline">Riwayat</span>
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={lock}
+            aria-label="Kunci brankas sekarang"
+            title="Kunci brankas sekarang"
+            className="max-sm:size-11 max-sm:px-0"
+          >
+            <LockKeyhole aria-hidden="true" /> <span className="hidden sm:inline">Kunci</span>
+          </Button>
+        </div>
+      </div>
+
+      {loading ? (
+        <ul aria-busy="true" aria-label="Memuat kode" className="space-y-2">
+          {[0, 1].map((i) => (
+            <li key={i} className="h-24 animate-pulse rounded-2xl glass" />
+          ))}
+        </ul>
+      ) : total === 0 ? (
+        <Card>
+          <EmptyState
+            icon={ShieldCheck}
+            gradient="bg-gradient-sandi"
+            title="Belum ada kode TOTP"
+            description="Buka sebuah sandi di tab Brankas, pilih Ubah, lalu tempel kunci rahasia atau URI otpauth:// dari situsnya."
+          />
+        </Card>
+      ) : codes.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={Search}
+            gradient="bg-gradient-sandi"
+            title="Tidak ada yang cocok"
+            description={`Tidak ada akun untuk "${search.trim()}".`}
+          >
+            <Button variant="secondary" onClick={() => setSearch('')}>
+              Hapus pencarian
+            </Button>
+          </EmptyState>
+        </Card>
+      ) : (
+        <ul className="space-y-2">
+          {codes.map((item) => (
+            <li key={item.id} className="rounded-2xl p-3.5 glass">
+              <div className="mb-2 flex min-w-0 items-center gap-3">
+                <Avatar title={item.payload.title || 'Tanpa judul'} />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold">
+                    {item.payload.title || 'Tanpa judul'}
+                  </span>
+                  {item.payload.username && (
+                    <span className="block truncate text-xs text-muted">
+                      {item.payload.username}
+                    </span>
+                  )}
+                </span>
+              </div>
+              <TotpCode
+                config={item.payload.totp!}
+                name={item.payload.title || 'Tanpa judul'}
+                size="lg"
+                onUse={(code) => void actions.recordTotpUse(dek, item.id, item.payload.title, code)}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {history && <TotpHistory dek={dek} onClose={() => setHistory(false)} />}
+    </div>
+  );
+}
+
+/** Dipasang hanya saat panel riwayat dibuka, supaya dekripsi tidak jalan sia-sia. */
+function TotpHistory({ dek, onClose }: { dek: CryptoKey; onClose: () => void }) {
+  const user = useUser();
+  const { rows, isLoading } = usePwTotpLogRows();
+  const { entries, ready } = useDecryptedTotpLog(rows, dek, user.id);
+  const actions = useSandiActions();
+
+  return (
+    <TotpHistorySheet
+      open
+      onClose={onClose}
+      entries={entries}
+      loading={isLoading || !ready}
+      onDelete={actions.deleteTotpLogRow}
+      onClearAll={actions.clearTotpLog}
+    />
   );
 }

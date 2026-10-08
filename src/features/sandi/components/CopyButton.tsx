@@ -24,6 +24,7 @@ export function CopyButton({
   secret,
   icon: Icon = Copy,
   showLabel,
+  onCopied,
   className,
 }: {
   value: string;
@@ -36,6 +37,8 @@ export function CopyButton({
   icon?: LucideIcon;
   /** Tampilkan teks "Salin" di samping ikon (untuk aksi utama, bukan baris daftar) */
   showLabel?: boolean;
+  /** Dipanggil HANYA setelah penyalinan berhasil (mis. mencatat pemakaian kode TOTP). */
+  onCopied?: () => void;
   className?: string;
 }) {
   const [done, setDone] = useState(false);
@@ -55,6 +58,7 @@ export function CopyButton({
         : `${what} disalin`,
       { tone: 'success' },
     );
+    onCopied?.();
   };
 
   return (

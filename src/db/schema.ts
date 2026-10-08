@@ -309,6 +309,17 @@ export const pwItems = sqliteTable('pw_items', {
   v: integer('v').notNull(),
 });
 
+/**
+ * Riwayat pemakaian kode TOTP. `enc` memuat nama akun, kodenya, dan id item asalnya — server
+ * hanya melihat waktunya. Tabel sendiri (bukan di dalam pw_items) supaya menyalin kode tidak
+ * mengubah `updated_at` item dan tidak mengacak urutan daftar brankas.
+ */
+export const pwTotpLog = sqliteTable('pw_totp_log', {
+  ...base(),
+  enc: text('enc').notNull(),
+  v: integer('v').notNull(),
+});
+
 // -----------------------------------------------------------------------------
 // LOCAL-ONLY: perubahan yang ditolak server permanen (constraint/RLS).
 // Tidak disinkron. Disimpan agar data tidak hilang diam-diam; daftar, salin, dan bersihkan
@@ -378,6 +389,7 @@ export const drizzleSchema = {
   attachments,
   pwKeys,
   pwItems,
+  pwTotpLog,
   uploadErrors,
   taskListsRelations,
   tasksRelations,
@@ -407,3 +419,4 @@ export type Attachment = typeof attachments.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type PwKeys = typeof pwKeys.$inferSelect;
 export type PwItem = typeof pwItems.$inferSelect;
+export type PwTotpLog = typeof pwTotpLog.$inferSelect;
