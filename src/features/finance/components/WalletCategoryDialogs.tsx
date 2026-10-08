@@ -1,7 +1,7 @@
 import { Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input, Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
@@ -13,6 +13,7 @@ import type { WalletWithBalance } from '../finance-queries';
 import { CategoryIcon } from './CategoryIcon';
 import { MoneyInput } from './MoneyInput';
 import { ColorPicker, IconPicker } from './Pickers';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 // ------------------------------------------------------------------ Dompet
 export function WalletDialog({
@@ -67,7 +68,12 @@ function WalletForm({
   };
 
   const remove = async () => {
-    if (!wallet || !window.confirm(`Hapus dompet "${wallet.name}"?`)) return;
+    if (!wallet) return;
+    const ok = await askConfirm({
+      title: `Hapus dompet "${wallet.name}"?`,
+      confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
     await actions.removeWallet(wallet.id);
     onClose();
   };
@@ -87,13 +93,12 @@ function WalletForm({
       </div>
       <div>
         <Label htmlFor="w-type">Jenis</Label>
-        <Select id="w-type" value={type} onChange={(e) => setType(e.target.value as WalletType)}>
-          {WALLET_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </Select>
+        <Listbox
+          id="w-type"
+          value={type}
+          onChange={(v) => setType(v as WalletType)}
+          options={WALLET_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+        />
       </div>
       <div>
         <Label htmlFor="w-initial">Saldo awal</Label>
@@ -185,10 +190,14 @@ function CategoryForm({
 
   const remove = async () => {
     if (!category) return;
-    const msg = category.tx_count
-      ? `Hapus kategori "${category.name}"? ${category.tx_count} transaksi lama tetap menyimpan nama kategori ini.`
-      : `Hapus kategori "${category.name}"?`;
-    if (!window.confirm(msg)) return;
+    const ok = await askConfirm({
+      title: `Hapus kategori "${category.name}"?`,
+      description: category.tx_count
+        ? `${category.tx_count} transaksi lama tetap menyimpan nama kategori ini.`
+        : undefined,
+      confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
     await actions.removeCategory(category.id);
     onClose();
   };

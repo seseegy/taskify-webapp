@@ -3,7 +3,8 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { FieldError } from '@/components/ui/FieldError';
-import { Select, Textarea } from '@/components/ui/Field';
+import { Textarea } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input, Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
@@ -21,6 +22,7 @@ import {
   type RecurringRow,
 } from '../finance-queries';
 import { MoneyInput } from './MoneyInput';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 const errorToast = (e: unknown) =>
   toast(e instanceof Error ? e.message : String(e), { tone: 'danger' });
@@ -101,21 +103,24 @@ function BudgetForm({
     <form onSubmit={submit} className="space-y-4">
       <div>
         <Label htmlFor="b-cat">Untuk</Label>
-        <Select
+        <Listbox
           id="b-cat"
           value={categoryId}
           disabled={!!budget}
-          onChange={(e) => setCategoryId(e.target.value)}
-        >
-          <option value="" disabled={!budget && used.has('')}>
-            Total semua pengeluaran
-          </option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id} disabled={!budget && used.has(c.id)}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
+          onChange={setCategoryId}
+          options={[
+            {
+              value: '',
+              label: 'Total semua pengeluaran',
+              disabled: !budget && used.has(''),
+            },
+            ...categories.map((c) => ({
+              value: c.id,
+              label: c.name,
+              disabled: !budget && used.has(c.id),
+            })),
+          ]}
+        />
       </div>
       <div>
         <Label htmlFor="b-amount">Batas per bulan</Label>
@@ -290,39 +295,40 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="r-wallet">{kind === 'transfer' ? 'Dari' : 'Dompet'}</Label>
-          <Select id="r-wallet" value={walletId} onChange={(e) => setWalletId(e.target.value)}>
-            {wallets.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </Select>
+          <Listbox
+            id="r-wallet"
+            value={walletId}
+            onChange={setWalletId}
+            options={wallets.map((w) => ({ value: w.id, label: w.name }))}
+          />
         </div>
         {kind === 'transfer' ? (
           <div>
             <Label htmlFor="r-to">Ke</Label>
-            <Select id="r-to" value={toWalletId} onChange={(e) => setToWalletId(e.target.value)}>
-              <option value="">Pilih…</option>
-              {wallets
-                .filter((w) => w.id !== walletId)
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-            </Select>
+            <Listbox
+              id="r-to"
+              value={toWalletId}
+              onChange={setToWalletId}
+              options={[
+                { value: '', label: 'Pilih…' },
+                ...wallets
+                  .filter((w) => w.id !== walletId)
+                  .map((w) => ({ value: w.id, label: w.name })),
+              ]}
+            />
           </div>
         ) : (
           <div>
             <Label htmlFor="r-cat">Kategori</Label>
-            <Select id="r-cat" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-              <option value="">Tanpa kategori</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+            <Listbox
+              id="r-cat"
+              value={categoryId}
+              onChange={setCategoryId}
+              options={[
+                { value: '', label: 'Tanpa kategori' },
+                ...categories.map((c) => ({ value: c.id, label: c.name })),
+              ]}
+            />
           </div>
         )}
       </div>
@@ -392,14 +398,18 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
           <Button
             variant="ghost"
             className="text-danger"
-            onClick={() => {
-              if (
-                !window.confirm(`Hapus "${item.title}"? Transaksi yang sudah tercatat tetap ada.`)
-              )
-                return;
-              void actions.removeRecurring(item.id);
-              onClose();
-            }}
+            onClick={() =>
+              void (async () => {
+                const ok = await askConfirm({
+                  title: `Hapus "${item.title}"?`,
+                  description: 'Transaksi yang sudah tercatat tetap ada.',
+                  confirmLabel: 'Hapus',
+                });
+                if (!ok) return;
+                await actions.removeRecurring(item.id);
+                onClose();
+              })()
+            }
           >
             <Trash2 /> Hapus
           </Button>
@@ -507,14 +517,15 @@ function DebtForm({ onClose }: { onClose: () => void }) {
       </div>
       <div>
         <Label htmlFor="d-wallet">Catat perpindahan uang di dompet</Label>
-        <Select id="d-wallet" value={walletId} onChange={(e) => setWalletId(e.target.value)}>
-          <option value="">Tidak (hanya catatan)</option>
-          {all.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name}
-            </option>
-          ))}
-        </Select>
+        <Listbox
+          id="d-wallet"
+          value={walletId}
+          onChange={setWalletId}
+          options={[
+            { value: '', label: 'Tidak (hanya catatan)' },
+            ...all.map((w) => ({ value: w.id, label: w.name })),
+          ]}
+        />
       </div>
       <div>
         <Label htmlFor="d-note">Catatan</Label>

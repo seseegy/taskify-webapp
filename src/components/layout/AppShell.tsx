@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigation, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { useRouteA11y } from '@/app/useRouteA11y';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Toaster } from '@/components/ui/Toaster';
 import { useAttachmentOutbox } from '@/features/attachments/attachment-actions';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
@@ -75,6 +76,7 @@ export function AppShell() {
       <TransactionSheet />
       <CommandPalette />
       <Toaster />
+      <ConfirmDialog />
     </div>
   );
 }

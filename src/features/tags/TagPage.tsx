@@ -22,6 +22,7 @@ import { paletteOf } from '@/lib/palette';
 import { cn } from '@/lib/utils';
 import { useAllTags, useTagActions } from './tag-actions';
 import { TagChip } from './TagPicker';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 /** Semua item (lintas modul) yang memakai satu tag, plus daftar semua tag. */
 export function TagPage() {
@@ -128,7 +129,12 @@ export function TagPage() {
               setEditing(false);
             }}
             onDelete={async () => {
-              if (!window.confirm(`Hapus tag #${tag.name} dari semua item?`)) return;
+              const ok = await askConfirm({
+                title: `Hapus tag #${tag.name}?`,
+                description: 'Tag dilepas dari semua item. Itemnya sendiri tidak terhapus.',
+                confirmLabel: 'Hapus tag',
+              });
+              if (!ok) return;
               await actions.deleteTag(tag.id);
               setEditing(false);
               navigate('/');

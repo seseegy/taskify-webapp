@@ -2,7 +2,7 @@ import { Eye, Pencil, Star, Trash2 } from 'lucide-react';
 import { useState, type KeyboardEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { CodeBlock } from '@/components/ui/CodeBlock';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input, Label } from '@/components/ui/Input';
 import { Sheet } from '@/components/ui/Sheet';
 import { toast } from '@/components/ui/toast-store';
@@ -108,13 +108,12 @@ function SnippetForm({
         </div>
         <div>
           <Label htmlFor="sn-lang">Bahasa</Label>
-          <Select id="sn-lang" value={language} onChange={(e) => setLanguage(e.target.value)}>
-            {LANGUAGES.map((l) => (
-              <option key={l.value} value={l.value}>
-                {l.label}
-              </option>
-            ))}
-          </Select>
+          <Listbox
+            id="sn-lang"
+            value={language}
+            onChange={setLanguage}
+            options={LANGUAGES.map((l) => ({ value: l.value, label: l.label }))}
+          />
         </div>
       </div>
       <div>

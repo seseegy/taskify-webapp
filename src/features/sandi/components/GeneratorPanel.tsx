@@ -2,7 +2,7 @@ import { Check, Copy, RefreshCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input, Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { toast } from '@/components/ui/toast-store';
@@ -318,22 +318,17 @@ export function GeneratorPanel({
 
             <div>
               <Label htmlFor="gen-sep">Pemisah</Label>
-              <Select
+              <Listbox
                 id="gen-sep"
                 value={ph.separator}
-                onChange={(e) =>
+                onChange={(v) =>
                   change({
                     ...prefs,
-                    passphrase: { ...ph, separator: e.target.value as typeof ph.separator },
+                    passphrase: { ...ph, separator: v as typeof ph.separator },
                   })
                 }
-              >
-                {SEPARATORS.map((s) => (
-                  <option key={s || 'none'} value={s}>
-                    {SEPARATOR_LABEL[s]}
-                  </option>
-                ))}
-              </Select>
+                options={SEPARATORS.map((s) => ({ value: s, label: SEPARATOR_LABEL[s] }))}
+              />
             </div>
 
             <div className="-mx-1 grid gap-0.5 sm:grid-cols-2">

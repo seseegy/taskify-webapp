@@ -16,7 +16,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
@@ -46,6 +46,7 @@ import {
 } from '../finance-queries';
 import { DueRecurring } from './OverviewTab';
 import { useToday } from '@/lib/useToday';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 // ============================================================================ Anggaran
 export function BudgetTab({ month }: { month: LocalDate }) {
@@ -309,10 +310,16 @@ export function DebtTab() {
                       variant="ghost"
                       aria-label="Hapus"
                       className="text-danger"
-                      onClick={() => {
-                        if (window.confirm('Hapus catatan ini beserta transaksi dompet terkait?'))
-                          void actions.removeDebt(d);
-                      }}
+                      onClick={() =>
+                        void (async () => {
+                          const ok = await askConfirm({
+                            title: 'Hapus catatan ini?',
+                            description: 'Transaksi dompet yang terkait ikut terhapus.',
+                            confirmLabel: 'Hapus',
+                          });
+                          if (ok) await actions.removeDebt(d);
+                        })()
+                      }
                     >
                       <Trash2 />
                     </Button>
@@ -347,14 +354,15 @@ function SettleDialog({ debt, onClose }: { debt: DebtRow | null; onClose: () => 
             <Label htmlFor="s-wallet">
               {debt.direction === 'lent' ? 'Uang masuk ke' : 'Dibayar dari'}
             </Label>
-            <Select id="s-wallet" value={walletId} onChange={(e) => setWalletId(e.target.value)}>
-              <option value="">Tidak dicatat di dompet</option>
-              {wallets.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </Select>
+            <Listbox
+              id="s-wallet"
+              value={walletId}
+              onChange={setWalletId}
+              options={[
+                { value: '', label: 'Tidak dicatat di dompet' },
+                ...wallets.map((w) => ({ value: w.id, label: w.name })),
+              ]}
+            />
           </div>
           <div className="flex justify-end">
             <Button

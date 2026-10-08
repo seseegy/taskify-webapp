@@ -17,6 +17,7 @@ import { formatBytes } from '@/lib/bytes';
 import { saveBlob } from '@/lib/files';
 import { useAttachmentActions, useAttachments, useUploads } from './attachment-actions';
 import { useFileBlob } from './useFileBlob';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 const isImage = (a: Pick<Attachment, 'mime_type'>) => a.mime_type?.startsWith('image/') ?? false;
 
@@ -165,11 +166,18 @@ export function AttachmentViewer({
               <Button
                 variant="ghost"
                 className="text-danger"
-                onClick={() => {
-                  if (!window.confirm(`Hapus ${att.file_name}?`)) return;
-                  void actions.remove(att);
-                  onClose();
-                }}
+                onClick={() =>
+                  void (async () => {
+                    const ok = await askConfirm({
+                      title: `Hapus ${att.file_name}?`,
+                      description: 'Berkasnya ikut dihapus dari penyimpanan.',
+                      confirmLabel: 'Hapus',
+                    });
+                    if (!ok) return;
+                    await actions.remove(att);
+                    onClose();
+                  })()
+                }
               >
                 <Trash2 /> Hapus
               </Button>

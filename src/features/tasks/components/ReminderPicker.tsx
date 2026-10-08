@@ -1,6 +1,6 @@
 import { BellOff } from 'lucide-react';
 import { Link } from 'react-router';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input } from '@/components/ui/Input';
 import { usePushStatus } from '@/features/notifications/usePushStatus';
 import { useState } from 'react';
@@ -41,21 +41,16 @@ export function ReminderPicker({ remindAt, dueDate, dueTime, onChange }: Props) 
 
   return (
     <div className="space-y-2">
-      <Select
+      <Listbox
         aria-label="Pengingat"
         value={preset}
-        onChange={(e) => select(e.target.value as ReminderPreset)}
-      >
-        {presetsFor(Boolean(dueTime)).map((p) => (
-          <option
-            key={p.value}
-            value={p.value}
-            disabled={p.value !== 'none' && p.value !== 'custom' && !dueDate}
-          >
-            {p.label}
-          </option>
-        ))}
-      </Select>
+        onChange={(v) => select(v as ReminderPreset)}
+        options={presetsFor(Boolean(dueTime)).map((p) => ({
+          value: p.value,
+          label: p.label,
+          disabled: p.value !== 'none' && p.value !== 'custom' && !dueDate,
+        }))}
+      />
 
       {preset === 'custom' && custom && (
         <div className="flex items-center gap-2">

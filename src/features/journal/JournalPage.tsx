@@ -17,6 +17,7 @@ import { useEntriesOnDate, useJournalEntries, useJournalEntry } from './journal-
 import { journalToMarkdown, plainExcerpt } from './journal-utils';
 import { MOODS, moodOf } from './mood';
 import { useToday } from '@/lib/useToday';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -254,10 +255,16 @@ function EntryList({
           <button
             type="button"
             className="font-bold text-danger hover:underline"
-            onClick={() => {
-              if (window.confirm('Hapus permanen semua catatan di Sampah?'))
-                void actions.emptyTrash();
-            }}
+            onClick={() =>
+              void (async () => {
+                const ok = await askConfirm({
+                  title: 'Kosongkan Sampah jurnal?',
+                  description: 'Semua catatan di Sampah dihapus permanen.',
+                  confirmLabel: 'Hapus permanen',
+                });
+                if (ok) await actions.emptyTrash();
+              })()
+            }
           >
             Kosongkan
           </button>

@@ -73,8 +73,8 @@
   --muted: #5b5a7a;
   --surface: rgb(255 255 255 / 0.55);
   --surface-strong: rgb(255 255 255 / 0.78);
-  /* SOLID (tanpa alpha): untuk kontrol bawaan browser yang tidak bisa mengomposisikan
-     warna tembus pandang — mis. daftar popup <select>. Lihat bagian "Kontrol bawaan". */
+  /* SOLID (tanpa alpha): dipakai tempat yang butuh warna tegas di atas latar apa pun,
+     mis. border thumb slider agar tetap terlihat di track maupun di luar track. */
   --surface-solid: #f5f3ff;
   /* Ikon bawaan di kolom tanggal/jam/pencarian digambar gelap; 0 = biarkan, 1 = balik warna. */
   --native-icon-invert: 0;
@@ -258,8 +258,7 @@
    ----------------------------------------------------------------------------- */
 input.glass:focus-visible,
 textarea.glass:focus-visible,
-select.glass:focus-visible,
-.glass:has(> :is(input, textarea, select):focus-visible) {
+.glass:has(> :is(input, textarea):focus-visible) {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
@@ -270,16 +269,6 @@ select.glass:focus-visible,
    operasi. Yang bisa diatur hanya warnanya — bentuk, radius, dan animasinya tidak.
    Sengaja DI LUAR @layer: ini menyasar pseudo-element yang tidak dijangkau utility.
    ----------------------------------------------------------------------------- */
-
-/* Daftar popup <select>: browser mengambil warna dari latar <select>, dan latar `.glass`
-   tembus pandang (alpha 0,42) sehingga popup dikomposisikan di atas warna bawaan yang
-   terang — hasilnya daftar abu-abu yang tidak terbaca di tema gelap. Karena itu <option>
-   diberi warna SOLID. Bentuk popup-nya tetap milik sistem operasi. */
-option,
-optgroup {
-  background-color: var(--surface-solid);
-  color: var(--fg);
-}
 
 /* Tanpa ini, centang & slider memakai biru aksen sistem, bukan ungu Taskify. */
 input[type='checkbox'],

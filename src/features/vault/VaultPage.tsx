@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { CodeBlock } from '@/components/ui/CodeBlock';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { Snippet } from '@/db/schema';
 import { useTagMap } from '@/features/tags/tag-actions';
@@ -144,19 +144,19 @@ function SnippetsTab({ onOpen }: { onOpen: (id: string) => void }) {
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
           />
         </label>
-        <Select
+        <Listbox
           aria-label="Bahasa"
           value={language}
-          onChange={(e) => setLanguage(e.target.value)}
+          onChange={setLanguage}
           className="w-44"
-        >
-          <option value="">Semua bahasa</option>
-          {languages.map((l) => (
-            <option key={l.language} value={l.language}>
-              {languageLabel(l.language)} ({l.n})
-            </option>
-          ))}
-        </Select>
+          options={[
+            { value: '', label: 'Semua bahasa' },
+            ...languages.map((l) => ({
+              value: l.language,
+              label: `${languageLabel(l.language)} (${l.n})`,
+            })),
+          ]}
+        />
         <Button
           variant={favorites ? 'primary' : 'secondary'}
           className="h-11"

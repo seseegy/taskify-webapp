@@ -38,6 +38,7 @@ import { exportAllData } from './export-data';
 import { PinSettings } from './PinSettings';
 import { UploadErrors } from './UploadErrors';
 import { formatBytes, useStorageInfo } from './useStorageInfo';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 export function SettingsPage() {
   return (
@@ -194,11 +195,15 @@ function AccountSection() {
 
   const onLogout = async () => {
     const stats = await powerSync.getUploadQueueStats();
-    const warning =
-      stats.count > 0
-        ? `Masih ada ${stats.count} perubahan yang BELUM terunggah dan akan HILANG. Tetap keluar?`
-        : 'Keluar dan hapus data lokal dari perangkat ini? (Data tetap aman di server.)';
-    if (!window.confirm(warning)) return;
+    const ok = await askConfirm({
+      title: 'Keluar dan hapus data lokal?',
+      description:
+        stats.count > 0
+          ? `Masih ada ${stats.count} perubahan yang belum terunggah dan akan hilang.`
+          : 'Data tetap aman di server dan diunduh lagi saat kamu masuk.',
+      confirmLabel: 'Keluar',
+    });
+    if (!ok) return;
 
     setLoading(true);
     try {

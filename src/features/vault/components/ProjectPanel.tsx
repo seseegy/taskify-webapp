@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils';
 import { useVaultActions } from '../vault-data';
 import { VersionUploader } from './VersionUploader';
 import { ZipViewer } from './ZipViewer';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 export function ProjectPanel({ project, onBack }: { project: CodeProject; onBack: () => void }) {
   const versions = useAttachments('code_project', project.id);
@@ -205,14 +206,16 @@ function VersionRow({
               variant="ghost"
               aria-label="Hapus versi"
               className="text-danger"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `Hapus versi ${att.version_label ?? att.file_name}? File di R2 juga dihapus.`,
-                  )
-                )
-                  void actions.remove(att);
-              }}
+              onClick={() =>
+                void (async () => {
+                  const ok = await askConfirm({
+                    title: `Hapus versi ${att.version_label ?? att.file_name}?`,
+                    description: 'Berkasnya ikut dihapus dari penyimpanan.',
+                    confirmLabel: 'Hapus versi',
+                  });
+                  if (ok) await actions.remove(att);
+                })()
+              }
             >
               <Trash2 />
             </Button>

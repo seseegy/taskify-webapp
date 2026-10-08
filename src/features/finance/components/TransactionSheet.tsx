@@ -2,7 +2,8 @@ import { ArrowDownLeft, ArrowLeftRight, ArrowUpRight, Trash2 } from 'lucide-reac
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { FieldError } from '@/components/ui/FieldError';
-import { Select, Textarea } from '@/components/ui/Field';
+import { Textarea } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input, Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
@@ -194,46 +195,38 @@ function TxForm({
       <div className={cn('grid gap-3', kind === 'transfer' && 'grid-cols-2')}>
         <div>
           <Label htmlFor="tx-wallet">{kind === 'transfer' ? 'Dari' : 'Dompet'}</Label>
-          <Select
+          <Listbox
             id="tx-wallet"
             value={walletId}
             aria-invalid={!!errors.wallet || undefined}
             aria-describedby={errors.wallet ? 'tx-wallet-err' : undefined}
-            onChange={(e) => {
-              setWalletId(e.target.value);
+            onChange={(v) => {
+              setWalletId(v);
               setErrors((er) => ({ ...er, wallet: undefined }));
             }}
-          >
-            {walletOptions.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </Select>
+            options={walletOptions.map((w) => ({ value: w.id, label: w.name }))}
+          />
           <FieldError id="tx-wallet-err">{errors.wallet}</FieldError>
         </div>
         {kind === 'transfer' && (
           <div>
             <Label htmlFor="tx-to">Ke</Label>
-            <Select
+            <Listbox
               id="tx-to"
               value={toWalletId}
               aria-invalid={!!errors.toWallet || undefined}
               aria-describedby={errors.toWallet ? 'tx-to-err' : undefined}
-              onChange={(e) => {
-                setToWalletId(e.target.value);
+              onChange={(v) => {
+                setToWalletId(v);
                 setErrors((er) => ({ ...er, toWallet: undefined }));
               }}
-            >
-              <option value="">Pilih…</option>
-              {walletOptions
-                .filter((w) => w.id !== walletId)
-                .map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-            </Select>
+              options={[
+                { value: '', label: 'Pilih…' },
+                ...walletOptions
+                  .filter((w) => w.id !== walletId)
+                  .map((w) => ({ value: w.id, label: w.name })),
+              ]}
+            />
             <FieldError id="tx-to-err">{errors.toWallet}</FieldError>
           </div>
         )}
