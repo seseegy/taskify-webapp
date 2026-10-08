@@ -1,5 +1,5 @@
 import { Repeat } from 'lucide-react';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input } from '@/components/ui/Input';
 import type { LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
@@ -56,26 +56,21 @@ export function RecurrenceEditor({
 
   return (
     <div className="space-y-3">
-      <Select
+      <Listbox
         id={id}
         aria-label="Pengulangan"
         aria-describedby={describedBy}
         value={state.freq}
-        onChange={(e) =>
+        onChange={(v) =>
           apply({
-            freq: e.target.value as RecurrenceFreq,
+            freq: v as RecurrenceFreq,
             interval: 1,
             byDay: [],
             monthDay: undefined,
           })
         }
-      >
-        {FREQ_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </Select>
+        options={FREQ_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+      />
 
       {state.freq !== 'none' && (
         <>
@@ -120,15 +115,16 @@ export function RecurrenceEditor({
 
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-muted">Berakhir</span>
-            <Select
+            <Listbox
               aria-label="Berakhir"
               value={state.until ? 'until' : 'never'}
-              onChange={(e) => apply({ until: e.target.value === 'until' ? anchor : null })}
+              onChange={(v) => apply({ until: v === 'until' ? anchor : null })}
               className="h-9 w-40"
-            >
-              <option value="never">Tidak pernah</option>
-              <option value="until">Pada tanggal</option>
-            </Select>
+              options={[
+                { value: 'never', label: 'Tidak pernah' },
+                { value: 'until', label: 'Pada tanggal' },
+              ]}
+            />
             {state.until && (
               <Input
                 type="date"

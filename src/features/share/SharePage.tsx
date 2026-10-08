@@ -17,7 +17,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { toast } from '@/components/ui/toast-store';
 import { useDatabase } from '@/db/database-context';
 import { useAttachmentActions } from '@/features/attachments/attachment-actions';
@@ -291,35 +291,37 @@ function FileTarget({ file, onDone }: { file: SharedFile; onDone: () => void }) 
         </span>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Select
+        <Listbox
           aria-label={`Tujuan ${file.name}`}
           value={target}
-          onChange={(e) => setTarget(e.target.value)}
+          onChange={setTarget}
           className="min-w-56 flex-1"
-        >
-          {kind === 'zip' && (
-            <optgroup label="Versi project baru">
-              <option value="project:new">Project baru: {file.name.replace(/\.zip$/i, '')}</option>
-              {projects.map((p) => (
-                <option key={p.id} value={`project:${p.id}`}>
-                  {p.name}
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {kind === 'text' && <option value="snippet">Snippet baru</option>}
-          {kind !== 'zip' && <option value="journal">Lampiran jurnal hari ini</option>}
-          {(kind === 'image' || kind === 'other') && (
-            <optgroup label="Struk untuk transaksi">
-              {recentTx.map((t) => (
-                <option key={t.id} value={`tx:${t.id}`}>
-                  {t.title || 'Pengeluaran'} · {formatIDR(t.amount)} ·{' '}
-                  {formatLocalDate(t.occurred_on, 'd MMM')}
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </Select>
+          options={[
+            ...(kind === 'zip'
+              ? [
+                  {
+                    value: 'project:new',
+                    label: `Project baru: ${file.name.replace(/\.zip$/i, '')}`,
+                    group: 'Versi project baru',
+                  },
+                  ...projects.map((p) => ({
+                    value: `project:${p.id}`,
+                    label: p.name,
+                    group: 'Versi project baru',
+                  })),
+                ]
+              : []),
+            ...(kind === 'text' ? [{ value: 'snippet', label: 'Snippet baru' }] : []),
+            ...(kind !== 'zip' ? [{ value: 'journal', label: 'Lampiran jurnal hari ini' }] : []),
+            ...(kind === 'image' || kind === 'other'
+              ? recentTx.map((t) => ({
+                  value: `tx:${t.id}`,
+                  label: `${t.title || 'Pengeluaran'} · ${formatIDR(t.amount)} · ${formatLocalDate(t.occurred_on, 'd MMM')}`,
+                  group: 'Struk untuk transaksi',
+                }))
+              : []),
+          ]}
+        />
         <Button loading={busy} onClick={() => void run()}>
           Simpan
         </Button>
