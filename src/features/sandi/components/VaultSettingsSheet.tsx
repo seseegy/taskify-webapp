@@ -1,11 +1,19 @@
-import { ChevronRight, KeyRound, Lock, RefreshCcw, Timer } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { ChevronRight, KeyRound, Lock, RefreshCcw, ShieldOff, Timer } from 'lucide-react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
 import { toast } from '@/components/ui/toast-store';
 import { focusField } from '@/lib/focus';
 import { changePassword, rotateRecoveryKey, type KeyRecord, type RewrittenVault } from '../crypto';
+import {
+  forgetDevice,
+  readTrustMeta,
+  rememberDevice,
+  trustDaysLeft,
+  TRUST_DAYS,
+  type TrustMeta,
+} from '../device-trust';
 import { masterPasswordProblem, userInputsFromEmail } from '../master-password';
 import { useMasterStrength } from '../useMasterStrength';
 import { AUTO_LOCK_OPTIONS, useSandiStore, type AutoLockMinutes } from '../sandi-store';
@@ -96,6 +104,9 @@ function Body({
     setRekeying(true);
     try {
       const { skipped } = await onReplaceVault(keyId, pending.vault);
+      // DEK dirotasi: kepercayaan perangkat jadi basi, jadi segarkan bila memang dipercaya
+      if (await readTrustMeta())
+        await rememberDevice(pending.vault.dek, pending.vault.record.wrapped_key);
       unlock(pending.vault.dek, pending.vault.record.wrapped_key);
       toast(`${pending.what} berhasil`, { tone: 'success' });
       if (skipped > 0) toast(`${skipped} sandi lama tidak bisa dibuka dan dibiarkan apa adanya.`);
@@ -216,6 +227,8 @@ function Body({
           <ChevronRight className="size-4 text-muted" aria-hidden="true" />
         </button>
       </section>
+
+      <DeviceTrustSection />
 
       <Button
         variant="secondary"
@@ -389,5 +402,65 @@ function RotateForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/** Status "ingat perangkat ini" + tombol mencabutnya. */
+function DeviceTrustSection() {
+  // Sisa hari dihitung saat dibaca, bukan di dalam render (render harus murni)
+  const [state, setState] = useState<{ meta: TrustMeta | null; daysLeft: number } | undefined>(
+    undefined,
+  );
+  const [busy, setBusy] = useState(false);
+  const lock = useSandiStore((s) => s.lock);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readTrustMeta().then((meta) => {
+      if (!cancelled) setState({ meta, daysLeft: meta ? trustDaysLeft(meta, Date.now()) : 0 });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (state === undefined) return null;
+
+  return (
+    <section aria-labelledby="set-trust" className="space-y-2">
+      <h3 id="set-trust" className="text-sm font-bold">
+        Perangkat ini
+      </h3>
+      {state.meta ? (
+        <>
+          <p className="text-xs text-muted">
+            Brankas terbuka tanpa master password di perangkat ini, sisa{' '}
+            <strong>{state.daysLeft} hari</strong>. Kunci disimpan browser dalam bentuk yang tidak
+            bisa dibaca, dan batal sendiri bila master password diganti.
+          </p>
+          <Button
+            variant="secondary"
+            className="w-full"
+            loading={busy}
+            onClick={() => {
+              setBusy(true);
+              void forgetDevice().then(() => {
+                setState({ meta: null, daysLeft: 0 });
+                setBusy(false);
+                toast('Perangkat ini tidak lagi diingat', { tone: 'success' });
+                lock();
+              });
+            }}
+          >
+            <ShieldOff aria-hidden="true" /> Lupakan perangkat ini
+          </Button>
+        </>
+      ) : (
+        <p className="text-xs text-muted">
+          Perangkat ini selalu meminta master password. Centang &ldquo;Ingat perangkat ini{' '}
+          {TRUST_DAYS} hari&rdquo; di layar buka brankas kalau mau mengubahnya.
+        </p>
+      )}
+    </section>
   );
 }

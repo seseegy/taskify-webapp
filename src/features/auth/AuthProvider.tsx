@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { forgetDevice } from '@/features/sandi/device-trust';
 import { shouldLockOnAuthChange, useSandiStore } from '@/features/sandi/sandi-store';
 import { supabase } from '@/lib/supabase';
 import { AuthContext, type AuthState } from './auth-context';
@@ -21,7 +22,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Provider ini tidak pernah di-unmount, jadi di sinilah DEK brankas Sandi dibuang saat akun
       // berubah (keluar dengan cara apa pun, atau akun lain masuk).
       const nextUserId = session?.user.id ?? null;
-      if (shouldLockOnAuthChange(lastUserId.current, nextUserId)) useSandiStore.getState().lock();
+      if (shouldLockOnAuthChange(lastUserId.current, nextUserId)) {
+        useSandiStore.getState().lock();
+        // Kepercayaan perangkat terikat pada akun: jangan dibawa ke sesi/akun berikutnya.
+        void forgetDevice();
+      }
       lastUserId.current = nextUserId;
       setState(session ? { status: 'signed_in', session, user: session.user } : SIGNED_OUT);
     });

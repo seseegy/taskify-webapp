@@ -1,9 +1,12 @@
-import { LockKeyhole } from 'lucide-react';
+import { LockKeyhole, TriangleAlert } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { useLockStore } from '@/features/lock/lock-store';
 import { focusField } from '@/lib/focus';
+import { TRUST_DAYS } from '../device-trust';
 import { PasswordField } from './PasswordField';
+import { Switch } from './Switch';
 
 /**
  * Layar buka brankas. Memeriksa master password butuh ±0,3–1,5 detik (KDF sengaja lambat), jadi
@@ -16,12 +19,16 @@ export function UnlockScreen({
 }: {
   email: string | null | undefined;
   /** true = berhasil. Melempar bila data brankas tidak didukung/rusak. */
-  onUnlock: (password: string) => Promise<boolean>;
+  onUnlock: (password: string, remember: boolean) => Promise<boolean>;
   onForgot: () => void;
 }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [remember, setRemember] = useState(false);
+  // Bila brankas tidak lagi meminta master password di perangkat ini, penjaga sebenarnya
+  // adalah PIN aplikasi. Peringatkan kalau PIN belum aktif.
+  const pinActive = useLockStore((st) => st.config !== null);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -33,7 +40,7 @@ export function UnlockScreen({
     setBusy(true);
     setError(null);
     try {
-      const ok = await onUnlock(password);
+      const ok = await onUnlock(password, remember);
       if (!ok) {
         setError('Master password salah.');
         setPassword('');
@@ -71,6 +78,21 @@ export function UnlockScreen({
           error={error}
           autoFocus
         />
+        <Switch
+          checked={remember}
+          onChange={setRemember}
+          label={`Ingat perangkat ini ${TRUST_DAYS} hari`}
+          hint="Brankas terbuka tanpa master password di perangkat ini. Kunci disimpan browser dalam bentuk yang tidak bisa dibaca, dan batal sendiri bila master password diganti."
+        />
+
+        {remember && !pinActive && (
+          <p role="alert" className="flex items-start gap-2 text-xs text-warning">
+            <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+            PIN aplikasi belum aktif. Tanpa PIN, siapa pun yang memegang perangkat ini bisa membuka
+            brankas. Aktifkan di Pengaturan → Kunci aplikasi.
+          </p>
+        )}
+
         <Button type="submit" className="w-full" size="lg" loading={busy}>
           {busy ? 'Memeriksa…' : 'Buka brankas'}
         </Button>
