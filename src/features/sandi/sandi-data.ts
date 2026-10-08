@@ -2,6 +2,7 @@ import { useQuery } from '@powersync/react';
 import { eq } from 'drizzle-orm';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from '@/components/ui/toast-store';
+import { supabase } from '@/lib/supabase';
 import { useDatabase } from '@/db/database-context';
 import { softDeleted, touch, withMeta } from '@/db/mutations';
 import { pwItems, pwKeys, type PwItem, type PwKeys } from '@/db/schema';
@@ -15,6 +16,7 @@ import {
   type KeyRecord,
   type RewrittenVault,
 } from './crypto';
+import { checkRemoteKey, waitForKeyUpload, type RemoteKeyState } from './vault-guard';
 import { rekeyVaultRows } from './vault-rekey';
 
 // ----------------------------------------------------------------------------- baca
@@ -30,6 +32,19 @@ export function usePwItemRows() {
     'SELECT * FROM pw_items WHERE deleted_at IS NULL ORDER BY updated_at DESC',
   );
   return { rows: data, isLoading };
+}
+
+/** Baris `upload_errors` untuk `pw_keys`: server menolak record kunci dari perangkat ini. */
+export function useRejectedKeyUploads() {
+  const { data } = useQuery<{ id: string }>(
+    "SELECT id FROM upload_errors WHERE table_name = 'pw_keys'",
+  );
+  return data;
+}
+
+/** Tanya SERVER apakah brankas sudah ada (bukan database lokal). */
+export function fetchRemoteKeyState(): Promise<RemoteKeyState> {
+  return checkRemoteKey(() => supabase.from('pw_keys').select('id').limit(1));
 }
 
 export function toKeyRecord(row: PwKeys): KeyRecord {
@@ -92,7 +107,7 @@ export function useDecryptedItems(rows: PwItem[], dek: CryptoKey, userId: string
 
 // ----------------------------------------------------------------------------- tulis
 export function useSandiActions() {
-  const { db } = useDatabase();
+  const { db, powerSync } = useDatabase();
   const userId = useUser().id;
 
   return useMemo(() => {
@@ -108,13 +123,47 @@ export function useSandiActions() {
        * Simpan record kunci brankas baru. Menolak bila sudah ada (mis. dibuat di perangkat lain
        * sesaat sebelumnya): dua kunci berbeda membuat item tak terbaca di salah satu perangkat.
        */
-      async createKey(record: KeyRecord) {
+      async createKey(record: KeyRecord): Promise<string> {
         const existing = await db.select({ id: pwKeys.id }).from(pwKeys).limit(1);
         if (existing.length > 0)
           throw new Error(
             'Brankas sudah dibuat di perangkat lain. Muat ulang halaman lalu buka dengan master password-nya.',
           );
-        await db.insert(pwKeys).values(withMeta(userId, { ...record }));
+        const row = withMeta(userId, { ...record });
+        await db.insert(pwKeys).values(row);
+        return row.id;
+      },
+
+      /**
+       * Tunggu server menerima record kunci `keyId` sebelum brankas dibuka. 'rejected' = server
+       * menolak (brankas sudah ada di perangkat lain); catatan penolakannya dibersihkan karena
+       * belum ada item yang ditulis dengan kunci itu.
+       */
+      async confirmKeyUploaded(keyId: string) {
+        const outcome = await waitForKeyUpload({
+          keyOpPending: async () => {
+            const batch = await powerSync.getCrudBatch(1000);
+            return Boolean(batch?.crud.some((op) => op.table === 'pw_keys' && op.id === keyId));
+          },
+          keyOpRejected: async () =>
+            (
+              await powerSync.getAll(
+                "SELECT 1 FROM upload_errors WHERE table_name = 'pw_keys' AND row_id = ? LIMIT 1",
+                [keyId],
+              )
+            ).length > 0,
+        });
+        if (outcome === 'rejected')
+          await powerSync.execute(
+            "DELETE FROM upload_errors WHERE table_name = 'pw_keys' AND row_id = ?",
+            [keyId],
+          );
+        return outcome;
+      },
+
+      /** Buang catatan penolakan `pw_keys` (setelah pengguna membaca banner). */
+      async dismissRejectedKeys() {
+        await powerSync.execute("DELETE FROM upload_errors WHERE table_name = 'pw_keys'");
       },
 
       /**
@@ -158,5 +207,5 @@ export function useSandiActions() {
         });
       },
     };
-  }, [db, userId]);
+  }, [db, powerSync, userId]);
 }

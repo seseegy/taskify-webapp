@@ -34,13 +34,16 @@ import {
   type RewrittenVault,
 } from './crypto';
 import {
+  fetchRemoteKeyState,
   toKeyRecord,
   useDecryptedItems,
   usePwItemRows,
   usePwKey,
+  useRejectedKeyUploads,
   useSandiActions,
   type DecryptedItem,
 } from './sandi-data';
+import { KEY_REJECTED_MESSAGE, REMOTE_KEY_MESSAGE, type RemoteKeyState } from './vault-guard';
 import { useSandiStore } from './sandi-store';
 import type { PwKeys } from '@/db/schema';
 
@@ -76,10 +79,64 @@ export function SandiPage() {
           <GeneratorPanel />
         </div>
       ) : (
-        <VaultTab />
+        <>
+          <RejectedKeyBanner />
+          <VaultTab />
+        </>
       )}
     </>
   );
+}
+
+// ============================================================================ penjagaan setup
+/**
+ * Server menolak record kunci dari perangkat ini karena brankas sudah dibuat di perangkat lain
+ * (dua perangkat membuat bersamaan). Sandi yang sempat disimpan di sini ditulis dengan kunci
+ * yang ditolak sehingga tidak akan bisa dibuka.
+ */
+function RejectedKeyBanner() {
+  const rejected = useRejectedKeyUploads();
+  const actions = useSandiActions();
+  if (rejected.length === 0) return null;
+  return (
+    <div
+      role="alert"
+      className="mb-4 flex max-w-3xl gap-3 rounded-2xl bg-warning/12 p-3.5 text-sm text-warning"
+    >
+      <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <p>
+          <strong>Brankas dari perangkat ini ditolak server</strong> karena brankas sudah dibuat di
+          perangkat lain. Buka dengan master password brankas yang pertama dibuat. Sandi yang sempat
+          disimpan di sini dengan kunci yang ditolak tidak bisa dibuka; salinan kuncinya ada di
+          Pengaturan → Sinkronisasi.
+        </p>
+        <Button variant="secondary" size="sm" onClick={() => void actions.dismissRejectedKeys()}>
+          Mengerti, tutup
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** Periksa SERVER sebelum menampilkan wizard; hasilnya menentukan layar yang tampil. */
+function useRemoteKeyCheck(enabled: boolean) {
+  const [result, setResult] = useState<{ attempt: number; value: RemoteKeyState } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    void fetchRemoteKeyState().then((value) => {
+      if (!cancelled) setResult({ attempt, value });
+    });
+    return () => {
+      cancelled = true;
+      setResult(null); // setiap kali dibutuhkan lagi, periksa ulang dari awal
+    };
+  }, [enabled, attempt]);
+  const state: RemoteKeyState | 'checking' =
+    enabled && result?.attempt === attempt ? result.value : 'checking';
+  return { state, recheck: () => setAttempt((a) => a + 1) };
 }
 
 // ============================================================================ brankas
@@ -93,6 +150,7 @@ function VaultTab() {
   const unlock = useSandiStore((s) => s.unlock);
   const actions = useSandiActions();
   const [recovering, setRecovering] = useState(false);
+  const remote = useRemoteKeyCheck(!isLoading && !row && hasSynced);
 
   // DEK di memori hanya sah untuk record kunci yang dipakai membukanya. Bila record berubah
   // (kunci diganti / DEK dirotasi di perangkat lain), DEK itu usang: kunci dan minta buka lagi.
@@ -123,13 +181,41 @@ function VaultTab() {
   }
 
   if (!row) {
+    if (remote.state !== 'none') {
+      return (
+        <Card className="mx-auto max-w-md" role="status">
+          <EmptyState
+            icon={CloudOff}
+            gradient="bg-gradient-sandi"
+            title={remote.state === 'checking' ? 'Memeriksa server…' : 'Belum bisa membuat brankas'}
+            description={
+              remote.state === 'checking'
+                ? 'Memastikan brankas belum dibuat di perangkat lain.'
+                : REMOTE_KEY_MESSAGE[remote.state]
+            }
+          >
+            {remote.state !== 'checking' && (
+              <Button variant="secondary" onClick={remote.recheck}>
+                Periksa lagi
+              </Button>
+            )}
+          </EmptyState>
+        </Card>
+      );
+    }
     return (
       <SetupWizard
         userId={user.id}
         email={user.email}
         ready={hasSynced}
         onComplete={async (vault) => {
-          await actions.createKey(vault.record);
+          // Periksa ulang tepat sebelum menyimpan: pengguna bisa saja lama di wizard.
+          const latest = await fetchRemoteKeyState();
+          if (latest !== 'none') throw new Error(REMOTE_KEY_MESSAGE[latest]);
+          const keyId = await actions.createKey(vault.record);
+          // Jangan buka brankas sebelum server menerima kuncinya (lihat vault-guard.ts).
+          if ((await actions.confirmKeyUploaded(keyId)) === 'rejected')
+            throw new Error(KEY_REJECTED_MESSAGE);
           unlock(vault.dek, vault.record.wrapped_key);
         }}
       />
