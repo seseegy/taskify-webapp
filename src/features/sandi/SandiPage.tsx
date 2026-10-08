@@ -31,8 +31,10 @@ import { SetupWizard } from './components/SetupWizard';
 import { UnlockScreen } from './components/UnlockScreen';
 import { TotpCode } from './components/TotpCode';
 import { TotpHistorySheet } from './components/TotpHistorySheet';
+import { TotpQuickCheck } from './components/TotpQuickCheck';
 import { VaultSettingsSheet } from './components/VaultSettingsSheet';
 import {
+  EMPTY_PAYLOAD,
   resetPasswordWithRecovery,
   SandiError,
   unlockWithPassword,
@@ -274,21 +276,29 @@ function VaultTab({ view }: { view: VaultView }) {
       );
     }
     return (
-      <UnlockScreen
-        email={user.email}
-        onForgot={() => setRecovering(true)}
-        onUnlock={async (password) => {
-          try {
-            const key = await unlockWithPassword(toKeyRecord(row), password, user.id);
-            if (!key) return false;
-            unlock(key, row.wrapped_key);
-            return true;
-          } catch (err) {
-            if (err instanceof SandiError) throw err;
-            throw new Error('Gagal membuka brankas. Coba lagi.', { cause: err });
-          }
-        }}
-      />
+      <div className="space-y-4">
+        {/* Cek cepat tidak memerlukan kunci brankas, jadi tetap bisa dipakai saat terkunci */}
+        {view === 'codes' && (
+          <div className="mx-auto w-full max-w-md">
+            <TotpQuickCheck />
+          </div>
+        )}
+        <UnlockScreen
+          email={user.email}
+          onForgot={() => setRecovering(true)}
+          onUnlock={async (password) => {
+            try {
+              const key = await unlockWithPassword(toKeyRecord(row), password, user.id);
+              if (!key) return false;
+              unlock(key, row.wrapped_key);
+              return true;
+            } catch (err) {
+              if (err instanceof SandiError) throw err;
+              throw new Error('Gagal membuka brankas. Coba lagi.', { cause: err });
+            }
+          }}
+        />
+      </div>
     );
   }
 
@@ -537,6 +547,12 @@ function CodesVault({ dek }: { dek: CryptoKey }) {
           </Button>
         </div>
       </div>
+
+      <TotpQuickCheck
+        onSave={async (title, totp) => {
+          await actions.saveItem(dek, { ...EMPTY_PAYLOAD, title, totp });
+        }}
+      />
 
       {loading ? (
         <ul aria-busy="true" aria-label="Memuat kode" className="space-y-2">
