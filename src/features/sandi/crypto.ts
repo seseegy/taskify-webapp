@@ -19,6 +19,13 @@
 export const KEY_RECORD_VERSION = 1;
 export const ITEM_VERSION = 1;
 export const DEFAULT_ITERATIONS = 600_000;
+/**
+ * Batas aman jumlah iterasi. Sama dengan CHECK di Postgres (pw_keys.iterations), TETAPI diperiksa
+ * juga di klien: nilai itu datang dari server, jadi klien tidak boleh memercayainya begitu saja.
+ * Terlalu rendah = brankas mudah ditebak; terlalu tinggi = peramban membeku (DoS).
+ */
+export const MIN_ITERATIONS = 100_000;
+export const MAX_ITERATIONS = 10_000_000;
 /** Item dipadatkan ke kelipatan ini agar panjang ciphertext tidak membocorkan panjang sandi. */
 const PAD_BLOCK = 256;
 const IV_BYTES = 12;
@@ -161,12 +168,21 @@ async function importDek(raw: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
   return key;
 }
 
+function assertIterations(iterations: number) {
+  if (!Number.isInteger(iterations) || iterations < MIN_ITERATIONS || iterations > MAX_ITERATIONS)
+    throw new SandiError(
+      'invalid',
+      'Pengaturan keamanan brankas tidak valid (iterasi di luar batas aman). Brankas tidak dibuka.',
+    );
+}
+
 function assertSupported(record: KeyRecord) {
   if (record.version > KEY_RECORD_VERSION || record.kdf !== 'pbkdf2-sha256')
     throw new SandiError(
       'unsupported',
       'Versi brankas tidak didukung aplikasi ini. Perbarui aplikasi.',
     );
+  assertIterations(record.iterations);
 }
 
 // ----------------------------------------------------------------------------- kunci pemulihan
@@ -220,7 +236,7 @@ export interface NewVault {
 }
 
 export interface KdfOptions {
-  /** Hanya untuk tes. Produksi selalu DEFAULT_ITERATIONS. */
+  /** Hanya untuk tes (minimal MIN_ITERATIONS). Produksi selalu DEFAULT_ITERATIONS. */
   iterations?: number;
 }
 
@@ -231,6 +247,7 @@ async function wrapBoth(
   opts: KdfOptions,
 ): Promise<{ record: KeyRecord; recoveryKey: string }> {
   const iterations = opts.iterations ?? DEFAULT_ITERATIONS;
+  assertIterations(iterations); // jangan pernah membuat brankas lemah, apa pun penyebabnya
   const salt = randomBytes(16);
   const recoverySalt = randomBytes(16);
   const recovery = randomBytes(RECOVERY_BYTES);

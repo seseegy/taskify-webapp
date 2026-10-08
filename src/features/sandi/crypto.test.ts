@@ -3,6 +3,8 @@ import {
   changePassword,
   createVault,
   DEFAULT_ITERATIONS,
+  MAX_ITERATIONS,
+  MIN_ITERATIONS,
   decryptItem,
   encryptItem,
   formatRecoveryKey,
@@ -19,8 +21,8 @@ import {
   type KeyRecord,
 } from './crypto';
 
-// Iterasi kecil agar tes cepat. Satu tes memakai nilai produksi.
-const FAST = { iterations: 1000 };
+// Batas minimum yang diizinkan (100 ribu) agar tes cepat. Satu tes memakai nilai produksi.
+const FAST = { iterations: MIN_ITERATIONS };
 const USER = '0192f3a0-aaaa-7000-8000-000000000001';
 const OTHER_USER = '0192f3a0-bbbb-7000-8000-000000000002';
 const PASSWORD = 'kuda-biru-minum-kopi-pagi';
@@ -67,7 +69,11 @@ describe('brankas · membuat & membuka', () => {
     const json = JSON.stringify(v.record);
     expect(json).not.toContain(PASSWORD);
     expect(json).not.toContain(v.recoveryKey);
-    expect(v.record).toMatchObject({ kdf: 'pbkdf2-sha256', iterations: 1000, version: 1 });
+    expect(v.record).toMatchObject({
+      kdf: 'pbkdf2-sha256',
+      iterations: MIN_ITERATIONS,
+      version: 1,
+    });
     // IV 12 + DEK 32 + tag 16 = 60 byte
     expect(fromB64(v.record.wrapped_key)).toHaveLength(60);
     expect(fromB64(v.record.recovery_wrapped_key)).toHaveLength(60);
@@ -92,6 +98,70 @@ describe('brankas · membuat & membuka', () => {
   it('record milik pengguna lain tidak bisa dibuka walau password benar (AAD mengikat user)', async () => {
     const v = await setup();
     expect(await unlockWithPassword(v.record, PASSWORD, OTHER_USER)).toBeNull();
+  });
+
+  it('PAGAR: record dari server dengan iterasi terlalu rendah/tinggi/aneh ditolak SEBELUM menurunkan kunci', async () => {
+    const v = await setup();
+    for (const iterations of [
+      1,
+      1000,
+      MIN_ITERATIONS - 1,
+      MAX_ITERATIONS + 1,
+      2 ** 31,
+      0,
+      -5,
+      1.5,
+      NaN,
+    ]) {
+      const forged = { ...v.record, iterations };
+      const t0 = performance.now();
+      await expect(
+        unlockWithPassword(forged, PASSWORD, USER),
+        `${iterations}`,
+      ).rejects.toMatchObject({
+        name: 'SandiError',
+        code: 'invalid',
+      });
+      await expect(
+        unlockWithRecoveryKey(forged, v.recoveryKey, USER),
+        `${iterations}`,
+      ).rejects.toMatchObject({
+        code: 'invalid',
+      });
+      expect(performance.now() - t0, `${iterations} ditolak cepat`).toBeLessThan(500);
+    }
+    // batas itu sendiri sah
+    expect(
+      await unlockWithPassword({ ...v.record, iterations: MIN_ITERATIONS }, PASSWORD, USER),
+    ).not.toBeNull();
+  });
+
+  it('PAGAR: ganti password / pemulihan dengan record bermasalah juga ditolak', async () => {
+    const v = await setup();
+    const forged = { ...v.record, iterations: 1000 };
+    await expect(
+      changePassword(forged, PASSWORD, 'baru-baru-baru-baru', USER, FAST),
+    ).rejects.toBeInstanceOf(SandiError);
+    await expect(rotateRecoveryKey(forged, PASSWORD, USER, FAST)).rejects.toBeInstanceOf(
+      SandiError,
+    );
+    await expect(
+      resetPasswordWithRecovery(forged, v.recoveryKey, 'baru-baru-baru-baru', USER, FAST),
+    ).rejects.toBeInstanceOf(SandiError);
+  });
+
+  it('PAGAR: tidak bisa MEMBUAT brankas dengan iterasi di bawah batas', async () => {
+    await expect(createVault(PASSWORD, USER, { iterations: 1000 })).rejects.toMatchObject({
+      code: 'invalid',
+    });
+    await expect(
+      createVault(PASSWORD, USER, { iterations: MAX_ITERATIONS + 1 }),
+    ).rejects.toBeInstanceOf(SandiError);
+    await expect(
+      changePassword((await setup()).record, PASSWORD, 'baru-baru-baru-baru', USER, {
+        iterations: 5,
+      }),
+    ).rejects.toBeInstanceOf(SandiError);
   });
 
   it('versi/KDF yang tidak dikenal ditolak dengan pesan jelas, bukan dianggap password salah', async () => {
