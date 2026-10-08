@@ -1,0 +1,327 @@
+import { describe, expect, it } from 'vitest';
+import {
+  changePassword,
+  createVault,
+  DEFAULT_ITERATIONS,
+  decryptItem,
+  encryptItem,
+  formatRecoveryKey,
+  fromB64,
+  parsePayload,
+  parseRecoveryKey,
+  resetPasswordWithRecovery,
+  rotateRecoveryKey,
+  SandiError,
+  toB64,
+  unlockWithPassword,
+  unlockWithRecoveryKey,
+  type ItemPayload,
+  type KeyRecord,
+} from './crypto';
+
+// Iterasi kecil agar tes cepat. Satu tes memakai nilai produksi.
+const FAST = { iterations: 1000 };
+const USER = '0192f3a0-aaaa-7000-8000-000000000001';
+const OTHER_USER = '0192f3a0-bbbb-7000-8000-000000000002';
+const PASSWORD = 'kuda-biru-minum-kopi-pagi';
+
+const item = (over: Partial<ItemPayload> = {}): ItemPayload => ({
+  title: 'GitHub',
+  url: 'https://github.com/login',
+  username: 'rosyid',
+  password: 'Zk9#mQ2$vL7!pXr4',
+  notes: 'kode cadangan di buku',
+  favorite: false,
+  ...over,
+});
+
+async function setup() {
+  const vault = await createVault(PASSWORD, USER, FAST);
+  return vault;
+}
+
+describe('brankas · membuat & membuka', () => {
+  it('master password benar membuka kunci yang bisa mendekripsi item', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'item-1', item());
+
+    const dek = await unlockWithPassword(v.record, PASSWORD, USER);
+    expect(dek).not.toBeNull();
+    expect(await decryptItem(dek!, USER, 'item-1', enc)).toEqual(item());
+  });
+
+  it('master password salah → null (bukan error)', async () => {
+    const v = await setup();
+    expect(await unlockWithPassword(v.record, PASSWORD + 'x', USER)).toBeNull();
+    expect(await unlockWithPassword(v.record, '', USER)).toBeNull();
+    expect(await unlockWithPassword(v.record, PASSWORD.toUpperCase(), USER)).toBeNull();
+  });
+
+  it('password dinormalisasi NFKC: bentuk lebar-penuh dan biasa menghasilkan kunci sama', async () => {
+    const v = await createVault('ｐａｓｓｗｏｒｄ-ｅｍｐａｔ', USER, FAST);
+    expect(await unlockWithPassword(v.record, 'password-empat', USER)).not.toBeNull();
+  });
+
+  it('record tidak memuat password maupun DEK polos, dan parameter KDF tersimpan', async () => {
+    const v = await setup();
+    const json = JSON.stringify(v.record);
+    expect(json).not.toContain(PASSWORD);
+    expect(json).not.toContain(v.recoveryKey);
+    expect(v.record).toMatchObject({ kdf: 'pbkdf2-sha256', iterations: 1000, version: 1 });
+    // IV 12 + DEK 32 + tag 16 = 60 byte
+    expect(fromB64(v.record.wrapped_key)).toHaveLength(60);
+    expect(fromB64(v.record.recovery_wrapped_key)).toHaveLength(60);
+    expect(fromB64(v.record.salt)).toHaveLength(16);
+  });
+
+  it('dua brankas dengan password sama tidak berbagi salt/kunci', async () => {
+    const a = await setup();
+    const b = await setup();
+    expect(a.record.salt).not.toBe(b.record.salt);
+    expect(a.record.wrapped_key).not.toBe(b.record.wrapped_key);
+    expect(a.recoveryKey).not.toBe(b.recoveryKey);
+  });
+
+  it('parameter produksi: 600 ribu iterasi dipakai bila tidak di-override', async () => {
+    const v = await createVault(PASSWORD, USER);
+    expect(v.record.iterations).toBe(DEFAULT_ITERATIONS);
+    expect(DEFAULT_ITERATIONS).toBeGreaterThanOrEqual(600_000);
+    expect(await unlockWithPassword(v.record, PASSWORD, USER)).not.toBeNull();
+  }, 30_000);
+
+  it('record milik pengguna lain tidak bisa dibuka walau password benar (AAD mengikat user)', async () => {
+    const v = await setup();
+    expect(await unlockWithPassword(v.record, PASSWORD, OTHER_USER)).toBeNull();
+  });
+
+  it('versi/KDF yang tidak dikenal ditolak dengan pesan jelas, bukan dianggap password salah', async () => {
+    const v = await setup();
+    const future = { ...v.record, version: 99 };
+    await expect(unlockWithPassword(future, PASSWORD, USER)).rejects.toMatchObject({
+      name: 'SandiError',
+      code: 'unsupported',
+    });
+    const otherKdf = { ...v.record, kdf: 'argon2id' } as unknown as KeyRecord;
+    await expect(unlockWithPassword(otherKdf, PASSWORD, USER)).rejects.toBeInstanceOf(SandiError);
+  });
+});
+
+describe('brankas · kunci pemulihan', () => {
+  it('format: 26 karakter dalam kelompok 4, hanya alfabet Crockford', async () => {
+    const v = await setup();
+    expect(v.recoveryKey).toMatch(/^([0-9A-HJKMNP-TV-Z]{4}-){6}[0-9A-HJKMNP-TV-Z]{2}$/);
+  });
+
+  it('membuka brankas dan mendekripsi item yang dibuat dengan password', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'a', item());
+    const dek = await unlockWithRecoveryKey(v.record, v.recoveryKey, USER);
+    expect(dek).not.toBeNull();
+    expect((await decryptItem(dek!, USER, 'a', enc)).password).toBe('Zk9#mQ2$vL7!pXr4');
+  });
+
+  it('toleran: huruf kecil, spasi, tanpa tanda hubung, salah baca O/0 dan I/L/1', async () => {
+    const v = await setup();
+    const sloppy = v.recoveryKey.toLowerCase().replace(/-/g, ' ');
+    expect(await unlockWithRecoveryKey(v.record, sloppy, USER)).not.toBeNull();
+    const confusable = v.recoveryKey.replace(/0/g, 'O').replace(/1/g, 'l');
+    expect(await unlockWithRecoveryKey(v.record, confusable, USER)).not.toBeNull();
+  });
+
+  it('salah / salah format / kosong → null', async () => {
+    const v = await setup();
+    const other = await setup();
+    expect(await unlockWithRecoveryKey(v.record, other.recoveryKey, USER)).toBeNull();
+    expect(await unlockWithRecoveryKey(v.record, 'ABCD-EFGH', USER)).toBeNull();
+    expect(await unlockWithRecoveryKey(v.record, '', USER)).toBeNull();
+    expect(await unlockWithRecoveryKey(v.record, 'U'.repeat(26), USER)).toBeNull(); // U tidak ada di Crockford
+  });
+
+  it('encode/decode bolak-balik untuk 200 kunci acak', () => {
+    for (let i = 0; i < 200; i++) {
+      const bytes = crypto.getRandomValues(new Uint8Array(16));
+      const text = formatRecoveryKey(bytes);
+      expect(Array.from(parseRecoveryKey(text)!)).toEqual(Array.from(bytes));
+    }
+  });
+});
+
+describe('brankas · ganti password & pemulihan', () => {
+  it('changePassword: DEK sama (item lama tetap terbaca), password lama mati, pemulihan lama mati', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'a', item());
+
+    const next = await changePassword(v.record, PASSWORD, 'password-baru-yang-panjang', USER, FAST);
+    expect(next).not.toBeNull();
+
+    expect(await unlockWithPassword(next!.record, PASSWORD, USER)).toBeNull(); // lama mati
+    expect(await unlockWithRecoveryKey(next!.record, v.recoveryKey, USER)).toBeNull(); // pemulihan lama mati
+    const dek = await unlockWithPassword(next!.record, 'password-baru-yang-panjang', USER);
+    expect(dek).not.toBeNull();
+    expect((await decryptItem(dek!, USER, 'a', enc)).title).toBe('GitHub');
+    // kunci pemulihan BARU berlaku
+    expect(await unlockWithRecoveryKey(next!.record, next!.recoveryKey, USER)).not.toBeNull();
+    expect(next!.recoveryKey).not.toBe(v.recoveryKey);
+    expect(next!.record.salt).not.toBe(v.record.salt);
+  });
+
+  it('changePassword dengan password lama salah → null dan record asli tak berubah', async () => {
+    const v = await setup();
+    const before = JSON.stringify(v.record);
+    expect(await changePassword(v.record, 'salah', 'baru-baru-baru-baru', USER, FAST)).toBeNull();
+    expect(JSON.stringify(v.record)).toBe(before);
+  });
+
+  it('lupa password: kunci pemulihan + password baru → item tetap terbaca', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'a', item());
+    const next = await resetPasswordWithRecovery(
+      v.record,
+      v.recoveryKey,
+      'master-baru-setelah-lupa',
+      USER,
+      FAST,
+    );
+    expect(next).not.toBeNull();
+    const dek = await unlockWithPassword(next!.record, 'master-baru-setelah-lupa', USER);
+    expect((await decryptItem(dek!, USER, 'a', enc)).username).toBe('rosyid');
+    expect(await unlockWithRecoveryKey(next!.record, v.recoveryKey, USER)).toBeNull(); // dicabut
+  });
+
+  it('lupa password dengan kunci pemulihan salah → null', async () => {
+    const v = await setup();
+    const other = await setup();
+    expect(
+      await resetPasswordWithRecovery(
+        v.record,
+        other.recoveryKey,
+        'baru-baru-baru-baru',
+        USER,
+        FAST,
+      ),
+    ).toBeNull();
+  });
+
+  it('rotateRecoveryKey: password tetap, kunci pemulihan lama dicabut, yang baru berlaku', async () => {
+    const v = await setup();
+    const next = await rotateRecoveryKey(v.record, PASSWORD, USER, FAST);
+    expect(next).not.toBeNull();
+    expect(await unlockWithPassword(next!.record, PASSWORD, USER)).not.toBeNull();
+    expect(await unlockWithRecoveryKey(next!.record, v.recoveryKey, USER)).toBeNull();
+    expect(await unlockWithRecoveryKey(next!.record, next!.recoveryKey, USER)).not.toBeNull();
+    expect(await rotateRecoveryKey(v.record, 'salah', USER, FAST)).toBeNull();
+  });
+});
+
+describe('item · enkripsi', () => {
+  it('bolak-balik dengan Unicode, emoji, dan catatan panjang', async () => {
+    const v = await setup();
+    const p = item({
+      title: 'Bank ✨ 銀行',
+      notes: 'baris 1\nbaris 2\n' + 'x'.repeat(5000),
+      password: 'p@ss"w\\ord\u0000kontrol',
+      favorite: true,
+    });
+    const enc = await encryptItem(v.dek, USER, 'id-uni', p);
+    expect(await decryptItem(v.dek, USER, 'id-uni', enc)).toEqual(p);
+  });
+
+  it('IV acak: payload sama menghasilkan ciphertext berbeda', async () => {
+    const v = await setup();
+    const a = await encryptItem(v.dek, USER, 'x', item());
+    const b = await encryptItem(v.dek, USER, 'x', item());
+    expect(a).not.toBe(b);
+  });
+
+  it('ciphertext tidak memuat isi polos', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'x', item({ password: 'RAHASIA-SANGAT-UNIK-123' }));
+    expect(enc).not.toContain('RAHASIA');
+    expect(atob(enc)).not.toContain('RAHASIA-SANGAT-UNIK-123');
+    expect(atob(enc)).not.toContain('github');
+  });
+
+  it('padding: sandi pendek dan agak panjang di blok yang sama punya panjang ciphertext sama', async () => {
+    const v = await setup();
+    const a = fromB64(await encryptItem(v.dek, USER, 'x', item({ password: 'a' })));
+    const b = fromB64(await encryptItem(v.dek, USER, 'x', item({ password: 'a'.repeat(60) })));
+    expect(a.length).toBe(b.length);
+    const c = fromB64(await encryptItem(v.dek, USER, 'x', item({ notes: 'z'.repeat(1000) })));
+    expect(c.length).toBeGreaterThan(a.length);
+    expect((c.length - 12 - 16) % 256).toBe(0);
+  });
+
+  it('diubah satu byte → ditolak (autentikasi GCM)', async () => {
+    const v = await setup();
+    const bytes = fromB64(await encryptItem(v.dek, USER, 'x', item()));
+    const at = bytes.length - 20;
+    bytes[at] = bytes[at]! ^ 1;
+    await expect(decryptItem(v.dek, USER, 'x', toB64(bytes))).rejects.toMatchObject({
+      name: 'SandiError',
+      code: 'corrupt',
+    });
+  });
+
+  it('ditukar ke baris lain (id item berbeda) → ditolak', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'item-A', item({ title: 'A' }));
+    await expect(decryptItem(v.dek, USER, 'item-B', enc)).rejects.toBeInstanceOf(SandiError);
+  });
+
+  it('dipindah ke akun lain (user berbeda) → ditolak', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'item-A', item());
+    await expect(decryptItem(v.dek, OTHER_USER, 'item-A', enc)).rejects.toBeInstanceOf(SandiError);
+  });
+
+  it('dengan kunci brankas lain → ditolak', async () => {
+    const v = await setup();
+    const other = await setup();
+    const enc = await encryptItem(v.dek, USER, 'x', item());
+    await expect(decryptItem(other.dek, USER, 'x', enc)).rejects.toBeInstanceOf(SandiError);
+  });
+
+  it('terpotong / kosong / bukan base64 → ditolak dengan SandiError, tidak melempar error lain', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'x', item());
+    for (const bad of ['', 'AAAA', enc.slice(0, 20), '%%%bukan-base64%%%']) {
+      await expect(decryptItem(v.dek, USER, 'x', bad), bad).rejects.toBeInstanceOf(SandiError);
+    }
+  });
+
+  it('kunci hasil unlock tidak bisa diekspor (non-extractable)', async () => {
+    const v = await setup();
+    expect(v.dek.extractable).toBe(false);
+    await expect(crypto.subtle.exportKey('raw', v.dek)).rejects.toThrow();
+    const dek = await unlockWithPassword(v.record, PASSWORD, USER);
+    expect(dek!.extractable).toBe(false);
+  });
+});
+
+describe('parsePayload & base64', () => {
+  it('field yang hilang diberi nilai bawaan; tipe salah diabaikan', () => {
+    expect(parsePayload({ title: 'x', password: 5, favorite: 'ya' })).toEqual({
+      title: 'x',
+      url: '',
+      username: '',
+      password: '',
+      notes: '',
+      favorite: false,
+    });
+  });
+
+  it('bukan objek → SandiError', () => {
+    for (const bad of [null, 'teks', 12, [1, 2]]) {
+      expect(() => parsePayload(bad)).toThrow(SandiError);
+    }
+  });
+
+  it('base64 bolak-balik untuk data besar (> 32 KB, tanpa stack overflow)', () => {
+    // getRandomValues dibatasi 65.536 byte per panggilan
+    const big = new Uint8Array(200_000);
+    for (let i = 0; i < big.length; i += 65_536)
+      crypto.getRandomValues(big.subarray(i, i + 65_536));
+    expect(Array.from(fromB64(toB64(big))).length).toBe(200_000);
+    expect(fromB64(toB64(big))[199_999]).toBe(big[199_999]);
+  });
+});
