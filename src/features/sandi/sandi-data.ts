@@ -10,14 +10,24 @@ import { useUser } from '@/features/auth/auth-context';
 import { newId } from '@/lib/id';
 import {
   decryptItem,
+  decryptTotpLog,
   encryptItem,
   ITEM_VERSION,
   type ItemPayload,
   type KeyRecord,
   type RewrittenVault,
+  type TotpLogEntry,
 } from './crypto';
 import { checkRemoteKey, waitForKeyUpload, type RemoteKeyState } from './vault-guard';
-import { rekeyVaultRows } from './vault-rekey';
+import {
+  clearTotpLog,
+  deleteTotpLogRow,
+  purgeExpiredTotpLog,
+  recordTotpUse,
+  totpLogCutoff,
+  TOTP_LOG_PAGE_SIZE,
+} from './totp-log';
+import { rekeyVaultRows, type RekeyResult } from './vault-rekey';
 
 // ----------------------------------------------------------------------------- baca
 /** Baris kunci brankas (maks. satu per user). */
@@ -105,6 +115,58 @@ export function useDecryptedItems(rows: PwItem[], dek: CryptoKey, userId: string
   return { items: current?.items ?? [], failed: current?.failed ?? [], ready: current !== null };
 }
 
+/** Baris riwayat TOTP (terenkripsi), terbaru lebih dulu. */
+export function usePwTotpLogRows() {
+  const { data, isLoading } = useQuery<{ id: string; enc: string; created_at: string }>(
+    `SELECT id, enc, created_at FROM pw_totp_log ORDER BY created_at DESC LIMIT ${TOTP_LOG_PAGE_SIZE}`,
+  );
+  return { rows: data, isLoading };
+}
+
+export interface TotpLogItem {
+  id: string;
+  created_at: string;
+  entry: TotpLogEntry;
+}
+
+/**
+ * Mendekripsi riwayat di memori. Baris yang tidak bisa dibuka (dibuat dengan kunci brankas lama
+ * yang sudah dirotasi) DILEWATI tanpa pemberitahuan: isinya tidak bisa dipulihkan dan akan
+ * hilang sendiri karena retensi.
+ */
+export function useDecryptedTotpLog(
+  rows: { id: string; enc: string; created_at: string }[],
+  dek: CryptoKey,
+  userId: string,
+) {
+  const [state, setState] = useState<{ dek: CryptoKey; items: TotpLogItem[] } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const items: TotpLogItem[] = [];
+      for (const r of rows) {
+        try {
+          items.push({
+            id: r.id,
+            created_at: r.created_at,
+            entry: await decryptTotpLog(dek, userId, r.id, r.enc),
+          });
+        } catch {
+          /* dibuat dengan kunci lain: lewati */
+        }
+      }
+      if (!cancelled) setState({ dek, items });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows, dek, userId]);
+
+  const current = state && state.dek === dek ? state : null;
+  return { entries: current?.items ?? [], ready: current !== null };
+}
+
 // ----------------------------------------------------------------------------- tulis
 export function useSandiActions() {
   const { db, powerSync } = useDatabase();
@@ -175,10 +237,7 @@ export function useSandiActions() {
        * Item yang sudah tidak bisa dibuka dengan DEK lama dibiarkan apa adanya (jumlahnya
        * dikembalikan di `skipped`), bukan ditimpa atau dijadikan alasan menolak ganti sandi.
        */
-      async replaceVault(
-        id: string,
-        vault: RewrittenVault,
-      ): Promise<{ reencrypted: number; skipped: number }> {
+      async replaceVault(id: string, vault: RewrittenVault): Promise<RekeyResult> {
         return db.transaction((tx) => rekeyVaultRows(tx, userId, id, vault));
       },
 
@@ -198,6 +257,26 @@ export function useSandiActions() {
             .values({ ...withMeta(userId, { enc, v: ITEM_VERSION }), id: itemId });
         }
         return itemId;
+      },
+
+      /**
+       * Catat satu pemakaian kode TOTP. Sengaja TIDAK menyentuh `pw_items`, supaya menyalin kode
+       * tidak mengubah `updated_at` item dan tidak mengacak urutan daftar brankas.
+       */
+      async recordTotpUse(dek: CryptoKey, itemId: string, name: string, code: string) {
+        await recordTotpUse(db, userId, dek, { itemId, name, code });
+      },
+
+      async purgeTotpLog() {
+        await purgeExpiredTotpLog(db, totpLogCutoff(Date.now()));
+      },
+
+      async deleteTotpLogRow(id: string) {
+        await deleteTotpLogRow(db, id);
+      },
+
+      async clearTotpLog() {
+        await clearTotpLog(db);
       },
 
       async removeItem(id: string, title: string) {

@@ -29,6 +29,7 @@ const OTHER_USER = '0192f3a0-bbbb-7000-8000-000000000002';
 const PASSWORD = 'kuda-biru-minum-kopi-pagi';
 
 const item = (over: Partial<ItemPayload> = {}): ItemPayload => ({
+  totp: null,
   title: 'GitHub',
   url: 'https://github.com/login',
   username: 'rosyid',
@@ -464,6 +465,7 @@ describe('parsePayload & base64', () => {
   it('field yang hilang diberi nilai bawaan; tipe salah diabaikan', () => {
     expect(parsePayload({ title: 'x', password: 5, favorite: 'ya' })).toEqual({
       title: 'x',
+      totp: null,
       url: '',
       username: '',
       password: '',

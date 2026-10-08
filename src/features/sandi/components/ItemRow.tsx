@@ -4,6 +4,7 @@ import { avatarGradient, avatarInitial } from '../avatar';
 import type { DecryptedItem } from '../sandi-data';
 import { displayHost } from '../url';
 import { CopyButton } from './CopyButton';
+import { TotpBadge } from './TotpCode';
 
 export function Avatar({ title, className }: { title: string; className?: string }) {
   return (
@@ -40,6 +41,7 @@ export function ItemRow({ item, onOpen }: { item: DecryptedItem; onOpen: () => v
         <span className="min-w-0">
           <span className="flex items-center gap-1.5 font-semibold">
             <span className="truncate">{name}</span>
+            {p.totp && <TotpBadge />}
             {p.favorite && (
               <>
                 <Star

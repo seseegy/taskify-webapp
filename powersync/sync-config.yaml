@@ -46,3 +46,4 @@ streams:
       - SELECT * FROM code_projects WHERE user_id = auth.user_id()
       - SELECT * FROM attachments WHERE user_id = auth.user_id()
       - SELECT * FROM pw_items WHERE user_id = auth.user_id()
+      - SELECT * FROM pw_totp_log WHERE user_id = auth.user_id()

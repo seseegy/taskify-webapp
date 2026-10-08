@@ -9,12 +9,16 @@
  *   DEK (256 bit acak, TIDAK pernah meninggalkan perangkat dalam bentuk polos)
  *        └─ AES-256-GCM, IV acak per item, AAD = user + id item ──► isi item
  *
- * Kenapa DEK terpisah dari master password: mengganti master password hanya membungkus ulang satu
- * kunci, bukan mengenkripsi ulang semua item.
+ * Kenapa DEK terpisah dari master password: isi item tidak terikat pada sandi yang dipilih
+ * manusia. Mengganti master password / kunci pemulihan SELALU membuat DEK baru dan mengenkripsi
+ * ulang semua item (lihat `rewrap` dan `reencryptItems`), supaya kunci lama benar-benar tidak
+ * bisa membuka data saat ini.
  *
  * Yang TIDAK dilindungi: metadata (jumlah item, waktu ubah), dan kunci yang sedang terbuka di
  * memori bila ada XSS. Lupa master password DAN kunci pemulihan = data tidak bisa dipulihkan siapa pun.
  */
+
+import { parseTotpConfig, type TotpConfig } from './totp';
 
 export const KEY_RECORD_VERSION = 1;
 export const ITEM_VERSION = 1;
@@ -55,6 +59,8 @@ export interface ItemPayload {
   password: string;
   notes: string;
   favorite: boolean;
+  /** Kunci TOTP (authenticator) untuk akun ini; null = tidak ada. */
+  totp: TotpConfig | null;
 }
 
 export const EMPTY_PAYLOAD: ItemPayload = {
@@ -64,6 +70,7 @@ export const EMPTY_PAYLOAD: ItemPayload = {
   password: '',
   notes: '',
   favorite: false,
+  totp: null,
 };
 
 export class SandiError extends Error {
@@ -158,6 +165,9 @@ async function recoveryKek(recovery: Uint8Array<ArrayBuffer>, salt: Uint8Array<A
 const aadPassword = (userId: string) => `taskify-sandi/key/v1/${userId}`;
 const aadRecovery = (userId: string) => `taskify-sandi/recovery/v1/${userId}`;
 const aadItem = (userId: string, itemId: string) => `taskify-sandi/item/v1/${userId}/${itemId}`;
+// Domain terpisah: baris riwayat tidak bisa ditukar menjadi item, dan sebaliknya.
+const aadTotpLog = (userId: string, rowId: string) =>
+  `taskify-sandi/totp-log/v1/${userId}/${rowId}`;
 
 /** DEK polos hanya sesaat di memori: dipakai membungkus/mengimpor, lalu dinolkan. */
 async function importDek(raw: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
@@ -427,6 +437,7 @@ export function parsePayload(value: unknown): ItemPayload {
     password: str(o.password),
     notes: str(o.notes),
     favorite: o.favorite === true,
+    totp: parseTotpConfig(o.totp),
   };
 }
 
@@ -483,17 +494,101 @@ export async function reencryptItems(
   to: CryptoKey,
   userId: string,
 ): Promise<{ updated: EncryptedRow[]; skipped: string[] }> {
+  return reencryptRows(
+    rows,
+    (id, enc) => decryptItem(from, userId, id, enc),
+    (id, payload) => encryptItem(to, userId, id, payload),
+  );
+}
+
+/** Seperti `reencryptItems`, untuk baris riwayat kode TOTP (`pw_totp_log`). */
+export async function reencryptTotpLog(
+  rows: EncryptedRow[],
+  from: CryptoKey,
+  to: CryptoKey,
+  userId: string,
+): Promise<{ updated: EncryptedRow[]; skipped: string[] }> {
+  return reencryptRows(
+    rows,
+    (id, enc) => decryptTotpLog(from, userId, id, enc),
+    (id, entry) => encryptTotpLog(to, userId, id, entry),
+  );
+}
+
+async function reencryptRows<T>(
+  rows: EncryptedRow[],
+  decrypt: (id: string, enc: string) => Promise<T>,
+  encrypt: (id: string, value: T) => Promise<string>,
+): Promise<{ updated: EncryptedRow[]; skipped: string[] }> {
   const updated: EncryptedRow[] = [];
   const skipped: string[] = [];
-  for (const r of rows) {
-    let payload: ItemPayload;
+  for (const row of rows) {
+    let value: T;
     try {
-      payload = await decryptItem(from, userId, r.id, r.enc);
+      value = await decrypt(row.id, row.enc);
     } catch {
-      skipped.push(r.id);
+      skipped.push(row.id);
       continue;
     }
-    updated.push({ id: r.id, enc: await encryptItem(to, userId, r.id, payload) });
+    updated.push({ id: row.id, enc: await encrypt(row.id, value) });
   }
   return { updated, skipped };
+}
+
+// ----------------------------------------------------------------------------- riwayat TOTP
+export interface TotpLogEntry {
+  /** Item Sandi asal kode ini. */
+  itemId: string;
+  /** Nama akun saat kode dipakai — tetap terbaca walau itemnya sudah dihapus. */
+  name: string;
+  /** Angka kode yang dipakai (kedaluwarsa dalam hitungan detik). */
+  code: string;
+  /** Waktu pemakaian (ISO). */
+  usedAt: string;
+}
+
+export function parseTotpLogEntry(value: unknown): TotpLogEntry {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new SandiError('corrupt', 'Isi riwayat tidak valid.');
+  const o = value as Record<string, unknown>;
+  return {
+    itemId: str(o.itemId),
+    name: str(o.name),
+    code: str(o.code),
+    usedAt: str(o.usedAt),
+  };
+}
+
+export async function encryptTotpLog(
+  dek: CryptoKey,
+  userId: string,
+  rowId: string,
+  entry: TotpLogEntry,
+): Promise<string> {
+  const plain = te.encode(JSON.stringify(entry));
+  return toB64(await seal(dek, pad(plain), aadTotpLog(userId, rowId)));
+}
+
+/** Melempar SandiError('corrupt') bila dibuat dengan kunci lain atau datanya diubah. */
+export async function decryptTotpLog(
+  dek: CryptoKey,
+  userId: string,
+  rowId: string,
+  enc: string,
+): Promise<TotpLogEntry> {
+  let bytes: Uint8Array<ArrayBuffer>;
+  try {
+    bytes = fromB64(enc);
+  } catch {
+    throw new SandiError('corrupt', 'Data riwayat rusak.');
+  }
+  const padded = await open(dek, bytes, aadTotpLog(userId, rowId));
+  const plain = padded && unpad(padded);
+  if (!plain) throw new SandiError('corrupt', 'Riwayat tidak bisa dibuka dengan kunci ini.');
+  try {
+    return parseTotpLogEntry(JSON.parse(td.decode(plain)));
+  } catch (e) {
+    if (e instanceof SandiError) throw e;
+    throw new SandiError('corrupt', 'Isi riwayat tidak valid.');
+  }
 }
