@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { toast } from '@/components/ui/toast-store';
 import type { TransactionKind } from '@/db/schema';
 import { downloadCsv, toCsv } from '@/lib/csv';
@@ -96,41 +96,38 @@ export function TransactionsTab({
             className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
           />
         </label>
-        <Select
+        <Listbox
           aria-label="Jenis"
           value={kind}
-          onChange={(e) => setKind(e.target.value as TransactionKind | '')}
-        >
-          <option value="">Semua jenis</option>
-          <option value="expense">Pengeluaran</option>
-          <option value="income">Pemasukan</option>
-          <option value="transfer">Transfer</option>
-        </Select>
-        <Select
+          onChange={(v) => setKind(v as TransactionKind | '')}
+          options={[
+            { value: '', label: 'Semua jenis' },
+            { value: 'expense', label: 'Pengeluaran' },
+            { value: 'income', label: 'Pemasukan' },
+            { value: 'transfer', label: 'Transfer' },
+          ]}
+        />
+        <Listbox
           aria-label="Dompet"
           value={walletId ?? ''}
-          onChange={(e) => onWallet(e.target.value || null)}
-        >
-          <option value="">Semua dompet</option>
-          {wallets.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.name}
-            </option>
-          ))}
-        </Select>
-        <Select
+          onChange={(v) => onWallet(v || null)}
+          options={[
+            { value: '', label: 'Semua dompet' },
+            ...wallets.map((w) => ({ value: w.id, label: w.name })),
+          ]}
+        />
+        <Listbox
           aria-label="Kategori"
           value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-        >
-          <option value="">Semua kategori</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.kind === 'income' ? '↓ ' : '↑ '}
-              {c.name}
-            </option>
-          ))}
-        </Select>
+          onChange={setCategoryId}
+          options={[
+            { value: '', label: 'Semua kategori' },
+            ...categories.map((c) => ({
+              value: c.id,
+              label: `${c.kind === 'income' ? '↓ ' : '↑ '}${c.name}`,
+            })),
+          ]}
+        />
         <Button variant="secondary" onClick={exportCsv} className="h-11">
           <Download /> CSV
         </Button>

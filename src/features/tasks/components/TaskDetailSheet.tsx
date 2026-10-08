@@ -17,7 +17,8 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Select, Textarea } from '@/components/ui/Field';
+import { Textarea } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input } from '@/components/ui/Input';
 import { Sheet } from '@/components/ui/Sheet';
 import type { Task } from '@/db/schema';
@@ -222,18 +223,15 @@ function TaskForm({ task }: { task: Task }) {
 
         {!task.parent_id && (
           <Field icon={Tag} label="Daftar">
-            <Select
+            <Listbox
               aria-label="Daftar"
               value={task.list_id ?? ''}
-              onChange={(e) => save({ list_id: e.target.value || null })}
-            >
-              <option value="">Tanpa daftar</option>
-              {lists.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(v) => save({ list_id: v || null })}
+              options={[
+                { value: '', label: 'Tanpa daftar' },
+                ...lists.map((l) => ({ value: l.id, label: l.name })),
+              ]}
+            />
           </Field>
         )}
 

@@ -1,7 +1,7 @@
 import { Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Select } from '@/components/ui/Field';
+import { Listbox } from '@/components/ui/Listbox';
 import { Input, Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
@@ -93,13 +93,12 @@ function WalletForm({
       </div>
       <div>
         <Label htmlFor="w-type">Jenis</Label>
-        <Select id="w-type" value={type} onChange={(e) => setType(e.target.value as WalletType)}>
-          {WALLET_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </Select>
+        <Listbox
+          id="w-type"
+          value={type}
+          onChange={(v) => setType(v as WalletType)}
+          options={WALLET_TYPES.map((t) => ({ value: t.value, label: t.label }))}
+        />
       </div>
       <div>
         <Label htmlFor="w-initial">Saldo awal</Label>
