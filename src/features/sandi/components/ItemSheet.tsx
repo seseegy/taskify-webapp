@@ -19,6 +19,8 @@ import { Avatar } from './ItemRow';
 import { PasswordField } from './PasswordField';
 import { StrengthMeter } from './StrengthMeter';
 import { Switch } from './Switch';
+import { TotpCode } from './TotpCode';
+import { TotpField } from './TotpField';
 
 const REVEAL_MS = 15_000;
 
@@ -32,12 +34,15 @@ export function ItemSheet({
   onClose,
   onSave,
   onDelete,
+  onUseCode,
 }: {
   open: boolean;
   item: DecryptedItem | null;
   onClose: () => void;
   onSave: (payload: ItemPayload, id?: string) => Promise<unknown>;
   onDelete: (item: DecryptedItem) => Promise<void>;
+  /** Kode TOTP item ini disalin — dicatat ke riwayat. */
+  onUseCode: (item: DecryptedItem, code: string) => void;
 }) {
   const title = item ? item.payload.title || 'Tanpa judul' : 'Sandi baru';
   return (
@@ -62,6 +67,7 @@ export function ItemSheet({
           onClose={onClose}
           onSave={onSave}
           onDelete={onDelete}
+          onUseCode={onUseCode}
         />
       )}
     </Sheet>
@@ -73,11 +79,13 @@ function ItemBody({
   onClose,
   onSave,
   onDelete,
+  onUseCode,
 }: {
   item: DecryptedItem | null;
   onClose: () => void;
   onSave: (payload: ItemPayload, id?: string) => Promise<unknown>;
   onDelete: (item: DecryptedItem) => Promise<void>;
+  onUseCode: (item: DecryptedItem, code: string) => void;
 }) {
   const [mode, setMode] = useState<'view' | 'edit'>(item ? 'view' : 'edit');
   if (mode === 'edit')
@@ -90,7 +98,13 @@ function ItemBody({
       />
     );
   return (
-    <ItemView item={item!} onEdit={() => setMode('edit')} onDelete={onDelete} onClose={onClose} />
+    <ItemView
+      item={item!}
+      onEdit={() => setMode('edit')}
+      onDelete={onDelete}
+      onClose={onClose}
+      onUseCode={onUseCode}
+    />
   );
 }
 
@@ -120,11 +134,13 @@ function ItemView({
   onEdit,
   onDelete,
   onClose,
+  onUseCode,
 }: {
   item: DecryptedItem;
   onEdit: () => void;
   onDelete: (item: DecryptedItem) => Promise<void>;
   onClose: () => void;
+  onUseCode: (item: DecryptedItem, code: string) => void;
 }) {
   const p = item.payload;
   const name = p.title || 'Tanpa judul';
@@ -190,6 +206,12 @@ function ItemView({
             <span className="text-muted">Tidak ada sandi</span>
           )}
         </Field>
+
+        {p.totp && (
+          <Field label="Kode TOTP">
+            <TotpCode config={p.totp} name={name} onUse={(code) => onUseCode(item, code)} />
+          </Field>
+        )}
 
         {p.url && (
           <Field
@@ -396,6 +418,8 @@ function ItemForm({
           </div>
         )}
       </div>
+
+      <TotpField value={p.totp} name={p.title} onChange={(totp) => set('totp', totp)} />
 
       <div>
         <Label htmlFor="item-notes">Catatan</Label>

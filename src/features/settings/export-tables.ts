@@ -20,4 +20,5 @@ export const EXPORT_TABLES = [
   // Sandi: hanya ciphertext (aman diekspor; tidak bisa dibuka tanpa master password)
   'pw_keys',
   'pw_items',
+  'pw_totp_log',
 ] as const;

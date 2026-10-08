@@ -13,10 +13,7 @@ import { PasswordField } from './PasswordField';
 import { RecoveryKeyPanel } from './RecoveryKeyPanel';
 import { StrengthMeter } from './StrengthMeter';
 
-type ReplaceVault = (
-  id: string,
-  vault: RewrittenVault,
-) => Promise<{ reencrypted: number; skipped: number }>;
+type ReplaceVault = (id: string, vault: RewrittenVault) => Promise<{ skipped: number }>;
 
 type View = 'main' | 'password' | 'rotate' | 'newkey';
 

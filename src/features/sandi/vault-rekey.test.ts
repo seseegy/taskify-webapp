@@ -6,7 +6,9 @@ import {
   changePassword,
   createVault,
   decryptItem,
+  decryptTotpLog,
   encryptItem,
+  encryptTotpLog,
   MIN_ITERATIONS,
   resetPasswordWithRecovery,
   rotateRecoveryKey,
@@ -28,6 +30,7 @@ const item = (title: string): ItemPayload => ({
   password: 'rahasia-' + title,
   notes: '',
   favorite: false,
+  totp: null,
 });
 
 /** SQLite sungguhan (node:sqlite) dengan kolom persis seperti skema lokal PowerSync. */
@@ -42,6 +45,10 @@ function setup() {
     CREATE TABLE pw_items (
       id TEXT PRIMARY KEY, user_id TEXT, created_at TEXT, updated_at TEXT,
       deleted_at TEXT, enc TEXT, v INTEGER
+    );
+    CREATE TABLE pw_totp_log (
+      id TEXT PRIMARY KEY, user_id TEXT, created_at TEXT, updated_at TEXT,
+      enc TEXT, v INTEGER
     );
   `);
   const db = drizzle(async (sql, params, method) => {
@@ -83,7 +90,13 @@ function setup() {
       recovery_wrapped_key: string;
       updated_at: string;
     };
-  return { db, insertKey, insertItem, row, keyRow };
+  const insertLog = (id: string, enc: string) =>
+    sqlite
+      .prepare(`INSERT INTO pw_totp_log VALUES (?, ?, '2026-10-01', '2026-10-01', ?, 1)`)
+      .run(id, USER, enc);
+  const logRow = (id: string) =>
+    sqlite.prepare('SELECT * FROM pw_totp_log WHERE id = ?').get(id) as { enc: string };
+  return { db, insertKey, insertItem, insertLog, row, keyRow, logRow };
 }
 
 async function scenario() {
@@ -120,7 +133,7 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
       const before = { a: row('a').enc, trash: row('trash').enc };
 
       const res = await rekeyVaultRows(db, USER, KEY_ID, next);
-      expect(res).toEqual({ reencrypted: 3, skipped: 0 });
+      expect(res).toEqual({ reencrypted: 3, skipped: 0, logReencrypted: 0, logSkipped: 0 });
 
       expect(keyRow().wrapped_key).toBe(next.record.wrapped_key);
       expect(keyRow().recovery_wrapped_key).toBe(next.record.recovery_wrapped_key);
@@ -165,10 +178,27 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
     )) as RewrittenVault;
     const res = await rekeyVaultRows(db, USER, KEY_ID, next);
 
-    expect(res).toEqual({ reencrypted: 3, skipped: 2 });
+    expect(res).toEqual({ reencrypted: 3, skipped: 2, logReencrypted: 0, logSkipped: 0 });
     expect(row('asing').enc).toBe(foreignEnc);
     expect(row('asing').updated_at).toBe('2026-10-01');
     expect(row('rusak').enc).toBe('bukan-base64-valid!!');
+  });
+
+  it('riwayat TOTP ikut dienkripsi ulang; yang tak terbaca dibiarkan', async () => {
+    const { db, v, insertLog, logRow } = await scenario();
+    const entry = { itemId: 'a', name: 'GitHub', code: '123456', usedAt: '2026-10-01T00:00:00Z' };
+    insertLog('log-1', await encryptTotpLog(v.dek, USER, 'log-1', entry));
+    const foreign = await createVault('lain-lain-lain-lain', USER, FAST);
+    const foreignEnc = await encryptTotpLog(foreign.dek, USER, 'log-2', entry);
+    insertLog('log-2', foreignEnc);
+
+    const next = (await rotateRecoveryKey(v.record, PASSWORD, USER, FAST)) as RewrittenVault;
+    const res = await rekeyVaultRows(db, USER, KEY_ID, next);
+    expect([res.logReencrypted, res.logSkipped]).toEqual([1, 1]);
+
+    expect(await decryptTotpLog(next.dek, USER, 'log-1', logRow('log-1').enc)).toEqual(entry);
+    await expect(decryptTotpLog(v.dek, USER, 'log-1', logRow('log-1').enc)).rejects.toThrow();
+    expect(logRow('log-2').enc).toBe(foreignEnc); // tidak disentuh
   });
 
   it('brankas kosong: hanya record kunci yang berganti', async () => {
@@ -176,7 +206,12 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
     const v = await createVault(PASSWORD, USER, FAST);
     t.insertKey(v.record);
     const next = (await rotateRecoveryKey(v.record, PASSWORD, USER, FAST)) as RewrittenVault;
-    expect(await rekeyVaultRows(t.db, USER, KEY_ID, next)).toEqual({ reencrypted: 0, skipped: 0 });
+    expect(await rekeyVaultRows(t.db, USER, KEY_ID, next)).toEqual({
+      reencrypted: 0,
+      skipped: 0,
+      logReencrypted: 0,
+      logSkipped: 0,
+    });
     expect(t.keyRow().recovery_wrapped_key).toBe(next.record.recovery_wrapped_key);
   });
 });
