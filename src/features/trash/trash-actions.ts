@@ -14,6 +14,7 @@ import {
   codeProjects,
   debts,
   journalEntries,
+  pwItems,
   recurringTransactions,
   snippets,
   tags,
@@ -94,7 +95,7 @@ export function useTrashActions() {
  * kategori (budgets.category_id CASCADE) sengaja tidak termasuk.
  *   task_lists / debts / recurring_transactions → referensi masuk ber-ON DELETE SET NULL
  *   tags → taggings ikut terhapus (CASCADE) dan sudah dibersihkan saat tag dihapus
- *   budgets → tidak ada yang mengacu
+ *   budgets, pw_items → tidak ada yang mengacu
  */
 export async function purgeExpiredSupportRows(db: AppDatabase, cutoff: string) {
   await db
@@ -113,6 +114,10 @@ export async function purgeExpiredSupportRows(db: AppDatabase, cutoff: string) {
     .delete(taskLists)
     .where(and(isNotNull(taskLists.deleted_at), lt(taskLists.deleted_at, cutoff)));
   await db.delete(tags).where(and(isNotNull(tags.deleted_at), lt(tags.deleted_at, cutoff)));
+  // Sandi yang dihapus: tak ada yang mengacu padanya, dan tidak tampil di Sampah
+  await db
+    .delete(pwItems)
+    .where(and(isNotNull(pwItems.deleted_at), lt(pwItems.deleted_at, cutoff)));
 }
 
 /** Hapus permanen isi Sampah yang lebih tua dari 30 hari (sekali per sesi, setelah sync awal). */

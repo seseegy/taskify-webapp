@@ -1,4 +1,4 @@
-import { CodeXml, Search, Settings } from 'lucide-react';
+import { CodeXml, KeyRound, Search, Settings } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigation, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
@@ -8,6 +8,7 @@ import { useAttachmentOutbox } from '@/features/attachments/attachment-actions';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
 import { useRecurringProcessor } from '@/features/finance/finance-actions';
 import { CommandPalette } from '@/features/search/CommandPalette';
+import { useSandiAutoLock } from '@/features/sandi/useSandiAutoLock';
 import { usePalette } from '@/features/search/palette-store';
 import { TaskDetailSheet } from '@/features/tasks/components/TaskDetailSheet';
 import { useTrashPurge } from '@/features/trash/trash-actions';
@@ -26,6 +27,7 @@ export function AppShell() {
   useTaskDeepLink();
   useRecurringProcessor();
   useAttachmentOutbox();
+  useSandiAutoLock();
   useTrashPurge();
   const mainRef = useRef<HTMLElement>(null);
   useRouteA11y(mainRef);
@@ -146,7 +148,8 @@ function MobileHeader() {
   return (
     <header className="sticky top-0 z-30 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 lg:hidden">
       <div className="flex items-center justify-between rounded-2xl px-3 py-2 glass">
-        <Logo size="sm" withText />
+        {/* Teks logo disembunyikan di layar sangat sempit agar 4 tombol di kanan tetap muat */}
+        <Logo size="sm" withText textClassName="hidden min-[400px]:inline" />
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -158,6 +161,7 @@ function MobileHeader() {
           </button>
           <SyncStatus compact />
           <HeaderLink to="/vault" label="Vault Kode" icon={CodeXml} />
+          <HeaderLink to="/sandi" label="Sandi" icon={KeyRound} />
           <HeaderLink to="/pengaturan" label="Pengaturan" icon={Settings} />
         </div>
       </div>

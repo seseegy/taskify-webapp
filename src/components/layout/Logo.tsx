@@ -10,10 +10,13 @@ export function Logo({
   size = 'md',
   withText = false,
   className,
+  textClassName,
 }: {
   size?: keyof typeof SIZES;
   withText?: boolean;
   className?: string;
+  /** Tambahan kelas untuk teks "Taskify" (mis. sembunyikan di layar sangat sempit) */
+  textClassName?: string;
 }) {
   const s = SIZES[size];
   return (
@@ -35,7 +38,9 @@ export function Logo({
         </svg>
       </div>
       {withText && (
-        <span className={cn('text-gradient-brand font-extrabold tracking-tight', s.text)}>
+        <span
+          className={cn('text-gradient-brand font-extrabold tracking-tight', s.text, textClassName)}
+        >
           Taskify
         </span>
       )}

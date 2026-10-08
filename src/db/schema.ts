@@ -288,6 +288,28 @@ export const attachments = sqliteTable(
 );
 
 // -----------------------------------------------------------------------------
+// Sandi (password manager) — SEMUA isi terenkripsi di perangkat (src/features/sandi/crypto.ts).
+// Server dan database lokal hanya melihat ciphertext; tidak ada kolom judul/URL/username polos.
+// -----------------------------------------------------------------------------
+export const pwKeys = sqliteTable('pw_keys', {
+  ...base(),
+  version: integer('version').notNull(),
+  kdf: text('kdf').notNull(),
+  iterations: integer('iterations').notNull(),
+  salt: text('salt').notNull(),
+  wrapped_key: text('wrapped_key').notNull(),
+  recovery_salt: text('recovery_salt').notNull(),
+  recovery_wrapped_key: text('recovery_wrapped_key').notNull(),
+});
+
+export const pwItems = sqliteTable('pw_items', {
+  ...base(),
+  ...softDelete(),
+  enc: text('enc').notNull(),
+  v: integer('v').notNull(),
+});
+
+// -----------------------------------------------------------------------------
 // LOCAL-ONLY: perubahan yang ditolak server permanen (constraint/RLS).
 // Tidak disinkron. Disimpan agar data tidak hilang diam-diam; daftar, salin, dan bersihkan
 // di Pengaturan → Sinkronisasi (features/settings/UploadErrors.tsx).
@@ -354,6 +376,8 @@ export const drizzleSchema = {
   snippets,
   codeProjects,
   attachments,
+  pwKeys,
+  pwItems,
   uploadErrors,
   taskListsRelations,
   tasksRelations,
@@ -381,3 +405,5 @@ export type Snippet = typeof snippets.$inferSelect;
 export type CodeProject = typeof codeProjects.$inferSelect;
 export type Attachment = typeof attachments.$inferSelect;
 export type UserSettings = typeof userSettings.$inferSelect;
+export type PwKeys = typeof pwKeys.$inferSelect;
+export type PwItem = typeof pwItems.$inferSelect;

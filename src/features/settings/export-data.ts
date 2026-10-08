@@ -1,26 +1,7 @@
 import type { PowerSyncDatabase } from '@powersync/web';
 import { saveBlob } from '@/lib/files';
+import { EXPORT_TABLES } from './export-tables';
 import { todayLocal } from '@/lib/date';
-
-/** Tabel tersinkron yang ikut diekspor (isi file lampiran tetap di R2, hanya metadata). */
-export const EXPORT_TABLES = [
-  'user_settings',
-  'tags',
-  'taggings',
-  'entity_links',
-  'task_lists',
-  'tasks',
-  'journal_entries',
-  'wallets',
-  'categories',
-  'debts',
-  'recurring_transactions',
-  'transactions',
-  'budgets',
-  'snippets',
-  'code_projects',
-  'attachments',
-] as const;
 
 /**
  * Ekspor seluruh data dari SQLite lokal ke satu file JSON — jalan offline.

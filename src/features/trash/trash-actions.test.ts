@@ -10,6 +10,7 @@ const TABLES = [
   'recurring_transactions',
   'task_lists',
   'tags',
+  'pw_items',
   // kontrol: TIDAK boleh disentuh walau sudah lama dihapus
   'wallets',
   'categories',
@@ -36,7 +37,14 @@ const CUTOFF = '2026-09-07T00:00:00.000Z'; // 30 hari sebelum 7 Okt
 describe('purgeExpiredSupportRows', () => {
   it('menghapus yang di-soft-delete SEBELUM batas; menyisakan yang baru dihapus & yang hidup', () => {
     const { sqlite, db, ids } = setup();
-    for (const t of ['budgets', 'debts', 'recurring_transactions', 'task_lists', 'tags']) {
+    for (const t of [
+      'budgets',
+      'debts',
+      'recurring_transactions',
+      'task_lists',
+      'tags',
+      'pw_items',
+    ]) {
       sqlite.exec(`
         INSERT INTO ${t} VALUES ('lama', '2026-08-01T00:00:00.000Z');
         INSERT INTO ${t} VALUES ('baru', '2026-10-01T00:00:00.000Z');
@@ -44,7 +52,14 @@ describe('purgeExpiredSupportRows', () => {
       `);
     }
     return purgeExpiredSupportRows(db, CUTOFF).then(() => {
-      for (const t of ['budgets', 'debts', 'recurring_transactions', 'task_lists', 'tags'])
+      for (const t of [
+        'budgets',
+        'debts',
+        'recurring_transactions',
+        'task_lists',
+        'tags',
+        'pw_items',
+      ])
         expect(ids(t), t).toEqual(['baru', 'hidup']);
     });
   });

@@ -2,6 +2,7 @@ import {
   CalendarDays,
   CodeXml,
   House,
+  KeyRound,
   ListChecks,
   NotebookPen,
   Settings,
@@ -60,6 +61,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Vault Kode',
     icon: CodeXml,
     gradient: 'bg-gradient-vault',
+    mobile: false,
+  },
+  {
+    to: '/sandi',
+    label: 'Sandi',
+    icon: KeyRound,
+    gradient: 'bg-gradient-sandi',
     mobile: false,
   },
   {

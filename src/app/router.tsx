@@ -55,6 +55,12 @@ export const router = createBrowserRouter([
               import('@/features/vault/VaultPage').then((m) => ({ Component: m.VaultPage })),
           },
           {
+            path: 'sandi',
+            handle: { title: 'Sandi' },
+            lazy: () =>
+              import('@/features/sandi/SandiPage').then((m) => ({ Component: m.SandiPage })),
+          },
+          {
             path: 'pengaturan',
             handle: { title: 'Pengaturan' },
             lazy: () =>
