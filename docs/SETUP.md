@@ -45,17 +45,51 @@ pnpm db:push
 
 Migrasi membuat: 16 tabel, RLS + grant, publication `powersync`, dan trigger data awal.
 
-### 2.4 Buat role replikasi untuk PowerSync
+### 2.4 Role replikasi untuk PowerSync
 
-Di **SQL Editor** (ganti password dengan hasil `openssl rand -base64 32`):
+Ada dua kemungkinan, tergantung cara instance PowerSync dibuat:
+
+**A. Integrasi Supabase (umum).** Supabase sudah membuat sendiri role bernama `powersync_<hash>`.
+Jangan buat role baru. Lewati ke langkah 2.5, lalu pastikan role itu bisa membaca tabel yang
+dibuat migrasi (lihat **2.4b**).
+
+**B. Manual.** Di **SQL Editor** (ganti password dengan hasil `openssl rand -base64 32`):
 
 ```sql
 create role powersync_role with replication bypassrls login password 'GANTI_DENGAN_PASSWORD_ACAK';
-grant select on all tables in schema public to powersync_role;
-alter default privileges in schema public grant select on tables to powersync_role;
 ```
 
 > Jangan pernah menghubungkan PowerSync sebagai user `postgres`.
+
+### 2.4b Beri hak baca (WAJIB, juga setiap kali ada tabel baru)
+
+`grant ... on all tables` hanya berlaku untuk tabel yang **sudah ada** saat dijalankan. Setiap
+migrasi yang menambah tabel (mis. `pw_keys` & `pw_items` dari modul Sandi) harus diikuti perintah
+ini, kalau tidak Validate di PowerSync gagal dengan `permission denied for table …` dan
+`This table could not be found in the source schema`.
+
+Perintah di bawah mencari nama role-nya otomatis, jadi cocok untuk opsi A maupun B:
+
+```sql
+do $$
+declare r text;
+begin
+  for r in select rolname from pg_roles where rolname like 'powersync%' loop
+    execute format('grant select on all tables in schema public to %I', r);
+    -- supaya tabel baru buatan migrasi berikutnya otomatis bisa dibaca
+    execute format(
+      'alter default privileges for role postgres in schema public grant select on tables to %I', r);
+  end loop;
+end $$;
+```
+
+Periksa hasilnya (tabel yang dicek harus muncul dengan grantee `powersync…`):
+
+```sql
+select table_name, grantee from information_schema.role_table_grants
+where table_name in ('tasks', 'pw_keys') and privilege_type = 'SELECT'
+order by table_name, grantee;
+```
 
 ### 2.5 Buat akunmu
 
@@ -77,7 +111,7 @@ select public.seed_user_defaults('<uuid-user>');
 1. [dashboard.powersync.com](https://dashboard.powersync.com) → buat project → **Create instance** (region terdekat).
 2. **Database connection**: ambil detail dari Supabase **Connect → Direct connection**.
    - Host `db.<project-ref>.supabase.co`, port `5432`, database `postgres`
-   - Username **`powersync_role`**, password dari langkah 2.4
+   - Username: role dari langkah 2.4 (`powersync_<hash>` atau `powersync_role`), beserta passwordnya
    - SSL mode: `verify-full`
    - Klik **Test connection** → **Save**.
 3. **Client Auth**: centang **Use Supabase Auth**, biarkan JWT secret kosong (project Supabase baru memakai signing key asimetris). **Save and Deploy**.
