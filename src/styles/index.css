@@ -73,6 +73,11 @@
   --muted: #5b5a7a;
   --surface: rgb(255 255 255 / 0.55);
   --surface-strong: rgb(255 255 255 / 0.78);
+  /* SOLID (tanpa alpha): untuk kontrol bawaan browser yang tidak bisa mengomposisikan
+     warna tembus pandang — mis. daftar popup <select>. Lihat bagian "Kontrol bawaan". */
+  --surface-solid: #f5f3ff;
+  /* Ikon bawaan di kolom tanggal/jam/pencarian digambar gelap; 0 = biarkan, 1 = balik warna. */
+  --native-icon-invert: 0;
   --line: rgb(99 102 241 / 0.16);
   --primary: #6d28d9;
   /* Status: diukur terhadap latar terburuk di bawah kaca (termasuk blob) DAN sebagai teks di atas
@@ -98,6 +103,8 @@
   --muted: #a5a3c9;
   --surface: rgb(30 27 75 / 0.42);
   --surface-strong: rgb(30 27 75 / 0.72);
+  --surface-solid: #1e1b4b;
+  --native-icon-invert: 1;
   --line: rgb(167 139 250 / 0.16);
   --primary: #a78bfa;
   /* danger rose-300: #fb7185 (rose-400) lolos sebagai teks polos (4.83) tapi gagal di atas tint
@@ -255,6 +262,75 @@ select.glass:focus-visible,
 .glass:has(> :is(input, textarea, select):focus-visible) {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* -----------------------------------------------------------------------------
+   Kontrol bawaan browser
+   Popup <select>, pemilih tanggal, spinner angka, dan kawan-kawan digambar oleh sistem
+   operasi. Yang bisa diatur hanya warnanya — bentuk, radius, dan animasinya tidak.
+   Sengaja DI LUAR @layer: ini menyasar pseudo-element yang tidak dijangkau utility.
+   ----------------------------------------------------------------------------- */
+
+/* Daftar popup <select>: browser mengambil warna dari latar <select>, dan latar `.glass`
+   tembus pandang (alpha 0,42) sehingga popup dikomposisikan di atas warna bawaan yang
+   terang — hasilnya daftar abu-abu yang tidak terbaca di tema gelap. Karena itu <option>
+   diberi warna SOLID. Bentuk popup-nya tetap milik sistem operasi. */
+option,
+optgroup {
+  background-color: var(--surface-solid);
+  color: var(--fg);
+}
+
+/* Tanpa ini, centang & slider memakai biru aksen sistem, bukan ungu Taskify. */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+progress {
+  accent-color: var(--primary);
+}
+
+/* Ikon kalender/jam dan tombol ✕ pada kolom pencarian: bawaannya gelap sehingga nyaris
+   tidak terlihat di tema gelap. */
+::-webkit-calendar-picker-indicator,
+::-webkit-search-cancel-button {
+  cursor: pointer;
+  opacity: 0.6;
+  filter: invert(var(--native-icon-invert));
+  transition: opacity 150ms;
+}
+::-webkit-calendar-picker-indicator:hover,
+::-webkit-search-cancel-button:hover {
+  opacity: 1;
+}
+
+/* Panah naik/turun input angka tidak bisa diwarnai; disembunyikan saja. Nilainya tetap
+   bisa diketik dan diubah dengan panah keyboard, jadi tidak ada fungsi yang hilang. */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  appearance: textfield;
+}
+
+/* Marker ▶ pada <summary> hanya diwarnai, TIDAK disembunyikan: kedua <details> di aplikasi
+   ini tidak punya chevron sendiri, jadi menghapusnya menghilangkan petunjuk bisa dibuka. */
+summary::marker {
+  color: var(--muted);
+}
+
+/* Autofill Chrome melukis latar kuning/biru yang menabrak permukaan kaca. `background-clip:
+   text` membuat latar itu hanya terpakai di belakang teks (praktis tak terlihat) tanpa
+   menutupi kaca, dan transisi panjang menunda cat bawaannya. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--fg);
+  -webkit-background-clip: text;
+  background-clip: text;
+  caret-color: var(--fg);
+  transition: background-color 9999s ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
