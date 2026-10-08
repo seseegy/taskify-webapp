@@ -8,7 +8,10 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
+import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { drizzleSchema } from '../../src/db/schema';
+import { EXPORT_TABLES } from '../../src/features/settings/export-tables';
 
 const DIR = fileURLToPath(new URL('../migrations/', import.meta.url));
 const FILES = readdirSync(DIR)
@@ -45,7 +48,7 @@ beforeAll(async () => {
     CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;
     CREATE SCHEMA auth;
     CREATE TABLE auth.users (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
-    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT NULL::uuid $$;
+    CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('app.uid', true), '')::uuid $$;
   `);
   // Migrasi sebelum perbaikan pengingat dulu, supaya jalur upgrade (data lama) ikut teruji
   for (const f of FILES.filter((f) => f < RETRY_MIGRATION))
@@ -75,7 +78,7 @@ describe('migrasi awal', () => {
     }
   });
 
-  it('publication powersync memuat 16 tabel dan REPLICA IDENTITY FULL', async () => {
+  it('publication powersync memuat 16 tabel awal dan REPLICA IDENTITY FULL', async () => {
     const pub = await rows<{ tablename: string }>(
       `SELECT tablename FROM pg_publication_tables WHERE pubname = 'powersync'`,
     );
@@ -278,5 +281,255 @@ describe('lampiran · pembersihan memakai waktu server (received_at)', () => {
       `SELECT has_function_privilege('authenticated', 'public.attachments_to_purge(integer)', 'EXECUTE') AS ok`,
     );
     expect(ok).toBe(false);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// Keselarasan: aturan "ubah di tiga tempat" (migrasi, sync-config, schema.ts) + publication + ekspor
+// -----------------------------------------------------------------------------------------
+describe('keselarasan skema Postgres ↔ klien ↔ sync ↔ ekspor', () => {
+  const SERVER_ONLY = ['push_subscriptions', 'task_reminder_log'];
+
+  const pgTables = async () => {
+    const rowsT = await rows<{ table_name: string }>(
+      `SELECT table_name FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_type = 'BASE TABLE'`,
+    );
+    return rowsT
+      .map((r) => r.table_name)
+      .filter((n) => !SERVER_ONLY.includes(n))
+      .sort();
+  };
+
+  it('setiap tabel tersinkron punya kolom yang SAMA di Postgres dan di Drizzle (schema.ts)', async () => {
+    const local = new Map<string, string[]>();
+    for (const v of Object.values(drizzleSchema)) {
+      try {
+        const cfg = getTableConfig(v as never);
+        if (cfg?.name) local.set(cfg.name, cfg.columns.map((c) => c.name).sort());
+      } catch {
+        /* objek relations */
+      }
+    }
+    // received_at dan sejenisnya SENGAJA server-only; daftar di bawah harus eksplisit
+    const serverOnlyColumns: Record<string, string[]> = { attachments: ['received_at'] };
+    for (const table of await pgTables()) {
+      const cols = (
+        await rows<{ column_name: string }>(
+          `SELECT column_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = $1`,
+          [table],
+        )
+      )
+        .map((c) => c.column_name)
+        .filter((c) => !(serverOnlyColumns[table] ?? []).includes(c))
+        .sort();
+      expect(local.get(table), `tabel ${table} tidak ada di schema.ts`).toBeDefined();
+      expect(local.get(table), `kolom ${table} berbeda`).toEqual(cols);
+    }
+  });
+
+  it('sync-config.yaml, publication, dan EXPORT_TABLES memuat tepat tabel tersinkron yang sama', async () => {
+    const synced = await pgTables();
+    const yaml = readFileSync(
+      fileURLToPath(new URL('../../powersync/sync-config.yaml', import.meta.url)),
+      'utf8',
+    );
+    const inSync = [...yaml.matchAll(/FROM (\w+) WHERE/g)].map((m) => m[1]!).sort();
+    const inPub = (
+      await rows<{ tablename: string }>(
+        `SELECT tablename FROM pg_publication_tables WHERE pubname = 'powersync'`,
+      )
+    )
+      .map((r) => r.tablename)
+      .sort();
+    expect(inSync).toEqual(synced);
+    expect(inPub).toEqual(synced);
+    expect([...EXPORT_TABLES].sort()).toEqual(synced);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// Sandi: pw_keys & pw_items
+// -----------------------------------------------------------------------------------------
+describe('Sandi · pw_keys & pw_items', () => {
+  const b64 = (n: number) => 'A'.repeat(n);
+  let alice: string;
+  let bob: string;
+
+  async function asUser<T>(uid: string, fn: () => Promise<T>): Promise<T> {
+    await pg.exec('SET ROLE authenticated');
+    await pg.query(`SELECT set_config('app.uid', $1, false)`, [uid]);
+    try {
+      return await fn();
+    } finally {
+      await pg.exec('RESET ROLE');
+      await pg.query(`SELECT set_config('app.uid', '', false)`);
+    }
+  }
+  const key = (id: string, over: Record<string, unknown> = {}) => {
+    const r = {
+      version: 1,
+      kdf: 'pbkdf2-sha256',
+      iterations: 600000,
+      salt: b64(24),
+      wrapped_key: b64(80),
+      recovery_salt: b64(24),
+      recovery_wrapped_key: b64(80),
+      ...over,
+    };
+    return pg.query(
+      `INSERT INTO public.pw_keys (id, version, kdf, iterations, salt, wrapped_key, recovery_salt, recovery_wrapped_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        id,
+        r.version,
+        r.kdf,
+        r.iterations,
+        r.salt,
+        r.wrapped_key,
+        r.recovery_salt,
+        r.recovery_wrapped_key,
+      ],
+    );
+  };
+  const item = (id: string, enc = b64(100)) =>
+    pg.query(`INSERT INTO public.pw_items (id, enc) VALUES ($1, $2)`, [id, enc]);
+  const uuid = () => rows<{ id: string }>(`SELECT gen_random_uuid() AS id`).then((r) => r[0]!.id);
+
+  beforeAll(async () => {
+    alice = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!
+      .id;
+    bob = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!.id;
+  });
+
+  it('user_id terisi otomatis dari auth.uid() (klien tidak perlu mengirimnya)', async () => {
+    await asUser(alice, async () => key(await uuid()));
+    const [k] = await rows<{ user_id: string }>(`SELECT user_id FROM public.pw_keys`);
+    expect(k!.user_id).toBe(alice);
+  });
+
+  it('satu brankas per user: kunci kedua untuk user yang sama ditolak', async () => {
+    await expect(asUser(alice, async () => key(await uuid()))).rejects.toThrow(/duplicate|unique/i);
+  });
+
+  it('RLS: bob tidak melihat, tidak mengubah, dan tidak menghapus brankas/sandi milik alice', async () => {
+    const id = await uuid();
+    await asUser(alice, () => item(id));
+
+    const seen = await asUser(bob, () => rows(`SELECT id FROM public.pw_items`));
+    expect(seen).toEqual([]);
+    const keysSeen = await asUser(bob, () => rows(`SELECT id FROM public.pw_keys`));
+    expect(keysSeen).toEqual([]);
+
+    await asUser(bob, () =>
+      pg.query(`UPDATE public.pw_items SET enc = $1 WHERE id = $2`, [b64(50), id]),
+    );
+    await asUser(bob, () => pg.query(`DELETE FROM public.pw_items WHERE id = $1`, [id]));
+    const [still] = await rows<{ enc: string }>(`SELECT enc FROM public.pw_items WHERE id = $1`, [
+      id,
+    ]);
+    expect(still!.enc).toBe(b64(100)); // tidak berubah & tidak terhapus
+
+    // dan alice sendiri bisa melihatnya
+    expect(
+      await asUser(alice, () => rows(`SELECT id FROM public.pw_items WHERE id = $1`, [id])),
+    ).toHaveLength(1);
+  });
+
+  it('RLS: bob tidak bisa menyisipkan baris atas nama alice', async () => {
+    await expect(
+      asUser(bob, async () =>
+        pg.query(`INSERT INTO public.pw_items (id, user_id, enc) VALUES ($1, $2, $3)`, [
+          await uuid(),
+          alice,
+          b64(100),
+        ]),
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+
+  it('anon (belum login) tidak punya akses sama sekali', async () => {
+    await pg.exec('SET ROLE anon');
+    try {
+      await expect(pg.query(`SELECT * FROM public.pw_items`)).rejects.toThrow(/permission denied/i);
+      await expect(pg.query(`SELECT * FROM public.pw_keys`)).rejects.toThrow(/permission denied/i);
+    } finally {
+      await pg.exec('RESET ROLE');
+    }
+  });
+
+  it('pemilik boleh mengganti password (UPDATE pw_keys) — updated_at diperbarui trigger', async () => {
+    const [before] = await rows<{ id: string; updated_at: Date }>(
+      `SELECT id, updated_at FROM public.pw_keys WHERE user_id = $1`,
+      [alice],
+    );
+    await asUser(alice, () =>
+      pg.query(`UPDATE public.pw_keys SET salt = $1, wrapped_key = $2 WHERE id = $3`, [
+        b64(30),
+        b64(90),
+        before!.id,
+      ]),
+    );
+    const [after] = await rows<{ salt: string; updated_at: Date }>(
+      `SELECT salt, updated_at FROM public.pw_keys WHERE id = $1`,
+      [before!.id],
+    );
+    expect(after!.salt).toBe(b64(30));
+    expect(after!.updated_at.getTime()).toBeGreaterThanOrEqual(before!.updated_at.getTime());
+  });
+
+  it('parameter KDF lemah ditolak: iterasi < 100 ribu, KDF tak dikenal, salt/kunci terlalu pendek', async () => {
+    const bad: Record<string, unknown>[] = [
+      { iterations: 1000 },
+      { iterations: 100_000_000 },
+      { kdf: 'md5' },
+      { salt: b64(4) },
+      { wrapped_key: b64(10) },
+      { recovery_wrapped_key: '' },
+      { version: 0 },
+    ];
+    for (const over of bad) {
+      await expect(
+        asUser(bob, async () => key(await uuid(), over)),
+        JSON.stringify(over),
+      ).rejects.toThrow(/check/i);
+    }
+  });
+
+  it('batas ukuran enc: terlalu pendek (bukan ciphertext) dan > 256 KB ditolak', async () => {
+    for (const enc of ['', 'x'.repeat(10), 'x'.repeat(262145)]) {
+      await expect(
+        asUser(bob, async () => item(await uuid(), enc)),
+        `${enc.length}`,
+      ).rejects.toThrow(/check/i);
+    }
+    await expect(
+      asUser(bob, async () => item(await uuid(), 'x'.repeat(262144))),
+    ).resolves.toBeDefined();
+  });
+
+  it('hapus lunak: deleted_at terisi, baris tetap ada (disinkron sebagai perubahan biasa)', async () => {
+    const id = await uuid();
+    await asUser(bob, () => item(id));
+    await asUser(bob, () =>
+      pg.query(`UPDATE public.pw_items SET deleted_at = now() WHERE id = $1`, [id]),
+    );
+    const [r] = await rows<{ deleted_at: Date | null }>(
+      `SELECT deleted_at FROM public.pw_items WHERE id = $1`,
+      [id],
+    );
+    expect(r!.deleted_at).not.toBeNull();
+  });
+
+  it('menghapus akun menghapus seluruh brankas & sandinya (ON DELETE CASCADE)', async () => {
+    const carol = (
+      await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`)
+    )[0]!.id;
+    await asUser(carol, async () => key(await uuid()));
+    await asUser(carol, async () => item(await uuid()));
+    await pg.query(`DELETE FROM auth.users WHERE id = $1`, [carol]);
+    expect(await rows(`SELECT 1 FROM public.pw_keys WHERE user_id = $1`, [carol])).toEqual([]);
+    expect(await rows(`SELECT 1 FROM public.pw_items WHERE user_id = $1`, [carol])).toEqual([]);
   });
 });

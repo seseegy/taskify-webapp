@@ -26,6 +26,8 @@ streams:
       - SELECT * FROM wallets WHERE user_id = auth.user_id()
       - SELECT * FROM categories WHERE user_id = auth.user_id()
       - SELECT * FROM task_lists WHERE user_id = auth.user_id()
+      # Kunci brankas Sandi (terbungkus) ikut prioritas 1 agar layar Sandi tahu status brankas lebih awal
+      - SELECT * FROM pw_keys WHERE user_id = auth.user_id()
       - SELECT * FROM tags WHERE user_id = auth.user_id()
 
   user_data:
@@ -43,3 +45,4 @@ streams:
       - SELECT * FROM snippets WHERE user_id = auth.user_id()
       - SELECT * FROM code_projects WHERE user_id = auth.user_id()
       - SELECT * FROM attachments WHERE user_id = auth.user_id()
+      - SELECT * FROM pw_items WHERE user_id = auth.user_id()
