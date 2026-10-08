@@ -52,6 +52,7 @@ import {
   useSandiActions,
   type DecryptedItem,
 } from './sandi-data';
+import { forgetDevice, loadTrustedDek, readTrustMeta, rememberDevice } from './device-trust';
 import { syncClockOffset } from './totp-clock';
 import { KEY_REJECTED_MESSAGE, REMOTE_KEY_MESSAGE, type RemoteKeyState } from './vault-guard';
 import { useSandiStore } from './sandi-store';
@@ -165,6 +166,24 @@ function VaultTab({ view }: { view: VaultView }) {
   const unlock = useSandiStore((s) => s.unlock);
   const actions = useSandiActions();
   const [recovering, setRecovering] = useState(false);
+  // Dipegang di sini (bukan di dalam TotpQuickCheck) supaya kunci yang ditempel saat brankas
+  // terkunci tetap ada setelah brankas dibuka.
+  const [quickText, setQuickText] = useState('');
+  // Perangkat yang dipercaya ("ingat 30 hari"): coba buka tanpa master password.
+  const [trustChecked, setTrustChecked] = useState(false);
+  const stampForTrust = row?.wrapped_key;
+  useEffect(() => {
+    if (!stampForTrust || storedDek) return;
+    let cancelled = false;
+    void loadTrustedDek(stampForTrust).then((key) => {
+      if (cancelled) return;
+      if (key) unlock(key, stampForTrust);
+      setTrustChecked(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [stampForTrust, storedDek, unlock]);
   const remote = useRemoteKeyCheck(!isLoading && !row && hasSynced);
 
   // DEK di memori hanya sah untuk record kunci yang dipakai membukanya. Bila record berubah
@@ -238,6 +257,18 @@ function VaultTab({ view }: { view: VaultView }) {
   }
 
   if (!dek) {
+    // Hindari layar "Brankas terkunci" berkelip saat kepercayaan perangkat sedang diperiksa
+    if (!trustChecked && !recovering)
+      return (
+        <Card className="mx-auto max-w-md" role="status">
+          <EmptyState
+            icon={LockKeyhole}
+            gradient="bg-gradient-sandi"
+            title="Membuka brankas…"
+            description="Memeriksa apakah perangkat ini masih dipercaya."
+          />
+        </Card>
+      );
     if (recovering) {
       return (
         <RecoverScreen
@@ -268,6 +299,8 @@ function VaultTab({ view }: { view: VaultView }) {
           onFinished={async (vault: RewrittenVault) => {
             const { skipped } = await actions.replaceVault(row.id, vault);
             setRecovering(false);
+            // DEK dirotasi: kepercayaan lama jadi basi, jadi segarkan bila perangkat dipercaya
+            if (await readTrustMeta()) await rememberDevice(vault.dek, vault.record.wrapped_key);
             unlock(vault.dek, vault.record.wrapped_key);
             if (skipped > 0)
               toast(`${skipped} sandi lama tidak bisa dibuka dan dibiarkan apa adanya.`);
@@ -280,16 +313,18 @@ function VaultTab({ view }: { view: VaultView }) {
         {/* Cek cepat tidak memerlukan kunci brankas, jadi tetap bisa dipakai saat terkunci */}
         {view === 'codes' && (
           <div className="mx-auto w-full max-w-md">
-            <TotpQuickCheck />
+            <TotpQuickCheck text={quickText} onTextChange={setQuickText} />
           </div>
         )}
         <UnlockScreen
           email={user.email}
           onForgot={() => setRecovering(true)}
-          onUnlock={async (password) => {
+          onUnlock={async (password, remember) => {
             try {
               const key = await unlockWithPassword(toKeyRecord(row), password, user.id);
               if (!key) return false;
+              if (remember) await rememberDevice(key, row.wrapped_key);
+              else await forgetDevice();
               unlock(key, row.wrapped_key);
               return true;
             } catch (err) {
@@ -302,7 +337,11 @@ function VaultTab({ view }: { view: VaultView }) {
     );
   }
 
-  return view === 'codes' ? <CodesVault dek={dek} /> : <UnlockedVault dek={dek} keyRow={row} />;
+  return view === 'codes' ? (
+    <CodesVault dek={dek} quickText={quickText} onQuickTextChange={setQuickText} />
+  ) : (
+    <UnlockedVault dek={dek} keyRow={row} />
+  );
 }
 
 // ============================================================================ terbuka
@@ -490,7 +529,15 @@ function UnlockedVault({ dek, keyRow }: { dek: CryptoKey; keyRow: PwKeys }) {
  * Taskify sebagai authenticator: hanya item yang punya kunci TOTP, dengan kode hidup dan hitung
  * mundur. Menyalin kode mencatatnya ke riwayat (`pw_totp_log`) tanpa mengubah item itu sendiri.
  */
-function CodesVault({ dek }: { dek: CryptoKey }) {
+function CodesVault({
+  dek,
+  quickText,
+  onQuickTextChange,
+}: {
+  dek: CryptoKey;
+  quickText: string;
+  onQuickTextChange: (value: string) => void;
+}) {
   const user = useUser();
   const { rows, isLoading } = usePwItemRows();
   const { items, ready } = useDecryptedItems(rows, dek, user.id);
@@ -549,6 +596,8 @@ function CodesVault({ dek }: { dek: CryptoKey }) {
       </div>
 
       <TotpQuickCheck
+        text={quickText}
+        onTextChange={onQuickTextChange}
         onSave={async (title, totp) => {
           await actions.saveItem(dek, { ...EMPTY_PAYLOAD, title, totp });
         }}

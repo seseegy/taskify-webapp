@@ -339,6 +339,73 @@ describe('brankas · ganti password & pemulihan', () => {
   });
 });
 
+describe('item dengan kunci TOTP', () => {
+  const totp = {
+    secret: 'JBSWY3DPEHPK3PXP',
+    digits: 6 as const,
+    period: 30,
+    algorithm: 'SHA1' as const,
+  };
+
+  it('kunci TOTP tersimpan utuh melewati enkripsi & dekripsi', async () => {
+    const v = await setup();
+    const payload = item({ title: 'GitHub', totp });
+    const enc = await encryptItem(v.dek, USER, 'id-totp', payload);
+    expect(await decryptItem(v.dek, USER, 'id-totp', enc)).toEqual(payload);
+  });
+
+  it('kunci TOTP tidak terbaca sebagai teks terang di ciphertext', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'id-totp', item({ totp }));
+    expect(enc).not.toContain(totp.secret);
+    expect(atob(enc)).not.toContain(totp.secret);
+  });
+
+  it('item TANPA sandi (hanya nama + TOTP) tetap bolak-balik utuh', async () => {
+    const v = await setup();
+    const payload = item({ title: 'Binance', password: '', username: '', url: '', totp });
+    const enc = await encryptItem(v.dek, USER, 'x', payload);
+    const back = await decryptItem(v.dek, USER, 'x', enc);
+    expect(back.totp).toEqual(totp);
+    expect(back.password).toBe('');
+  });
+
+  it('parameter TOTP yang aneh dinormalkan saat dibaca kembali; yang rusak jadi null', async () => {
+    const v = await setup();
+    // ditulis oleh versi lain / data rusak: periode mustahil & algoritma tak dikenal
+    const odd = await encryptItem(v.dek, USER, 'y', {
+      ...item(),
+      totp: { secret: 'jbsw y3dp ehpk 3pxp', digits: 7, period: 0, algorithm: 'MD5' } as never,
+    });
+    const back = await decryptItem(v.dek, USER, 'y', odd);
+    expect(back.totp).toEqual({
+      secret: 'JBSWY3DPEHPK3PXP',
+      digits: 6,
+      period: 5,
+      algorithm: 'SHA1',
+    });
+
+    const broken = await encryptItem(v.dek, USER, 'z', {
+      ...item(),
+      totp: { secret: 'bukan-base32-0189' } as never,
+    });
+    expect((await decryptItem(v.dek, USER, 'z', broken)).totp).toBeNull();
+  });
+
+  it('kunci TOTP ikut dienkripsi ulang saat DEK dirotasi', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'a', item({ totp }));
+    const next = await changePassword(v.record, PASSWORD, 'password-baru-yang-panjang', USER, FAST);
+    const { updated } = await reencryptItems(
+      [{ id: 'a', enc }],
+      next!.previousDek,
+      next!.dek,
+      USER,
+    );
+    expect((await decryptItem(next!.dek, USER, 'a', updated[0]!.enc)).totp).toEqual(totp);
+  });
+});
+
 describe('reencryptItems', () => {
   it('mengenkripsi ulang semua, mempertahankan id, dan IV baru', async () => {
     const a = await setup();
