@@ -223,11 +223,22 @@ function hasSequence(lower: string, run = 4): boolean {
   return false;
 }
 
+/** Ukuran "kumpulan karakter" yang dipakai penyerang brute-force untuk sandi ini. */
+export function charPoolSize(password: string): number {
+  const pw = password.normalize('NFKC');
+  let pool = 0;
+  if (/\p{Ll}/u.test(pw)) pool += 26;
+  if (/\p{Lu}/u.test(pw)) pool += 26;
+  if (/\d/.test(pw)) pool += 10;
+  if (/[^\p{L}\d]/u.test(pw)) pool += 33;
+  return Math.max(pool, 10);
+}
+
 /**
- * Perkiraan kekuatan sandi BUATAN MANUSIA (master password). Heuristik konservatif tanpa kamus
- * besar: sengaja lebih pelit daripada hitungan "panjang × kumpulan karakter" mentah, karena
- * manusia memilih pola. Frasa kata-kata dihitung per kata (±11 bit), bukan per huruf.
- * Bukan jaminan — hanya untuk menolak pilihan yang jelas lemah dan memberi umpan balik.
+ * Perkiraan CEPAT kekuatan sandi buatan manusia, tanpa kamus. Hanya untuk meter informatif
+ * (mis. sandi situs di ItemSheet) dan tampilan sementara. JANGAN dipakai sebagai gerbang master
+ * password: heuristik ini meloloskan "Welcome2024!!"; gerbangnya ada di `master-password.ts`
+ * (zxcvbn-ts + kamus). Frasa kata-kata dihitung per kata (±11 bit), bukan per huruf.
  */
 export function estimatePasswordStrength(password: string): Strength & { issues: string[] } {
   const pw = password.normalize('NFKC');
@@ -249,12 +260,7 @@ export function estimatePasswordStrength(password: string): Strength & { issues:
     return { ...strengthFromBits(bits), issues };
   }
 
-  let pool = 0;
-  if (/\p{Ll}/u.test(pw)) pool += 26;
-  if (/\p{Lu}/u.test(pw)) pool += 26;
-  if (/\d/.test(pw)) pool += 10;
-  if (/[^\p{L}\d]/u.test(pw)) pool += 33;
-  pool = Math.max(pool, 10);
+  const pool = charPoolSize(pw);
 
   // Karakter berulang hampir tidak menambah keacakan
   const unique = new Set(lower).size;
@@ -273,16 +279,4 @@ export function estimatePasswordStrength(password: string): Strength & { issues:
   if ([...pw].length < 12) issues.push('Minimal 12 karakter.');
 
   return { ...strengthFromBits(bits), issues };
-}
-
-/** Syarat master password: tidak boleh lemah. Minimal 12 karakter dan ≥ 50 bit perkiraan. */
-export const MASTER_MIN_LENGTH = 12;
-export const MASTER_MIN_BITS = 50;
-
-export function masterPasswordProblem(password: string): string | null {
-  if ([...password].length < MASTER_MIN_LENGTH) return `Minimal ${MASTER_MIN_LENGTH} karakter.`;
-  const s = estimatePasswordStrength(password);
-  if (s.bits < MASTER_MIN_BITS)
-    return s.issues[0] ?? 'Terlalu mudah ditebak. Panjangkan atau pakai frasa 5 kata.';
-  return null;
 }

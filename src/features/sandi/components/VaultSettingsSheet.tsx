@@ -6,7 +6,8 @@ import { Sheet } from '@/components/ui/Sheet';
 import { toast } from '@/components/ui/toast-store';
 import { focusField } from '@/lib/focus';
 import { changePassword, rotateRecoveryKey, type KeyRecord, type NewVault } from '../crypto';
-import { estimatePasswordStrength, masterPasswordProblem } from '../generator';
+import { masterPasswordProblem, userInputsFromEmail } from '../master-password';
+import { useMasterStrength } from '../useMasterStrength';
 import { AUTO_LOCK_OPTIONS, useSandiStore, type AutoLockMinutes } from '../sandi-store';
 import { PasswordField } from './PasswordField';
 import { RecoveryKeyPanel } from './RecoveryKeyPanel';
@@ -131,6 +132,7 @@ function Body({
       <ChangePasswordForm
         record={record}
         userId={userId}
+        email={email}
         onBack={() => setView('main')}
         onReady={(vault) => {
           setPending({ vault, what: 'Master password diganti' });
@@ -222,11 +224,13 @@ function Body({
 function ChangePasswordForm({
   record,
   userId,
+  email,
   onBack,
   onReady,
 }: {
   record: KeyRecord;
   userId: string;
+  email: string | null | undefined;
   onBack: () => void;
   onReady: (vault: NewVault) => void;
 }) {
@@ -235,13 +239,14 @@ function ChangePasswordForm({
   const [confirm, setConfirm] = useState('');
   const [errors, setErrors] = useState<{ old?: string; pw?: string; confirm?: string }>({});
   const [busy, setBusy] = useState(false);
-  const strength = estimatePasswordStrength(pw);
+  const inputs = userInputsFromEmail(email);
+  const strength = useMasterStrength(pw, inputs);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const next: typeof errors = {};
     if (!oldPw) next.old = 'Masukkan master password saat ini.';
-    const problem = masterPasswordProblem(pw);
+    const problem = await masterPasswordProblem(pw, inputs);
     if (problem) next.pw = problem;
     else if (pw !== confirm) next.confirm = 'Konfirmasi tidak sama.';
     setErrors(next);
@@ -286,7 +291,7 @@ function ChangePasswordForm({
         onChange={(e) => setPw(e.target.value)}
         error={errors.pw}
       />
-      {pw && <StrengthMeter strength={strength} issues={strength.issues} />}
+      {strength && <StrengthMeter strength={strength} issues={strength.issues} />}
       <PasswordField
         id="set-confirm"
         label="Ulangi master password baru"

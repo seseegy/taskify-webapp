@@ -14,12 +14,9 @@ import { toast } from '@/components/ui/toast-store';
 import { focusField } from '@/lib/focus';
 import { cn } from '@/lib/utils';
 import { createVault, type NewVault } from '../crypto';
-import {
-  DEFAULT_PASSPHRASE_OPTIONS,
-  estimatePasswordStrength,
-  generatePassphrase,
-  masterPasswordProblem,
-} from '../generator';
+import { DEFAULT_PASSPHRASE_OPTIONS, generatePassphrase } from '../generator';
+import { masterPasswordProblem, userInputsFromEmail } from '../master-password';
+import { useMasterStrength } from '../useMasterStrength';
 import { PasswordField } from './PasswordField';
 import { RecoveryKeyPanel } from './RecoveryKeyPanel';
 import { StrengthMeter } from './StrengthMeter';
@@ -89,7 +86,8 @@ export function SetupWizard({
     headingRef.current?.focus();
   }, [step]);
 
-  const strength = estimatePasswordStrength(password);
+  const inputs = userInputsFromEmail(email);
+  const strength = useMasterStrength(password, inputs);
 
   const suggest = async () => {
     const { EFF_WORDLIST } = await import('../eff-wordlist');
@@ -98,7 +96,9 @@ export function SetupWizard({
 
   const submitPassword = async (e: FormEvent) => {
     e.preventDefault();
-    const problem = masterPasswordProblem(password);
+    setBusy(true);
+    const problem = await masterPasswordProblem(password, inputs);
+    setBusy(false);
     if (problem) {
       setError({ field: 'pw', message: problem });
       return focusField('sandi-new');
@@ -232,7 +232,7 @@ export function SetupWizard({
             error={error?.field === 'pw' ? error.message : null}
             autoFocus
           />
-          {password && <StrengthMeter strength={strength} issues={strength.issues} />}
+          {strength && <StrengthMeter strength={strength} issues={strength.issues} />}
 
           <div className="rounded-2xl p-3.5 glass">
             {suggestion ? (

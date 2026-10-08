@@ -15,7 +15,6 @@ import {
   estimatePasswordStrength,
   generatePassphrase,
   generatePassword,
-  masterPasswordProblem,
   passphraseEntropy,
   passwordEntropy,
   randomInt,
@@ -216,18 +215,10 @@ describe('entropi & kekuatan', () => {
   });
 });
 
-describe('estimatePasswordStrength & syarat master password', () => {
-  it('menolak yang umum, pendek, berpola, dan berulang', () => {
-    for (const bad of [
-      'password123',
-      'Qwerty123',
-      'abcdefghijkl',
-      '1234567890123',
-      'aaaaaaaaaaaaaaaa',
-      'Rosyid2026',
-      'Abc123!',
-    ]) {
-      expect(masterPasswordProblem(bad), bad).not.toBeNull();
+describe('estimatePasswordStrength (heuristik cepat, bukan gerbang master password)', () => {
+  it('menandai yang umum, berpola, dan berulang sebagai lemah', () => {
+    for (const bad of ['password123', 'abcdefghijkl', '1234567890123', 'aaaaaaaaaaaaaaaa']) {
+      expect(estimatePasswordStrength(bad).bits, bad).toBeLessThan(40);
     }
   });
 
@@ -236,28 +227,9 @@ describe('estimatePasswordStrength & syarat master password', () => {
     expect(estimatePasswordStrength('Rosyid2026').bits).toBeLessThanOrEqual(30);
   });
 
-  it('menerima frasa 5 kata dan sandi acak panjang', () => {
-    expect(masterPasswordProblem('kuda biru minum kopi pagi')).toBeNull();
-    expect(masterPasswordProblem('kuda-biru-minum-kopi-pagi')).toBeNull();
-    expect(masterPasswordProblem(generatePassword(opts({ length: 16 })))).toBeNull();
-  });
-
-  it('frasa 3 kata terlalu lemah; kata yang diulang tidak dihitung dua kali', () => {
-    expect(masterPasswordProblem('kuda biru minum')).not.toBeNull();
+  it('kata yang diulang tidak dihitung dua kali', () => {
     expect(estimatePasswordStrength('kopi kopi kopi kopi kopi').bits).toBeLessThan(
       estimatePasswordStrength('kuda biru minum kopi pagi').bits,
     );
-  });
-
-  it('frasa yang dibuat generator selalu lolos syarat master password', () => {
-    for (let i = 0; i < 50; i++) {
-      const p = generatePassphrase({ ...DEFAULT_PASSPHRASE_OPTIONS, words: 5 }, EFF_WORDLIST);
-      expect(masterPasswordProblem(p), p).toBeNull();
-    }
-  });
-
-  it('pesan masalah berisi petunjuk yang bisa ditindaklanjuti', () => {
-    expect(masterPasswordProblem('pendek')).toMatch(/12 karakter/);
-    expect(masterPasswordProblem('')).toMatch(/12 karakter/);
   });
 });

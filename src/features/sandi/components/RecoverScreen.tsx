@@ -6,7 +6,8 @@ import { FieldError } from '@/components/ui/FieldError';
 import { Input, Label } from '@/components/ui/Input';
 import { focusField } from '@/lib/focus';
 import type { NewVault } from '../crypto';
-import { estimatePasswordStrength, masterPasswordProblem } from '../generator';
+import { masterPasswordProblem, userInputsFromEmail } from '../master-password';
+import { useMasterStrength } from '../useMasterStrength';
 import { PasswordField } from './PasswordField';
 import { RecoveryKeyPanel } from './RecoveryKeyPanel';
 import { StrengthMeter } from './StrengthMeter';
@@ -39,13 +40,14 @@ export function RecoverScreen({
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
-  const strength = estimatePasswordStrength(password);
+  const inputs = userInputsFromEmail(email);
+  const strength = useMasterStrength(password, inputs);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const next: typeof errors = {};
     if (!key.trim()) next.key = 'Masukkan kunci pemulihan.';
-    const problem = masterPasswordProblem(password);
+    const problem = await masterPasswordProblem(password, inputs);
     if (problem) next.pw = problem;
     else if (password !== confirm) next.confirm = 'Konfirmasi tidak sama dengan master password.';
     setErrors(next);
@@ -155,7 +157,7 @@ export function RecoverScreen({
           }}
           error={errors.pw}
         />
-        {password && <StrengthMeter strength={strength} issues={strength.issues} />}
+        {strength && <StrengthMeter strength={strength} issues={strength.issues} />}
 
         <PasswordField
           id="sandi-confirm"
