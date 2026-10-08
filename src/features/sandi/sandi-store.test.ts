@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLIPBOARD_CLEAR_MS, clearClipboardNow, copySecret } from './clipboard';
-import { shouldLock, useSandiStore, type LockCheck } from './sandi-store';
+import { shouldLock, shouldLockOnAuthChange, useSandiStore, type LockCheck } from './sandi-store';
 
 function stubClipboard(opts: { readable?: boolean; failWrite?: boolean } = {}) {
   let content = '';
@@ -141,5 +141,24 @@ describe('stempel kunci (deteksi DEK usang)', () => {
     expect(useSandiStore.getState().rekeying).toBe(true);
     useSandiStore.getState().setRekeying(false);
     expect(useSandiStore.getState().rekeying).toBe(false);
+  });
+});
+
+describe('shouldLockOnAuthChange', () => {
+  it('keluar (sesi hilang) mengunci', () => {
+    expect(shouldLockOnAuthChange('user-a', null)).toBe(true);
+  });
+
+  it('akun lain masuk di tab yang sama mengunci', () => {
+    expect(shouldLockOnAuthChange('user-a', 'user-b')).toBe(true);
+  });
+
+  it('refresh token / sesi yang sama tidak mengunci', () => {
+    expect(shouldLockOnAuthChange('user-a', 'user-a')).toBe(false);
+  });
+
+  it('belum ada akun sebelumnya (INITIAL_SESSION, belum login) tidak mengunci', () => {
+    expect(shouldLockOnAuthChange(null, 'user-a')).toBe(false);
+    expect(shouldLockOnAuthChange(null, null)).toBe(false);
   });
 });

@@ -44,6 +44,20 @@ export function shouldLock(c: LockCheck): boolean {
   return c.now - c.lastActivity >= limit;
 }
 
+/**
+ * Kunci brankas bila akun berubah: keluar (sesi hilang dari mana pun: tombol Keluar, sesi dicabut
+ * dari perangkat lain, refresh token gagal) atau akun lain masuk di tab yang sama. Tanpa ini
+ * DEK akun sebelumnya tetap di memori karena AppShell (dan timer kunci otomatisnya) sudah
+ * di-unmount saat layar login tampil. Refresh token milik akun yang sama TIDAK mengunci.
+ */
+export function shouldLockOnAuthChange(
+  previousUserId: string | null,
+  nextUserId: string | null,
+): boolean {
+  if (previousUserId === null) return false; // belum ada akun sebelumnya (mis. INITIAL_SESSION)
+  return nextUserId !== previousUserId;
+}
+
 interface SandiState {
   dek: CryptoKey | null;
   /**
