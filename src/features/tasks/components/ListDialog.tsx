@@ -7,6 +7,7 @@ import type { TaskList } from '@/db/schema';
 import { cn } from '@/lib/utils';
 import { useTaskActions } from '../task-actions';
 import { LIST_COLORS, type ListColor } from '../task-utils';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 interface Props {
   open: boolean;
@@ -37,8 +38,12 @@ function ListDialogInner({ open, onClose, list, onCreated, onDeleted }: Props) {
 
   const remove = async () => {
     if (!list) return;
-    if (!window.confirm(`Hapus daftar "${list.name}"? Tugas di dalamnya pindah ke "Tanpa daftar".`))
-      return;
+    const ok = await askConfirm({
+      title: `Hapus daftar "${list.name}"?`,
+      description: 'Tugas di dalamnya pindah ke "Tanpa daftar", tidak terhapus.',
+      confirmLabel: 'Hapus daftar',
+    });
+    if (!ok) return;
     await actions.removeList(list.id);
     onDeleted?.();
     onClose();

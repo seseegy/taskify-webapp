@@ -13,6 +13,7 @@ import { EntityIcon } from '@/features/entities/EntityChip';
 import { localeId, parseTimestamp } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { TRASH_RETENTION_DAYS, useTrashActions, type TrashType } from './trash-actions';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 interface TrashRow {
   type: TrashType;
@@ -45,8 +46,11 @@ export function TrashPage() {
   const [now] = useState(() => Date.now());
 
   const emptyAll = async () => {
-    if (!window.confirm(`Hapus permanen ${rows.length} item? Tindakan ini tidak bisa dibatalkan.`))
-      return;
+    const ok = await askConfirm({
+      title: `Hapus permanen ${rows.length} item?`,
+      confirmLabel: 'Hapus permanen',
+    });
+    if (!ok) return;
     for (const type of [
       'task',
       'journal_entry',
@@ -132,9 +136,15 @@ export function TrashPage() {
                       variant="ghost"
                       className="text-danger"
                       aria-label={`Hapus permanen ${r.title}`}
-                      onClick={() => {
-                        if (window.confirm('Hapus permanen?')) void actions.destroy(r.type, [r.id]);
-                      }}
+                      onClick={() =>
+                        void (async () => {
+                          const ok = await askConfirm({
+                            title: `Hapus permanen "${r.title}"?`,
+                            confirmLabel: 'Hapus permanen',
+                          });
+                          if (ok) await actions.destroy(r.type, [r.id]);
+                        })()
+                      }
                     >
                       <Trash2 />
                     </Button>

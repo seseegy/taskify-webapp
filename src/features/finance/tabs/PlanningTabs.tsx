@@ -46,6 +46,7 @@ import {
 } from '../finance-queries';
 import { DueRecurring } from './OverviewTab';
 import { useToday } from '@/lib/useToday';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 // ============================================================================ Anggaran
 export function BudgetTab({ month }: { month: LocalDate }) {
@@ -309,10 +310,16 @@ export function DebtTab() {
                       variant="ghost"
                       aria-label="Hapus"
                       className="text-danger"
-                      onClick={() => {
-                        if (window.confirm('Hapus catatan ini beserta transaksi dompet terkait?'))
-                          void actions.removeDebt(d);
-                      }}
+                      onClick={() =>
+                        void (async () => {
+                          const ok = await askConfirm({
+                            title: 'Hapus catatan ini?',
+                            description: 'Transaksi dompet yang terkait ikut terhapus.',
+                            confirmLabel: 'Hapus',
+                          });
+                          if (ok) await actions.removeDebt(d);
+                        })()
+                      }
                     >
                       <Trash2 />
                     </Button>

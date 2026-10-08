@@ -13,6 +13,7 @@ import type { WalletWithBalance } from '../finance-queries';
 import { CategoryIcon } from './CategoryIcon';
 import { MoneyInput } from './MoneyInput';
 import { ColorPicker, IconPicker } from './Pickers';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 // ------------------------------------------------------------------ Dompet
 export function WalletDialog({
@@ -67,7 +68,12 @@ function WalletForm({
   };
 
   const remove = async () => {
-    if (!wallet || !window.confirm(`Hapus dompet "${wallet.name}"?`)) return;
+    if (!wallet) return;
+    const ok = await askConfirm({
+      title: `Hapus dompet "${wallet.name}"?`,
+      confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
     await actions.removeWallet(wallet.id);
     onClose();
   };
@@ -185,10 +191,14 @@ function CategoryForm({
 
   const remove = async () => {
     if (!category) return;
-    const msg = category.tx_count
-      ? `Hapus kategori "${category.name}"? ${category.tx_count} transaksi lama tetap menyimpan nama kategori ini.`
-      : `Hapus kategori "${category.name}"?`;
-    if (!window.confirm(msg)) return;
+    const ok = await askConfirm({
+      title: `Hapus kategori "${category.name}"?`,
+      description: category.tx_count
+        ? `${category.tx_count} transaksi lama tetap menyimpan nama kategori ini.`
+        : undefined,
+      confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
     await actions.removeCategory(category.id);
     onClose();
   };

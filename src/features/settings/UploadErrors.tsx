@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/toast-store';
 import { useDatabase } from '@/db/database-context';
 import { APP_TIMEZONE } from '@/lib/date';
 import { explainErrorCode } from './upload-errors';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 interface UploadErrorRow {
   id: string;
@@ -74,12 +75,12 @@ export function UploadErrors() {
   };
 
   const clear = async () => {
-    if (
-      !window.confirm(
-        `Hapus ${data.length} catatan perubahan yang ditolak? Isinya tidak bisa dipulihkan.`,
-      )
-    )
-      return;
+    const ok = await askConfirm({
+      title: `Hapus ${data.length} catatan perubahan yang ditolak?`,
+      description: 'Isinya tidak bisa dipulihkan. Salin dulu kalau ada yang ingin diselamatkan.',
+      confirmLabel: 'Hapus',
+    });
+    if (!ok) return;
     await powerSync.execute('DELETE FROM upload_errors');
   };
 

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Input, Label } from '@/components/ui/Input';
 import { useLockStore } from '@/features/lock/lock-store';
 import { AUTO_LOCK_OPTIONS, createLockConfig, isValidPin } from '@/features/lock/pin';
+import { askConfirm } from '@/components/ui/confirm-store';
 
 const AUTO_LOCK_LABEL: Record<number, string> = {
   0: 'Segera',
@@ -132,9 +133,17 @@ export function PinSettings() {
         <Button
           variant="ghost"
           className="text-danger"
-          onClick={() => {
-            if (confirm_('Matikan kunci PIN di perangkat ini?')) setConfig(null);
-          }}
+          onClick={() =>
+            void (async () => {
+              const ok = await askConfirm({
+                title: 'Matikan kunci PIN di perangkat ini?',
+                description:
+                  'Aplikasi tidak lagi meminta PIN saat dibuka. Brankas Sandi tetap memakai master password-nya sendiri.',
+                confirmLabel: 'Matikan',
+              });
+              if (ok) setConfig(null);
+            })()
+          }
         >
           <ShieldOff /> Matikan
         </Button>
@@ -142,5 +151,3 @@ export function PinSettings() {
     </div>
   );
 }
-
-const confirm_ = (message: string) => window.confirm(message);
