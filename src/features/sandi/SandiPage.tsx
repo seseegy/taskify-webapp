@@ -11,6 +11,7 @@ import {
   SlidersHorizontal,
   Star,
   TriangleAlert,
+  X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -101,6 +102,51 @@ export function SandiPage() {
         </>
       )}
     </>
+  );
+}
+
+/**
+ * Kolom pencarian dengan tombol hapus milik sendiri.
+ *
+ * Sengaja `type="text"`, bukan `type="search"`: tombol ✕ bawaan `type="search"` hanya ada di
+ * WebKit, bentuknya tidak bisa diatur, dan warnanya abu-abu pucat. Pembungkusnya `<div>`,
+ * bukan `<label>`, supaya tombol ✕ tidak bersarang di dalam label (kontrol di dalam label
+ * membingungkan pembaca layar); nama kolom tetap ada lewat `aria-label`.
+ */
+function SearchField({
+  value,
+  onChange,
+  placeholder,
+  label,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  label: string;
+}) {
+  return (
+    <div className="flex h-11 min-w-0 basis-full items-center gap-2 rounded-xl px-3 glass sm:flex-1 sm:basis-0">
+      <Search className="size-4 shrink-0 text-muted" aria-hidden="true" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        autoComplete="off"
+        className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
+      />
+      {value !== '' && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="Hapus pencarian"
+          className="-mr-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-surface hover:text-fg"
+        >
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -380,18 +426,12 @@ function UnlockedVault({ dek, keyRow }: { dek: CryptoKey; keyRow: PwKeys }) {
       {/* ------------------------------------------------------------ toolbar */}
       {/* HP: pencarian satu baris penuh, lalu filter di kiri dan aksi di kanan. sm+: satu baris. */}
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-11 min-w-0 basis-full items-center gap-2 rounded-xl px-3 glass sm:flex-1 sm:basis-0">
-          <Search className="size-4 shrink-0 text-muted" aria-hidden="true" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari judul, situs, atau username"
-            aria-label="Cari sandi"
-            autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
-          />
-        </label>
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Cari judul, situs, atau username"
+          label="Cari sandi"
+        />
         <div className="flex flex-1 items-center justify-between gap-2 sm:flex-none">
           <Button
             variant={onlyFavorites ? 'primary' : 'secondary'}
@@ -567,18 +607,12 @@ function CodesVault({
   return (
     <div className="max-w-3xl space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-11 min-w-0 basis-full items-center gap-2 rounded-xl px-3 glass sm:flex-1 sm:basis-0">
-          <Search className="size-4 shrink-0 text-muted" aria-hidden="true" />
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari akun"
-            aria-label="Cari kode"
-            autoComplete="off"
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted/70"
-          />
-        </label>
+        <SearchField
+          value={search}
+          onChange={setSearch}
+          placeholder="Cari akun"
+          label="Cari kode"
+        />
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="secondary" onClick={() => setHistory(true)}>
             <History aria-hidden="true" /> <span className="hidden sm:inline">Riwayat</span>

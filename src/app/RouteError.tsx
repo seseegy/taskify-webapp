@@ -1,4 +1,5 @@
 import { TriangleAlert } from 'lucide-react';
+import { Disclosure } from '@/components/ui/Disclosure';
 import { isRouteErrorResponse, Link, useRouteError } from 'react-router';
 import { SplashScreen } from '@/components/layout/SplashScreen';
 import { Button } from '@/components/ui/Button';
@@ -48,10 +49,9 @@ export function RouteError({ fatal = false }: { fatal?: boolean }) {
           </Link>
         </div>
         {detail && (
-          <details className="mt-4 text-xs text-muted">
-            <summary className="cursor-pointer">Detail teknis</summary>
+          <Disclosure className="mt-4 text-xs text-muted" summary="Detail teknis">
             <code className="mt-1 block break-words">{detail}</code>
-          </details>
+          </Disclosure>
         )}
       </EmptyState>
     </Card>

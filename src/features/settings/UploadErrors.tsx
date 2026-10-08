@@ -1,4 +1,5 @@
 import { useQuery } from '@powersync/react';
+import { Disclosure } from '@/components/ui/Disclosure';
 import { Copy, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { toast } from '@/components/ui/toast-store';
@@ -83,10 +84,11 @@ export function UploadErrors() {
   };
 
   return (
-    <details className="mt-3 rounded-xl p-3 text-sm glass">
-      <summary className="cursor-pointer font-semibold">
-        Lihat perubahan yang ditolak ({data.length})
-      </summary>
+    <Disclosure
+      className="mt-3 rounded-xl p-3 text-sm glass"
+      summaryClassName="font-semibold"
+      summary={`Lihat perubahan yang ditolak (${data.length})`}
+    >
       <p className="mt-2 text-xs text-muted">
         Perubahan ini tidak masuk ke server dan mungkin tidak terlihat lagi di aplikasi. Salin
         detailnya jika ada isi yang ingin diselamatkan.
@@ -115,6 +117,6 @@ export function UploadErrors() {
           <Trash2 /> Bersihkan daftar
         </Button>
       </div>
-    </details>
+    </Disclosure>
   );
 }

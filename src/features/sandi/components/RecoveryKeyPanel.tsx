@@ -1,4 +1,5 @@
 import { Download, Info, TriangleAlert } from 'lucide-react';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Button } from '@/components/ui/Button';
 import { saveBlob } from '@/lib/files';
 import { recoveryFileText } from '../recovery-file';
@@ -74,12 +75,7 @@ export function RecoveryKeyPanel({
       </p>
 
       <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl p-2 hover:bg-surface">
-        <input
-          type="checkbox"
-          checked={confirmed}
-          onChange={(e) => onConfirmedChange(e.target.checked)}
-          className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]"
-        />
+        <Checkbox checked={confirmed} onChange={onConfirmedChange} className="mt-0.5" />
         <span className="text-sm font-semibold">
           Saya sudah menyimpan kunci pemulihan ini di tempat yang aman
         </span>

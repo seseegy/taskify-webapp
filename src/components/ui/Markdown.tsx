@@ -76,7 +76,7 @@ export function Markdown({ children, className, onToggleTask }: Props) {
           {...p}
           disabled={!onToggleTask}
           readOnly
-          className="mt-1 size-4 shrink-0 cursor-pointer accent-violet-500"
+          className="md-task-checkbox mt-1 size-4 shrink-0 cursor-pointer"
         />
       ) : (
         <input {...p} />
