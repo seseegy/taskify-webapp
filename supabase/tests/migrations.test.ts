@@ -459,6 +459,21 @@ describe('Sandi · pw_keys & pw_items', () => {
     }
   });
 
+  it('pw_keys tidak bisa DIHAPUS lewat API, bahkan oleh pemiliknya (pw_items tetap bisa)', async () => {
+    const [k] = await rows<{ id: string }>(`SELECT id FROM public.pw_keys WHERE user_id = $1`, [
+      alice,
+    ]);
+    await expect(
+      asUser(alice, () => pg.query(`DELETE FROM public.pw_keys WHERE id = $1`, [k!.id])),
+    ).rejects.toThrow(/permission denied/i);
+    expect(await rows(`SELECT 1 FROM public.pw_keys WHERE id = $1`, [k!.id])).toHaveLength(1);
+
+    const id = await uuid();
+    await asUser(alice, () => item(id));
+    await asUser(alice, () => pg.query(`DELETE FROM public.pw_items WHERE id = $1`, [id]));
+    expect(await rows(`SELECT 1 FROM public.pw_items WHERE id = $1`, [id])).toEqual([]);
+  });
+
   it('pemilik boleh mengganti password (UPDATE pw_keys) — updated_at diperbarui trigger', async () => {
     const [before] = await rows<{ id: string; updated_at: Date }>(
       `SELECT id, updated_at FROM public.pw_keys WHERE user_id = $1`,

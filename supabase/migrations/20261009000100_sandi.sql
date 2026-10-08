@@ -63,7 +63,15 @@ begin
     execute format('alter table public.%I enable row level security', t);
     execute format('alter table public.%I force row level security', t);
     execute format('revoke all on public.%I from anon', t);
-    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+    -- pw_keys TIDAK pernah dihapus oleh aplikasi; tanpa DELETE, sesi pemilik yang bocor (atau
+    -- klien yang rusak) tidak bisa membuat brankas jadi tak terpulihkan dengan satu perintah.
+    -- Baris hilang hanya lewat ON DELETE CASCADE saat akun dihapus. UPDATE tetap perlu
+    -- (ganti master password); perlindungannya adalah backup/PITR Supabase.
+    if t = 'pw_keys' then
+      execute format('grant select, insert, update on public.%I to authenticated', t);
+    else
+      execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+    end if;
 
     execute format(
       'create policy "owner_select" on public.%I for select to authenticated
@@ -75,9 +83,11 @@ begin
       'create policy "owner_update" on public.%I for update to authenticated
          using ((select auth.uid()) = user_id)
          with check ((select auth.uid()) = user_id)', t);
-    execute format(
-      'create policy "owner_delete" on public.%I for delete to authenticated
-         using ((select auth.uid()) = user_id)', t);
+    if t <> 'pw_keys' then
+      execute format(
+        'create policy "owner_delete" on public.%I for delete to authenticated
+           using ((select auth.uid()) = user_id)', t);
+    end if;
 
     -- PowerSync: event DELETE harus membawa seluruh baris (lihat migrasi publication)
     execute format('alter table public.%I replica identity full', t);
