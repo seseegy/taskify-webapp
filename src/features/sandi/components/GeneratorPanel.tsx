@@ -232,7 +232,7 @@ export function GeneratorPanel({
                 onChange={(e) =>
                   change({ ...prefs, password: { ...pw, length: Number(e.target.value) } })
                 }
-                className="h-8 w-full cursor-pointer accent-[var(--primary)]"
+                className="h-8 w-full"
               />
             </div>
 
@@ -312,7 +312,7 @@ export function GeneratorPanel({
                 onChange={(e) =>
                   change({ ...prefs, passphrase: { ...ph, words: Number(e.target.value) } })
                 }
-                className="h-8 w-full cursor-pointer accent-[var(--primary)]"
+                className="h-8 w-full"
               />
             </div>
 

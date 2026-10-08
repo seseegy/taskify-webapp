@@ -1,4 +1,5 @@
 import { Trash2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/Button';
 import { FieldError } from '@/components/ui/FieldError';
@@ -139,7 +140,7 @@ function BudgetForm({
           step={5}
           value={alertPct}
           onChange={(e) => setAlertPct(Number(e.target.value))}
-          className="w-full accent-violet-500"
+          className="h-8 w-full"
         />
       </div>
       <p className="text-xs text-muted">Berlaku mulai bulan ini dan seterusnya.</p>
@@ -365,12 +366,7 @@ function RecurringForm({ item, onClose }: { item: RecurringRow | null; onClose: 
         </FieldError>
       </div>
       <label className="flex cursor-pointer items-start gap-3 rounded-xl p-3 glass">
-        <input
-          type="checkbox"
-          checked={autoPost}
-          onChange={(e) => setAutoPost(e.target.checked)}
-          className="mt-0.5 size-4 accent-violet-500"
-        />
+        <Checkbox checked={autoPost} onChange={setAutoPost} className="mt-0.5" />
         <span className="text-sm">
           <span className="font-semibold">Catat otomatis</span>
           <span className="block text-xs text-muted">
