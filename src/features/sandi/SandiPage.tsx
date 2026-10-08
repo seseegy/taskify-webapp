@@ -134,7 +134,7 @@ function VaultTab() {
                   ok: false,
                   message: 'Kunci pemulihan salah atau salah ketik. Periksa lagi.',
                 };
-              await actions.replaceKey(row.id, vault.record);
+              // Belum disimpan: RecoverScreen menyimpan setelah pengguna mengonfirmasi kunci baru.
               return { ok: true, vault };
             } catch (err) {
               return {
@@ -143,7 +143,8 @@ function VaultTab() {
               };
             }
           }}
-          onFinished={(vault: NewVault) => {
+          onFinished={async (vault: NewVault) => {
+            await actions.replaceKey(row.id, vault.record);
             setRecovering(false);
             unlock(vault.dek);
           }}

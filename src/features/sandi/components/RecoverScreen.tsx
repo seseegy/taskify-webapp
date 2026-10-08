@@ -14,8 +14,9 @@ import { StrengthMeter } from './StrengthMeter';
 export type RecoverResult = { ok: true; vault: NewVault } | { ok: false; message: string };
 
 /**
- * Lupa master password: kunci pemulihan + master password baru. Kunci pemulihan LAMA dicabut dan
- * kunci baru ditampilkan; brankas baru terbuka setelah pengguna menyimpannya (`onFinished`).
+ * Lupa master password: kunci pemulihan + master password baru. `onRecover` HANYA menurunkan kunci
+ * baru di memori; perubahan baru disimpan (`onFinished`) setelah pengguna mengonfirmasi sudah
+ * menyimpan kunci pemulihan yang baru. Jika tab ditutup sebelum itu, kunci lama tetap berlaku.
  */
 export function RecoverScreen({
   email,
@@ -26,7 +27,7 @@ export function RecoverScreen({
   email: string | null | undefined;
   onRecover: (recoveryKey: string, newPassword: string) => Promise<RecoverResult>;
   onCancel: () => void;
-  onFinished: (vault: NewVault) => void;
+  onFinished: (vault: NewVault) => Promise<void>;
 }) {
   const [key, setKey] = useState('');
   const [password, setPassword] = useState('');
@@ -35,6 +36,8 @@ export function RecoverScreen({
   const [busy, setBusy] = useState(false);
   const [vault, setVault] = useState<NewVault | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
 
   const strength = estimatePasswordStrength(password);
 
@@ -60,13 +63,25 @@ export function RecoverScreen({
     }
   };
 
+  const finish = async (v: NewVault) => {
+    setSaving(true);
+    setFailure(null);
+    try {
+      await onFinished(v);
+    } catch (err) {
+      setFailure(err instanceof Error ? err.message : 'Gagal menyimpan perubahan.');
+      setSaving(false);
+    }
+  };
+
   if (vault) {
     return (
       <Card className="mx-auto w-full max-w-xl animate-fade-up space-y-4 p-5 sm:p-7">
         <div>
           <h2 className="text-xl font-extrabold tracking-tight">Master password diganti</h2>
           <p className="mt-1.5 text-sm text-muted">
-            Kunci pemulihan yang lama sudah <strong>tidak berlaku</strong>. Simpan yang baru ini.
+            Kunci pemulihan yang lama akan <strong>tidak berlaku</strong> setelah kamu menyimpan
+            perubahan. Simpan kunci yang baru ini dulu.
           </p>
         </div>
         <RecoveryKeyPanel
@@ -75,13 +90,19 @@ export function RecoverScreen({
           confirmed={confirmed}
           onConfirmedChange={setConfirmed}
         />
+        {failure && (
+          <p role="alert" className="text-sm font-medium text-danger">
+            {failure}
+          </p>
+        )}
         <Button
           className="w-full"
           size="lg"
           disabled={!confirmed}
-          onClick={() => onFinished(vault)}
+          loading={saving}
+          onClick={() => void finish(vault)}
         >
-          Selesai & buka brankas
+          Simpan & buka brankas
         </Button>
       </Card>
     );
