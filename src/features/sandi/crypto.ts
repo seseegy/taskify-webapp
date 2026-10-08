@@ -328,7 +328,15 @@ export async function unlockWithRecoveryKey(
   }
 }
 
-export type RewrittenVault = NewVault;
+/**
+ * Hasil mengganti master password / kunci pemulihan. `dek` adalah kunci data BARU (selalu dibuat
+ * ulang) dan `previousDek` yang lama: semua item HARUS dienkripsi ulang dari `previousDek` ke `dek`
+ * (lihat `reencryptItems`) sebelum record baru dianggap berlaku. Tanpa itu, kunci/sandi lama
+ * bersama salinan `pw_keys` lama (backup, ekspor) tetap bisa membuka seluruh isi brankas.
+ */
+export interface RewrittenVault extends NewVault {
+  previousDek: CryptoKey;
+}
 
 /**
  * Ganti master password. DEK tetap sama → semua item tetap terbaca tanpa dienkripsi ulang.
@@ -369,18 +377,22 @@ export async function rotateRecoveryKey(
   return rewrap(raw, password, userId, opts);
 }
 
+/** Membuka DEK lama dengan `oldRaw`, lalu membungkus DEK BARU (acak) dengan sandi/kunci pemulihan baru. */
 async function rewrap(
-  raw: Uint8Array<ArrayBuffer> | null,
+  oldRaw: Uint8Array<ArrayBuffer> | null,
   newPassword: string,
   userId: string,
   opts: KdfOptions,
 ): Promise<RewrittenVault | null> {
-  if (!raw) return null;
+  if (!oldRaw) return null;
+  const newRaw = randomBytes(DEK_BYTES);
   try {
-    const { record, recoveryKey } = await wrapBoth(raw, newPassword, userId, opts);
-    return { record, recoveryKey, dek: await importDek(raw) };
+    const previousDek = await importDek(oldRaw);
+    const { record, recoveryKey } = await wrapBoth(newRaw, newPassword, userId, opts);
+    return { record, recoveryKey, dek: await importDek(newRaw), previousDek };
   } finally {
-    raw.fill(0);
+    oldRaw.fill(0);
+    newRaw.fill(0);
   }
 }
 
@@ -452,4 +464,36 @@ export async function decryptItem(
     if (e instanceof SandiError) throw e;
     throw new SandiError('corrupt', 'Isi item tidak valid.');
   }
+}
+
+// ----------------------------------------------------------------------------- enkripsi ulang
+export interface EncryptedRow {
+  id: string;
+  enc: string;
+}
+
+/**
+ * Enkripsi ulang semua baris dari `from` ke `to`. Baris yang TIDAK bisa dibuka dengan `from`
+ * (dibuat dengan kunci lain / rusak) tidak diubah dan dicatat di `skipped`: sudah tidak terbaca
+ * sebelumnya, dan menimpanya hanya akan menghilangkan satu-satunya salinannya.
+ */
+export async function reencryptItems(
+  rows: EncryptedRow[],
+  from: CryptoKey,
+  to: CryptoKey,
+  userId: string,
+): Promise<{ updated: EncryptedRow[]; skipped: string[] }> {
+  const updated: EncryptedRow[] = [];
+  const skipped: string[] = [];
+  for (const r of rows) {
+    let payload: ItemPayload;
+    try {
+      payload = await decryptItem(from, userId, r.id, r.enc);
+    } catch {
+      skipped.push(r.id);
+      continue;
+    }
+    updated.push({ id: r.id, enc: await encryptItem(to, userId, r.id, payload) });
+  }
+  return { updated, skipped };
 }

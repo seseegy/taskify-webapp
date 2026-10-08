@@ -5,13 +5,18 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
 import { toast } from '@/components/ui/toast-store';
 import { focusField } from '@/lib/focus';
-import { changePassword, rotateRecoveryKey, type KeyRecord, type NewVault } from '../crypto';
+import { changePassword, rotateRecoveryKey, type KeyRecord, type RewrittenVault } from '../crypto';
 import { masterPasswordProblem, userInputsFromEmail } from '../master-password';
 import { useMasterStrength } from '../useMasterStrength';
 import { AUTO_LOCK_OPTIONS, useSandiStore, type AutoLockMinutes } from '../sandi-store';
 import { PasswordField } from './PasswordField';
 import { RecoveryKeyPanel } from './RecoveryKeyPanel';
 import { StrengthMeter } from './StrengthMeter';
+
+type ReplaceVault = (
+  id: string,
+  vault: RewrittenVault,
+) => Promise<{ reencrypted: number; skipped: number }>;
 
 type View = 'main' | 'password' | 'rotate' | 'newkey';
 
@@ -34,7 +39,7 @@ export function VaultSettingsSheet({
   userId,
   keyId,
   record,
-  onReplaceKey,
+  onReplaceVault,
 }: {
   open: boolean;
   onClose: () => void;
@@ -42,7 +47,7 @@ export function VaultSettingsSheet({
   userId: string;
   keyId: string;
   record: KeyRecord;
-  onReplaceKey: (id: string, record: KeyRecord) => Promise<void>;
+  onReplaceVault: ReplaceVault;
 }) {
   return (
     <Sheet open={open} onClose={onClose} title="Pengaturan brankas">
@@ -52,7 +57,7 @@ export function VaultSettingsSheet({
           userId={userId}
           keyId={keyId}
           record={record}
-          onReplaceKey={onReplaceKey}
+          onReplaceVault={onReplaceVault}
           onClose={onClose}
         />
       )}
@@ -65,36 +70,44 @@ function Body({
   userId,
   keyId,
   record,
-  onReplaceKey,
+  onReplaceVault,
   onClose,
 }: {
   email: string | null | undefined;
   userId: string;
   keyId: string;
   record: KeyRecord;
-  onReplaceKey: (id: string, record: KeyRecord) => Promise<void>;
+  onReplaceVault: ReplaceVault;
   onClose: () => void;
 }) {
   const [view, setView] = useState<View>('main');
-  const [pending, setPending] = useState<{ vault: NewVault; what: string } | null>(null);
+  const [pending, setPending] = useState<{ vault: RewrittenVault; what: string } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const autoLock = useSandiStore((s) => s.autoLockMinutes);
   const setAutoLock = useSandiStore((s) => s.setAutoLock);
   const lock = useSandiStore((s) => s.lock);
+  const unlock = useSandiStore((s) => s.unlock);
+  const setRekeying = useSandiStore((s) => s.setRekeying);
 
   const persist = async () => {
     if (!pending) return;
     setSaving(true);
     setFailure(null);
+    // Record kunci berubah SENGAJA dari sini; jangan anggap DEK di memori usang selama proses ini.
+    setRekeying(true);
     try {
-      await onReplaceKey(keyId, pending.vault.record);
+      const { skipped } = await onReplaceVault(keyId, pending.vault);
+      unlock(pending.vault.dek, pending.vault.record.wrapped_key);
       toast(`${pending.what} berhasil`, { tone: 'success' });
+      if (skipped > 0) toast(`${skipped} sandi lama tidak bisa dibuka dan dibiarkan apa adanya.`);
       onClose();
     } catch (err) {
       setFailure(err instanceof Error ? err.message : 'Gagal menyimpan.');
       setSaving(false);
+    } finally {
+      setRekeying(false);
     }
   };
 
@@ -102,8 +115,8 @@ function Body({
     return (
       <div className="space-y-4">
         <p className="text-sm text-muted">
-          Kunci pemulihan yang lama sudah <strong>tidak berlaku</strong>. Simpan yang baru ini lalu
-          konfirmasi.
+          Kunci pemulihan yang lama akan <strong>tidak berlaku</strong> setelah kamu menyimpan
+          perubahan. Simpan yang baru ini lalu konfirmasi.
         </p>
         <RecoveryKeyPanel
           recoveryKey={pending.vault.recoveryKey}
@@ -232,7 +245,7 @@ function ChangePasswordForm({
   userId: string;
   email: string | null | undefined;
   onBack: () => void;
-  onReady: (vault: NewVault) => void;
+  onReady: (vault: RewrittenVault) => void;
 }) {
   const [oldPw, setOldPw] = useState('');
   const [pw, setPw] = useState('');
@@ -273,6 +286,8 @@ function ChangePasswordForm({
     <form onSubmit={(e) => void submit(e)} className="space-y-4" noValidate>
       <p className="text-sm text-muted">
         Setelah diganti kamu akan mendapat <strong>kunci pemulihan baru</strong>; yang lama dicabut.
+        Semua sandi dienkripsi ulang dengan kunci data baru. Perangkat lain akan diminta membuka
+        brankas lagi.
       </p>
       <PasswordField
         id="set-old"
@@ -321,7 +336,7 @@ function RotateForm({
   record: KeyRecord;
   userId: string;
   onBack: () => void;
-  onReady: (vault: NewVault) => void;
+  onReady: (vault: RewrittenVault) => void;
 }) {
   const [pw, setPw] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -352,7 +367,9 @@ function RotateForm({
     <form onSubmit={(e) => void submit(e)} className="space-y-4" noValidate>
       <p className="text-sm text-muted">
         Kunci pemulihan lama akan <strong>dicabut</strong> dan diganti yang baru. Master password
-        tidak berubah.
+        tidak berubah. Semua sandi dienkripsi ulang dengan kunci data baru, jadi kunci lama tidak
+        bisa membuka data saat ini. Cadangan atau ekspor yang dibuat sebelumnya tetap bisa dibuka
+        dengan kunci lamanya.
       </p>
       <PasswordField
         id="set-rotate"

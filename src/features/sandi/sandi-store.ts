@@ -46,10 +46,18 @@ export function shouldLock(c: LockCheck): boolean {
 
 interface SandiState {
   dek: CryptoKey | null;
+  /**
+   * `wrapped_key` dari record kunci yang dipakai membuka `dek`. Bila record di database berubah
+   * (kunci diganti di perangkat lain, DEK dirotasi), `dek` ini sudah usang dan tidak boleh dipakai.
+   */
+  stamp: string | null;
+  /** true selama penggantian kunci dari perangkat ini berlangsung (record berubah SENGAJA). */
+  rekeying: boolean;
   autoLockMinutes: AutoLockMinutes;
   lastActivity: number;
   hiddenAt: number | null;
-  unlock: (dek: CryptoKey) => void;
+  unlock: (dek: CryptoKey, stamp: string) => void;
+  setRekeying: (value: boolean) => void;
   lock: () => void;
   touch: () => void;
   hide: () => void;
@@ -59,13 +67,16 @@ interface SandiState {
 
 export const useSandiStore = create<SandiState>((set, get) => ({
   dek: null,
+  stamp: null,
+  rekeying: false,
   autoLockMinutes: readAutoLock(),
   lastActivity: Date.now(),
   hiddenAt: null,
-  unlock: (dek) => set({ dek, lastActivity: Date.now(), hiddenAt: null }),
+  unlock: (dek, stamp) => set({ dek, stamp, lastActivity: Date.now(), hiddenAt: null }),
+  setRekeying: (rekeying) => set({ rekeying }),
   lock: () => {
     if (!get().dek) return;
-    set({ dek: null, hiddenAt: null });
+    set({ dek: null, stamp: null, hiddenAt: null });
     clearClipboardNow(); // jangan biarkan sandi tertinggal di papan klip setelah dikunci
   },
   touch: () => {

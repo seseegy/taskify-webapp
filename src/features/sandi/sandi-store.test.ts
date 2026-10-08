@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CLIPBOARD_CLEAR_MS, clearClipboardNow, copySecret } from './clipboard';
-import { shouldLock, type LockCheck } from './sandi-store';
+import { shouldLock, useSandiStore, type LockCheck } from './sandi-store';
 
 function stubClipboard(opts: { readable?: boolean; failWrite?: boolean } = {}) {
   let content = '';
@@ -122,5 +122,24 @@ describe('shouldLock', () => {
   it('batas 1 dan 15 menit', () => {
     expect(shouldLock({ ...base, autoLockMinutes: 1, now: base.now + MIN })).toBe(true);
     expect(shouldLock({ ...base, autoLockMinutes: 15, now: base.now + 14 * MIN })).toBe(false);
+  });
+});
+
+describe('stempel kunci (deteksi DEK usang)', () => {
+  const dek = {} as CryptoKey;
+
+  it('unlock menyimpan stempel record; lock menghapus dek dan stempel', () => {
+    useSandiStore.getState().unlock(dek, 'wrapped-1');
+    expect(useSandiStore.getState().stamp).toBe('wrapped-1');
+    useSandiStore.getState().lock();
+    expect(useSandiStore.getState().dek).toBeNull();
+    expect(useSandiStore.getState().stamp).toBeNull();
+  });
+
+  it('flag rekeying bisa dinyalakan dan dimatikan', () => {
+    useSandiStore.getState().setRekeying(true);
+    expect(useSandiStore.getState().rekeying).toBe(true);
+    useSandiStore.getState().setRekeying(false);
+    expect(useSandiStore.getState().rekeying).toBe(false);
   });
 });

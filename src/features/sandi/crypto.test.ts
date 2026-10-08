@@ -11,6 +11,7 @@ import {
   fromB64,
   parsePayload,
   parseRecoveryKey,
+  reencryptItems,
   resetPasswordWithRecovery,
   rotateRecoveryKey,
   SandiError,
@@ -217,18 +218,28 @@ describe('brankas · kunci pemulihan', () => {
 });
 
 describe('brankas · ganti password & pemulihan', () => {
-  it('changePassword: DEK sama (item lama tetap terbaca), password lama mati, pemulihan lama mati', async () => {
+  it('changePassword: DEK BARU; item lama terbaca setelah dienkripsi ulang; password & pemulihan lama mati', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'a', item());
+    const enc0 = await encryptItem(v.dek, USER, 'a', item());
 
     const next = await changePassword(v.record, PASSWORD, 'password-baru-yang-panjang', USER, FAST);
     expect(next).not.toBeNull();
+    const { updated, skipped } = await reencryptItems(
+      [{ id: 'a', enc: enc0 }],
+      next!.previousDek,
+      next!.dek,
+      USER,
+    );
+    expect(skipped).toEqual([]);
+    const enc = updated[0]!.enc;
 
     expect(await unlockWithPassword(next!.record, PASSWORD, USER)).toBeNull(); // lama mati
     expect(await unlockWithRecoveryKey(next!.record, v.recoveryKey, USER)).toBeNull(); // pemulihan lama mati
     const dek = await unlockWithPassword(next!.record, 'password-baru-yang-panjang', USER);
     expect(dek).not.toBeNull();
     expect((await decryptItem(dek!, USER, 'a', enc)).title).toBe('GitHub');
+    // DEK lama TIDAK lagi membuka data yang sudah dienkripsi ulang
+    await expect(decryptItem(v.dek, USER, 'a', enc)).rejects.toBeInstanceOf(SandiError);
     // kunci pemulihan BARU berlaku
     expect(await unlockWithRecoveryKey(next!.record, next!.recoveryKey, USER)).not.toBeNull();
     expect(next!.recoveryKey).not.toBe(v.recoveryKey);
@@ -242,9 +253,9 @@ describe('brankas · ganti password & pemulihan', () => {
     expect(JSON.stringify(v.record)).toBe(before);
   });
 
-  it('lupa password: kunci pemulihan + password baru → item tetap terbaca', async () => {
+  it('lupa password: kunci pemulihan + password baru → item terbaca setelah dienkripsi ulang', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'a', item());
+    const enc0 = await encryptItem(v.dek, USER, 'a', item());
     const next = await resetPasswordWithRecovery(
       v.record,
       v.recoveryKey,
@@ -253,6 +264,8 @@ describe('brankas · ganti password & pemulihan', () => {
       FAST,
     );
     expect(next).not.toBeNull();
+    const enc = (await reencryptItems([{ id: 'a', enc: enc0 }], next!.previousDek, next!.dek, USER))
+      .updated[0]!.enc;
     const dek = await unlockWithPassword(next!.record, 'master-baru-setelah-lupa', USER);
     expect((await decryptItem(dek!, USER, 'a', enc)).username).toBe('rosyid');
     expect(await unlockWithRecoveryKey(next!.record, v.recoveryKey, USER)).toBeNull(); // dicabut
@@ -280,6 +293,85 @@ describe('brankas · ganti password & pemulihan', () => {
     expect(await unlockWithRecoveryKey(next!.record, v.recoveryKey, USER)).toBeNull();
     expect(await unlockWithRecoveryKey(next!.record, next!.recoveryKey, USER)).not.toBeNull();
     expect(await rotateRecoveryKey(v.record, 'salah', USER, FAST)).toBeNull();
+  });
+
+  // Inti temuan review #3: "dicabut" harus berarti kunci lama + salinan pw_keys LAMA tidak bisa
+  // membuka data, termasuk item yang ditulis SETELAH rotasi.
+  it('rotasi kunci pemulihan: kunci lama + record lama TIDAK membuka item (lama maupun baru)', async () => {
+    const v = await setup();
+    const enc0 = await encryptItem(v.dek, USER, 'a', item());
+    const next = await rotateRecoveryKey(v.record, PASSWORD, USER, FAST);
+    const { updated } = await reencryptItems(
+      [{ id: 'a', enc: enc0 }],
+      next!.previousDek,
+      next!.dek,
+      USER,
+    );
+    const encNew = await encryptItem(next!.dek, USER, 'b', item({ title: 'Setelah rotasi' }));
+
+    // penyerang: kunci pemulihan LAMA + salinan record LAMA → mendapat DEK lama
+    const stolen = await unlockWithRecoveryKey(v.record, v.recoveryKey, USER);
+    expect(stolen).not.toBeNull(); // salinan lama memang masih bisa dibuka…
+    await expect(decryptItem(stolen!, USER, 'a', updated[0]!.enc)).rejects.toBeInstanceOf(
+      SandiError,
+    ); // …tetapi isinya sudah tidak terbaca
+    await expect(decryptItem(stolen!, USER, 'b', encNew)).rejects.toBeInstanceOf(SandiError);
+  });
+
+  it('rotasi: DEK selalu baru dan tidak sama dengan yang lama', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'a', item());
+    for (const next of [
+      await rotateRecoveryKey(v.record, PASSWORD, USER, FAST),
+      await changePassword(v.record, PASSWORD, 'password-baru-yang-panjang', USER, FAST),
+      await resetPasswordWithRecovery(
+        v.record,
+        v.recoveryKey,
+        'master-baru-setelah-lupa',
+        USER,
+        FAST,
+      ),
+    ]) {
+      await expect(decryptItem(next!.dek, USER, 'a', enc)).rejects.toBeInstanceOf(SandiError);
+      expect((await decryptItem(next!.previousDek, USER, 'a', enc)).title).toBe('GitHub');
+    }
+  });
+});
+
+describe('reencryptItems', () => {
+  it('mengenkripsi ulang semua, mempertahankan id, dan IV baru', async () => {
+    const a = await setup();
+    const b = await setup();
+    const rows = [
+      { id: 'i1', enc: await encryptItem(a.dek, USER, 'i1', item({ title: 'Satu' })) },
+      { id: 'i2', enc: await encryptItem(a.dek, USER, 'i2', item({ title: 'Dua' })) },
+    ];
+    const { updated, skipped } = await reencryptItems(rows, a.dek, b.dek, USER);
+    expect(skipped).toEqual([]);
+    expect(updated.map((r) => r.id)).toEqual(['i1', 'i2']);
+    expect((await decryptItem(b.dek, USER, 'i1', updated[0]!.enc)).title).toBe('Satu');
+    expect((await decryptItem(b.dek, USER, 'i2', updated[1]!.enc)).title).toBe('Dua');
+    expect(updated[0]!.enc).not.toBe(rows[0]!.enc);
+  });
+
+  it('baris yang tidak bisa dibuka dilewati (tidak ditimpa) dan dilaporkan', async () => {
+    const a = await setup();
+    const foreign = await setup();
+    const b = await setup();
+    const rows = [
+      { id: 'ok', enc: await encryptItem(a.dek, USER, 'ok', item()) },
+      { id: 'asing', enc: await encryptItem(foreign.dek, USER, 'asing', item()) },
+      { id: 'rusak', enc: 'bukan-base64!!' },
+      { id: 'tertukar', enc: await encryptItem(a.dek, USER, 'lain', item()) },
+    ];
+    const { updated, skipped } = await reencryptItems(rows, a.dek, b.dek, USER);
+    expect(updated.map((r) => r.id)).toEqual(['ok']);
+    expect(skipped).toEqual(['asing', 'rusak', 'tertukar']);
+  });
+
+  it('daftar kosong → tidak ada yang diubah', async () => {
+    const a = await setup();
+    expect(await reencryptItems([], a.dek, a.dek, USER)).toEqual({ updated: [], skipped: [] });
   });
 });
 

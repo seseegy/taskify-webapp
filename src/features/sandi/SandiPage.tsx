@@ -10,12 +10,13 @@ import {
   Star,
   TriangleAlert,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { toast } from '@/components/ui/toast-store';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { useUser } from '@/features/auth/auth-context';
 import { cn } from '@/lib/utils';
@@ -26,7 +27,12 @@ import { RecoverScreen, type RecoverResult } from './components/RecoverScreen';
 import { SetupWizard } from './components/SetupWizard';
 import { UnlockScreen } from './components/UnlockScreen';
 import { VaultSettingsSheet } from './components/VaultSettingsSheet';
-import { resetPasswordWithRecovery, SandiError, unlockWithPassword, type NewVault } from './crypto';
+import {
+  resetPasswordWithRecovery,
+  SandiError,
+  unlockWithPassword,
+  type RewrittenVault,
+} from './crypto';
 import {
   toKeyRecord,
   useDecryptedItems,
@@ -81,10 +87,25 @@ function VaultTab() {
   const user = useUser();
   const { row, isLoading } = usePwKey();
   const hasSynced = Boolean(useStatus().hasSynced);
-  const dek = useSandiStore((s) => s.dek);
+  const storedDek = useSandiStore((s) => s.dek);
+  const stamp = useSandiStore((s) => s.stamp);
+  const rekeying = useSandiStore((s) => s.rekeying);
   const unlock = useSandiStore((s) => s.unlock);
   const actions = useSandiActions();
   const [recovering, setRecovering] = useState(false);
+
+  // DEK di memori hanya sah untuk record kunci yang dipakai membukanya. Bila record berubah
+  // (kunci diganti / DEK dirotasi di perangkat lain), DEK itu usang: kunci dan minta buka lagi.
+  const stale = storedDek !== null && row !== null && stamp !== row.wrapped_key && !rekeying;
+  const dek = stale ? null : storedDek;
+  useEffect(() => {
+    if (!stale) return;
+    const s = useSandiStore.getState();
+    if (s.dek && !s.rekeying && s.stamp !== row?.wrapped_key) {
+      s.lock();
+      toast('Kunci brankas diganti di perangkat lain. Buka lagi dengan master password terbaru.');
+    }
+  }, [stale, row?.wrapped_key]);
 
   // Jangan tampilkan "buat brankas" sebelum sinkron pertama selesai: brankas bisa saja sudah ada
   // di server tetapi belum sampai ke perangkat ini.
@@ -109,7 +130,7 @@ function VaultTab() {
         ready={hasSynced}
         onComplete={async (vault) => {
           await actions.createKey(vault.record);
-          unlock(vault.dek);
+          unlock(vault.dek, vault.record.wrapped_key);
         }}
       />
     );
@@ -143,10 +164,12 @@ function VaultTab() {
               };
             }
           }}
-          onFinished={async (vault: NewVault) => {
-            await actions.replaceKey(row.id, vault.record);
+          onFinished={async (vault: RewrittenVault) => {
+            const { skipped } = await actions.replaceVault(row.id, vault);
             setRecovering(false);
-            unlock(vault.dek);
+            unlock(vault.dek, vault.record.wrapped_key);
+            if (skipped > 0)
+              toast(`${skipped} sandi lama tidak bisa dibuka dan dibiarkan apa adanya.`);
           }}
         />
       );
@@ -159,7 +182,7 @@ function VaultTab() {
           try {
             const key = await unlockWithPassword(toKeyRecord(row), password, user.id);
             if (!key) return false;
-            unlock(key);
+            unlock(key, row.wrapped_key);
             return true;
           } catch (err) {
             if (err instanceof SandiError) throw err;
@@ -344,7 +367,7 @@ function UnlockedVault({ dek, keyRow }: { dek: CryptoKey; keyRow: PwKeys }) {
         userId={user.id}
         keyId={keyRow.id}
         record={toKeyRecord(keyRow)}
-        onReplaceKey={actions.replaceKey}
+        onReplaceVault={actions.replaceVault}
       />
     </div>
   );

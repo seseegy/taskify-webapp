@@ -7,7 +7,15 @@ import { softDeleted, touch, withMeta } from '@/db/mutations';
 import { pwItems, pwKeys, type PwItem, type PwKeys } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
 import { newId } from '@/lib/id';
-import { decryptItem, encryptItem, ITEM_VERSION, type ItemPayload, type KeyRecord } from './crypto';
+import {
+  decryptItem,
+  encryptItem,
+  ITEM_VERSION,
+  type ItemPayload,
+  type KeyRecord,
+  type RewrittenVault,
+} from './crypto';
+import { rekeyVaultRows } from './vault-rekey';
 
 // ----------------------------------------------------------------------------- baca
 /** Baris kunci brankas (maks. satu per user). */
@@ -109,12 +117,20 @@ export function useSandiActions() {
         await db.insert(pwKeys).values(withMeta(userId, { ...record }));
       },
 
-      /** Ganti record kunci (ganti master password / kunci pemulihan). Item tidak berubah. */
-      async replaceKey(id: string, record: KeyRecord) {
-        await db
-          .update(pwKeys)
-          .set(touch({ ...record }))
-          .where(eq(pwKeys.id, id));
+      /**
+       * Ganti master password / kunci pemulihan. DEK ikut dibuat baru, jadi SEMUA item
+       * (termasuk yang ada di Sampah) dienkripsi ulang dari DEK lama ke yang baru dalam SATU
+       * transaksi lokal bersama record kuncinya: tidak pernah ada keadaan setengah jadi di
+       * perangkat ini, dan PowerSync mengunggahnya berurutan (kunci dulu, lalu item).
+       *
+       * Item yang sudah tidak bisa dibuka dengan DEK lama dibiarkan apa adanya (jumlahnya
+       * dikembalikan di `skipped`), bukan ditimpa atau dijadikan alasan menolak ganti sandi.
+       */
+      async replaceVault(
+        id: string,
+        vault: RewrittenVault,
+      ): Promise<{ reencrypted: number; skipped: number }> {
+        return db.transaction((tx) => rekeyVaultRows(tx, userId, id, vault));
       },
 
       /** Buat (tanpa id) atau ubah (dengan id). Mengembalikan id. */

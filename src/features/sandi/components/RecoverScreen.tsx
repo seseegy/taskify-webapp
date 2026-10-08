@@ -5,14 +5,14 @@ import { Card } from '@/components/ui/Card';
 import { FieldError } from '@/components/ui/FieldError';
 import { Input, Label } from '@/components/ui/Input';
 import { focusField } from '@/lib/focus';
-import type { NewVault } from '../crypto';
+import type { RewrittenVault } from '../crypto';
 import { masterPasswordProblem, userInputsFromEmail } from '../master-password';
 import { useMasterStrength } from '../useMasterStrength';
 import { PasswordField } from './PasswordField';
 import { RecoveryKeyPanel } from './RecoveryKeyPanel';
 import { StrengthMeter } from './StrengthMeter';
 
-export type RecoverResult = { ok: true; vault: NewVault } | { ok: false; message: string };
+export type RecoverResult = { ok: true; vault: RewrittenVault } | { ok: false; message: string };
 
 /**
  * Lupa master password: kunci pemulihan + master password baru. `onRecover` HANYA menurunkan kunci
@@ -28,14 +28,14 @@ export function RecoverScreen({
   email: string | null | undefined;
   onRecover: (recoveryKey: string, newPassword: string) => Promise<RecoverResult>;
   onCancel: () => void;
-  onFinished: (vault: NewVault) => Promise<void>;
+  onFinished: (vault: RewrittenVault) => Promise<void>;
 }) {
   const [key, setKey] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [errors, setErrors] = useState<{ key?: string; pw?: string; confirm?: string }>({});
   const [busy, setBusy] = useState(false);
-  const [vault, setVault] = useState<NewVault | null>(null);
+  const [vault, setVault] = useState<RewrittenVault | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -65,7 +65,7 @@ export function RecoverScreen({
     }
   };
 
-  const finish = async (v: NewVault) => {
+  const finish = async (v: RewrittenVault) => {
     setSaving(true);
     setFailure(null);
     try {
