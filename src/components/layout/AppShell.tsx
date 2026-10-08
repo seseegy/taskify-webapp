@@ -1,4 +1,4 @@
-import { CodeXml, KeyRound, Search, Settings } from 'lucide-react';
+import { CodeXml, KeyRound, Search, Settings, Trophy } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { NavLink, Outlet, useNavigation, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
@@ -158,8 +158,15 @@ function MobileHeader() {
   return (
     <header className="sticky top-0 z-30 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 lg:hidden">
       <div className="flex items-center justify-between rounded-2xl px-3 py-2 glass">
-        {/* Teks logo disembunyikan di layar sangat sempit agar 4 tombol di kanan tetap muat */}
-        <Logo size="sm" withText textClassName="hidden min-[400px]:inline" />
+        {/*
+          Lebar header ini sudah penuh. Hitungan: ikon logo 36 + pencarian 36 + status sync 36
+          + N tombol modul 36 + gap 6, dikurangi px-4 halaman dan px-3 kartu (56px).
+          Karena itu dua ambang di bawah, bukan angka asal:
+            - ikon Review muncul dari 360px (di 320px tidak muat, lebih 18px)
+            - teks logo muncul dari 430px (dengan 4 tombol, teks butuh viewport >= 416px)
+          Di bawah 360px, Review tetap terjangkau lewat tombol pencarian (command palette).
+        */}
+        <Logo size="sm" withText textClassName="hidden min-[430px]:inline" />
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -170,6 +177,12 @@ function MobileHeader() {
             <Search className="size-4" />
           </button>
           <SyncStatus compact />
+          <HeaderLink
+            to="/review"
+            label="Review"
+            icon={Trophy}
+            className="hidden min-[360px]:flex"
+          />
           <HeaderLink to="/vault" label="Vault Kode" icon={CodeXml} />
           <HeaderLink to="/sandi" label="Sandi" icon={KeyRound} />
           <HeaderLink to="/pengaturan" label="Pengaturan" icon={Settings} />
@@ -183,10 +196,12 @@ function HeaderLink({
   to,
   label,
   icon: Icon,
+  className,
 }: {
   to: string;
   label: string;
   icon: typeof Settings;
+  className?: string;
 }) {
   return (
     <NavLink
@@ -196,6 +211,7 @@ function HeaderLink({
         cn(
           'flex size-9 items-center justify-center rounded-full transition',
           isActive ? 'bg-gradient-brand text-white' : 'text-muted glass hover:text-fg',
+          className,
         )
       }
     >
