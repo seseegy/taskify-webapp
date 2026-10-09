@@ -1,5 +1,10 @@
-import { FileText, ListMusic, Pause, Play, Search, type LucideIcon } from 'lucide-react';
-import { openMusicSheet, toggleMusicPlayback, type MusicRemoteState } from './music-store';
+import { Disc3, FileText, ListMusic, Pause, Play, Search, type LucideIcon } from 'lucide-react';
+import {
+  openMusicSheet,
+  openNowPlaying,
+  toggleMusicPlayback,
+  type MusicRemoteState,
+} from './music-store';
 
 /**
  * Item musik untuk CommandPalette.
@@ -42,6 +47,13 @@ export function musicCommands(state: MusicRemoteState): MusicCommand[] {
       // Satu-satunya item yang TIDAK membuka panel: menjeda musik tidak perlu melihat
       // apa pun, dan membuka panel untuk itu justru menutupi pekerjaan pengguna.
       run: toggleMusicPlayback,
+    });
+    items.push({
+      key: 'music-now',
+      title: 'Sedang diputar',
+      keywords: 'musik sedang diputar lagu sekarang now playing music',
+      icon: Disc3,
+      run: openNowPlaying,
     });
     items.push({
       key: 'music-queue',

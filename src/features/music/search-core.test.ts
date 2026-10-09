@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { SEARCH_TABS, canLoadMore, mergeSongPages, supportsPaging, thumbUrl } from './search-core';
+import {
+  SEARCH_TABS,
+  canLoadMore,
+  coverUrl,
+  mergeSongPages,
+  supportsPaging,
+  thumbUrl,
+} from './search-core';
 import type { Song } from './types';
 
 const song = (id: string, patch: Partial<Song> = {}): Song => ({
@@ -91,19 +98,48 @@ describe('menggabungkan halaman hasil', () => {
 });
 
 describe('gambar album', () => {
-  it('memakai ukuran TERKECIL — hulu mengirim yang terkecil lebih dulu', () => {
-    const s = song('a', {
+  const enam = song('a', {
+    thumbnails: [
+      { url: 'kecil.jpg', width: 60, height: 60 },
+      { url: 'sedang.jpg', width: 226, height: 226 },
+      { url: 'besar.jpg', width: 544, height: 544 },
+    ],
+  });
+
+  it('baris daftar memakai ukuran TERKECIL', () => {
+    // Barisnya hanya selebar 40px; mengambil yang terbesar hanya membuang kuota data.
+    expect(thumbUrl(enam)).toBe('kecil.jpg');
+  });
+
+  it('layar Sedang diputar memakai ukuran TERBESAR', () => {
+    expect(coverUrl(enam)).toBe('besar.jpg');
+  });
+
+  it('yang terbesar dipilih dari width, bukan dari posisi terakhir di daftar', () => {
+    // Urutan "terkecil dulu" itu kebiasaan hulu, bukan janji di kontrak API. Mengandalkan
+    // posisi akan memasang gambar 60px di bingkai 320px kalau urutannya berubah.
+    const terbalik = song('a', {
       thumbnails: [
-        { url: 'kecil.jpg', width: 60, height: 60 },
         { url: 'besar.jpg', width: 544, height: 544 },
+        { url: 'kecil.jpg', width: 60, height: 60 },
       ],
     });
-    // Baris daftar hanya selebar 40px; mengambil yang terbesar hanya membuang data.
-    expect(thumbUrl(s)).toBe('kecil.jpg');
+    expect(coverUrl(terbalik)).toBe('besar.jpg');
   });
 
   it('tanpa gambar: string kosong, bukan undefined', () => {
     // Trek album memang tidak diberi gambar sendiri oleh hulu.
     expect(thumbUrl(song('a'))).toBe('');
+    expect(coverUrl(song('a'))).toBe('');
+  });
+
+  it('entri tanpa url diabaikan, tidak dipilih hanya karena width-nya besar', () => {
+    const rusak = song('a', {
+      thumbnails: [
+        { url: '', width: 9999, height: 9999 },
+        { url: 'kecil.jpg', width: 60, height: 60 },
+      ],
+    });
+    expect(coverUrl(rusak)).toBe('kecil.jpg');
   });
 });

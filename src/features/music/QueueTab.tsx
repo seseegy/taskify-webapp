@@ -8,10 +8,10 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { cn } from '@/lib/utils';
+import { ModeButton } from './ModeButton';
+import { openNowPlaying } from './music-store';
 import { REPEAT_LABEL } from './queue-core';
 import { SongRow } from './SongRow';
 import type { MusicPlayerApi } from './useMusicPlayer';
@@ -112,7 +112,12 @@ export function QueueTab({
             song={song}
             index={i + 1}
             current={i === queueIndex}
-            onPlay={() => player.jumpTo(i)}
+            /*
+              Baris yang SEDANG diputar tidak melompat ke dirinya sendiri — itu praktis
+              tidak melakukan apa-apa. Ia membuka layar "Sedang diputar", yang memang
+              perilaku yang diharapkan dari pemutar musik mana pun.
+            */
+            onPlay={() => (i === queueIndex ? openNowPlaying() : player.jumpTo(i))}
           />
         ))}
       </ul>
@@ -122,33 +127,5 @@ export function QueueTab({
         Hentikan & kosongkan antrean
       </Button>
     </div>
-  );
-}
-
-function ModeButton({
-  label,
-  pressed,
-  onClick,
-  children,
-}: {
-  label: string;
-  pressed: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-pressed={pressed}
-      title={label}
-      className={cn(
-        'flex size-11 shrink-0 items-center justify-center rounded-xl transition active:scale-95',
-        pressed ? 'shine bg-gradient-music text-white shadow-md' : 'text-muted glass hover:text-fg',
-      )}
-    >
-      {children}
-    </button>
   );
 }

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { musicCommands } from './music-palette';
-import { bindMusicToggle, useMusicSheet, type MusicRemoteState } from './music-store';
+import { bindMusicToggle, useMusicPanel, type MusicRemoteState } from './music-store';
 
 const state = (patch: Partial<MusicRemoteState> = {}): MusicRemoteState => ({
   active: false,
@@ -13,7 +13,7 @@ const state = (patch: Partial<MusicRemoteState> = {}): MusicRemoteState => ({
 const keys = (s: MusicRemoteState) => musicCommands(s).map((c) => c.key);
 
 beforeEach(() => {
-  useMusicSheet.setState({ open: false, tab: 'cari' });
+  useMusicPanel.setState({ panel: 'none', tab: 'cari' });
   bindMusicToggle(null);
 });
 
@@ -23,9 +23,10 @@ describe('item yang ditawarkan per keadaan', () => {
     expect(keys(state())).toEqual(['music-search']);
   });
 
-  it('sedang berbunyi: jeda dulu, lalu antrean, lalu cari', () => {
+  it('sedang berbunyi: jeda dulu, lalu sedang diputar, antrean, cari', () => {
     expect(keys(state({ active: true, playing: true }))).toEqual([
       'music-toggle',
+      'music-now',
       'music-queue',
       'music-search',
     ]);
@@ -68,17 +69,29 @@ describe('apa yang dilakukan item', () => {
 
   it('"Cari lagu" membuka panel di tab pencarian', () => {
     find(state(), 'music-search').run();
-    expect(useMusicSheet.getState()).toMatchObject({ open: true, tab: 'cari' });
+    expect(useMusicPanel.getState()).toMatchObject({ panel: 'cari', tab: 'cari' });
   });
 
   it('"Antrean musik" membuka panel di tab antrean', () => {
     find(state({ active: true }), 'music-queue').run();
-    expect(useMusicSheet.getState()).toMatchObject({ open: true, tab: 'antrean' });
+    expect(useMusicPanel.getState()).toMatchObject({ panel: 'antrean', tab: 'antrean' });
   });
 
   it('"Lirik lagu ini" membuka panel di tab lirik', () => {
     find(state({ active: true, hasLyrics: true }), 'music-lyrics').run();
-    expect(useMusicSheet.getState()).toMatchObject({ open: true, tab: 'lirik' });
+    expect(useMusicPanel.getState()).toMatchObject({ panel: 'lirik', tab: 'lirik' });
+  });
+
+  it('"Sedang diputar" membuka layar now-playing, bukan Sheet tiga tab', () => {
+    find(state({ active: true }), 'music-now').run();
+    expect(useMusicPanel.getState().panel).toBe('sekarang');
+  });
+
+  it('membuka layar now-playing tidak mengubah tab terakhir yang dilihat', () => {
+    // Supaya tombol "Antrean" di layar itu mengembalikan pengguna ke tempat yang sama.
+    useMusicPanel.setState({ panel: 'none', tab: 'lirik' });
+    find(state({ active: true }), 'music-now').run();
+    expect(useMusicPanel.getState().tab).toBe('lirik');
   });
 
   it('putar/jeda TIDAK membuka panel — menjeda tidak perlu melihat apa pun', () => {
@@ -86,7 +99,7 @@ describe('apa yang dilakukan item', () => {
     bindMusicToggle(toggle);
     find(state({ active: true, playing: true }), 'music-toggle').run();
     expect(toggle).toHaveBeenCalledTimes(1);
-    expect(useMusicSheet.getState().open).toBe(false);
+    expect(useMusicPanel.getState().panel).toBe('none');
   });
 
   it('putar/jeda tanpa pemutar terpasang tidak melempar error', () => {
