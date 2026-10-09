@@ -2,7 +2,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { MusicClient } from './api-client';
 import { LyricsTab } from './LyricsTab';
-import { useMusicSheet, type MusicTab } from './music-store';
+import { useMusicPanel, type MusicTab } from './music-store';
 import { QueueTab } from './QueueTab';
 import { SearchTab } from './SearchTab';
 import type { MusicPlayerApi } from './useMusicPlayer';
@@ -18,7 +18,9 @@ import type { MusicPlayerApi } from './useMusicPlayer';
  * Tiga tab, bukan empat: tab Radio dibatalkan bersama radionya.
  */
 export function MusicSheet({ client, player }: { client: MusicClient; player: MusicPlayerApi }) {
-  const { open, tab, hide, setTab } = useMusicSheet();
+  const { panel, tab, show, hide } = useMusicPanel();
+  // `panel === 'sekarang'` berarti layar Sedang diputar yang terbuka, bukan Sheet ini.
+  const open = panel !== 'none' && panel !== 'sekarang';
 
   return (
     /*
@@ -35,7 +37,7 @@ export function MusicSheet({ client, player }: { client: MusicClient; player: Mu
         */}
         <SegmentedControl<MusicTab>
           value={tab}
-          onChange={setTab}
+          onChange={show}
           label="Bagian panel musik"
           options={[
             { value: 'cari', label: 'Cari lagu' },
@@ -57,7 +59,7 @@ export function MusicSheet({ client, player }: { client: MusicClient; player: Mu
           antrean dan audionya — hidup di `MusicBar`, bukan di sini.
         */}
         {tab === 'cari' && <SearchTab client={client} player={player} />}
-        {tab === 'antrean' && <QueueTab player={player} onSearch={() => setTab('cari')} />}
+        {tab === 'antrean' && <QueueTab player={player} onSearch={() => show('cari')} />}
         {tab === 'lirik' && <LyricsTab client={client} player={player} />}
       </div>
     </Sheet>

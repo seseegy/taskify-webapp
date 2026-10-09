@@ -75,3 +75,25 @@ export function mergeSongPages(existing: Song[], incoming: Song[]): Song[] {
  * trek album tidak diberi gambar sendiri, hulu hanya memberi gambar di tingkat album.
  */
 export const thumbUrl = (song: Song): string => song.thumbnails[0]?.url ?? '';
+
+/**
+ * Gambar album terbesar, untuk layar "Sedang diputar".
+ *
+ * Dipilih dari `width`, **bukan** dengan mengambil elemen terakhir. Urutan "terkecil dulu"
+ * memang yang terpantau, tapi itu kebiasaan hulu dan bukan janji di kontrak API — dan kalau
+ * suatu hari urutannya berubah, mengambil elemen terakhir akan memasang gambar 60px di
+ * bingkai 320px. Membaca `width` tidak pernah salah, dan ongkosnya nol.
+ *
+ * Ukuran terbesar yang terpantau 544px, jadi bingkai sampai ±320px masih tajam.
+ */
+export function coverUrl(song: Song): string {
+  let best = '';
+  let bestWidth = -1;
+  for (const t of song.thumbnails) {
+    if (t.url && t.width > bestWidth) {
+      best = t.url;
+      bestWidth = t.width;
+    }
+  }
+  return best;
+}

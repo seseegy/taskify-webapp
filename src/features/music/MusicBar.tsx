@@ -13,9 +13,11 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 import { musicClient } from './api-client';
-import { barAnnouncement, barControls, barStatus, elapsedPercent, formatClock } from './music-view';
-import { bindMusicToggle, openMusicSheet, publishMusicRemote } from './music-store';
+import { barAnnouncement, barControls, barStatus } from './music-view';
+import { PositionProgress, PrepareProgress } from './MusicProgress';
+import { bindMusicToggle, openMusicSheet, openNowPlaying, publishMusicRemote } from './music-store';
 import { MusicSheet } from './MusicSheet';
+import { NowPlayingSheet } from './NowPlayingSheet';
 import { useMusicPlayer } from './useMusicPlayer';
 
 /**
@@ -120,6 +122,7 @@ export function MusicBar() {
         dipanggil dari CommandPalette.
       */}
       {musicClient && <MusicSheet client={musicClient} player={player} />}
+      <NowPlayingSheet player={player} />
 
       {/*
         Satu live region, dan sengaja di LUAR bilah: elemen di dalam subtree `display: none`
@@ -183,8 +186,8 @@ export function MusicBar() {
               {statusText && <p className="truncate text-xs text-muted">{statusText}</p>}
               <button
                 type="button"
-                onClick={() => openMusicSheet(active ? 'antrean' : 'cari')}
-                aria-label={song ? `Buka panel musik — ${song.title}` : 'Cari lagu'}
+                onClick={() => (active ? openNowPlaying() : openMusicSheet('cari'))}
+                aria-label={song ? `Sedang diputar: ${song.title}` : 'Cari lagu'}
                 className="absolute inset-0 rounded-lg"
               />
             </div>
@@ -241,7 +244,7 @@ export function MusicBar() {
           </div>
 
           {preparing ? (
-            <PrepareRow percent={percent} />
+            <PrepareProgress percent={percent} />
           ) : status === 'error' ? (
             <div className="flex justify-end">
               <Button size="sm" variant="secondary" onClick={player.resume} disabled={!online}>
@@ -249,75 +252,11 @@ export function MusicBar() {
               </Button>
             </div>
           ) : active && totalSeconds > 0 ? (
-            <PositionRow elapsed={elapsed} totalSeconds={totalSeconds} />
+            <PositionProgress elapsed={elapsed} totalSeconds={totalSeconds} />
           ) : null}
         </div>
       </div>
     </>
-  );
-}
-
-/**
- * Bilah progres konversi — determinate, berangka, dan diumumkan sebagai `progressbar`.
- *
- * Lagu pertama butuh 12–28 detik. Itu tidak bisa disembunyikan, jadi harus dijelaskan:
- * angka yang bergerak adalah satu-satunya bukti bahwa aplikasinya tidak macet. Angkanya
- * tidak akan mundur — `api-client` hanya melaporkan nilai tertinggi yang pernah dilihat.
- */
-function PrepareRow({ percent }: { percent: number }) {
-  const clamped = Math.min(100, Math.max(0, Math.round(percent)));
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        role="progressbar"
-        aria-label="Menyiapkan audio"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={clamped}
-        aria-valuetext={`${clamped} persen`}
-        className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-surface"
-      >
-        <div
-          className="h-full rounded-full bg-gradient-music transition-all"
-          style={{ width: `${clamped}%` }}
-        />
-      </div>
-      <span className="shrink-0 text-xs font-semibold text-muted tabular-nums">{clamped}%</span>
-    </div>
-  );
-}
-
-/**
- * Waktu berjalan + garis posisi lagu.
- *
- * **Garisnya tidak bisa diklik, dan itu bukan kelalaian.** CDN konverter tidak melayani
- * `Range` (`Range: bytes=…` dijawab 200 dengan seluruh berkas, tanpa `Accept-Ranges`), jadi
- * audionya memang tidak bisa digeser posisinya. Membuat bilah yang kelihatan bisa digeser
- * tapi diam lebih buruk daripada garis yang jelas-jelas hanya penunjuk — jadi tidak ada
- * `<input type="range">`, tidak ada kursor penunjuk, dan tidak ada handle.
- *
- * Garisnya `aria-hidden`: angka di sebelahnya sudah menyampaikan informasi yang sama dalam
- * bentuk yang bisa dibaca, dan nilai yang berubah empat kali sedetik tidak perlu dua wakil.
- *
- * Durasinya dari metadata lagu, bukan dari `audio.duration` — respons konverter tidak
- * memuat `Content-Length`, jadi peramban tidak selalu tahu panjang berkasnya.
- */
-function PositionRow({ elapsed, totalSeconds }: { elapsed: number; totalSeconds: number }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div
-        aria-hidden="true"
-        className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-surface"
-      >
-        <div
-          className="h-full rounded-full bg-gradient-music"
-          style={{ width: `${elapsedPercent(elapsed, totalSeconds)}%` }}
-        />
-      </div>
-      <span className="shrink-0 text-xs text-muted tabular-nums">
-        {formatClock(elapsed)} / {formatClock(totalSeconds)}
-      </span>
-    </div>
   );
 }
 

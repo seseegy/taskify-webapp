@@ -4,34 +4,50 @@ import { create } from 'zustand';
 export type MusicTab = 'cari' | 'antrean' | 'lirik';
 
 /**
+ * Panel musik yang sedang terbuka. **Satu field, bukan beberapa boolean.**
+ *
+ * Ada dua panel: layar "Sedang diputar" dan `Sheet` tiga tab. Keduanya `<dialog>`, dan
+ * keduanya terbuka sekaligus adalah keadaan yang tidak masuk akal — dialog bertumpuk membuat
+ * Esc dan pengembalian fokus jadi tebak-tebakan. Dengan satu field, keadaan itu **mustahil
+ * dibentuk**, bukan sekadar dihindari dengan disiplin.
+ */
+export type MusicPanel = 'none' | 'sekarang' | MusicTab;
+
+/**
  * Keadaan panel musik, dipisahkan dari keadaan pemutarnya.
  *
- * Alasannya praktis: yang membuka panel ada di mana-mana — bilah mini, CommandPalette, dan
- * nanti pintasan lain — sementara keadaan pemutar (antrean, status, audio) hidup di satu
- * hook di `AppShell`. Kalau keduanya disatukan, setiap pemicu harus punya akses ke hook itu.
+ * Alasannya praktis: yang membuka panel ada di mana-mana — bilah mini, CommandPalette, baris
+ * lagu yang sedang diputar — sementara keadaan pemutar (antrean, status, audio) hidup di satu
+ * hook di `MusicBar`. Kalau keduanya disatukan, setiap pemicu harus punya akses ke hook itu.
  *
- * Mengikuti pola `ui/toast-store.ts` dan `ui/confirm-store.ts`: store singleton + satu
- * fungsi imperatif untuk dipanggil dari mana saja.
+ * Mengikuti pola `ui/toast-store.ts` dan `ui/confirm-store.ts`: store singleton + fungsi
+ * imperatif untuk dipanggil dari mana saja.
  */
-interface MusicSheetState {
-  open: boolean;
+interface MusicPanelState {
+  panel: MusicPanel;
+  /** Tab yang terakhir dilihat, supaya kembali dari "Sedang diputar" tidak kehilangan tempat. */
   tab: MusicTab;
-  show: (tab?: MusicTab) => void;
+  show: (panel: Exclude<MusicPanel, 'none'>) => void;
   hide: () => void;
-  setTab: (tab: MusicTab) => void;
 }
 
-export const useMusicSheet = create<MusicSheetState>((set) => ({
-  open: false,
+export const useMusicPanel = create<MusicPanelState>((set) => ({
+  panel: 'none',
   tab: 'cari',
-  show: (tab) => set(tab ? { open: true, tab } : { open: true }),
-  hide: () => set({ open: false }),
-  setTab: (tab) => set({ tab }),
+  // Membuka tab juga mencatatnya sebagai tab terakhir; "sekarang" tidak mengubah catatan itu.
+  show: (panel) => set(panel === 'sekarang' ? { panel } : { panel, tab: panel }),
+  hide: () => set({ panel: 'none' }),
 }));
 
-/** Pemakaian: `openMusicSheet('antrean')`. Tanpa argumen = buka di tab yang terakhir dilihat. */
+/** Pemakaian: `openMusicSheet('antrean')`. Tanpa argumen = tab yang terakhir dilihat. */
 export function openMusicSheet(tab?: MusicTab) {
-  useMusicSheet.getState().show(tab);
+  const state = useMusicPanel.getState();
+  state.show(tab ?? state.tab);
+}
+
+/** Layar "Sedang diputar". Menutup `Sheet` tiga tab kalau sedang terbuka. */
+export function openNowPlaying() {
+  useMusicPanel.getState().show('sekarang');
 }
 
 /**

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import type { MusicClient, SearchFilter } from './api-client';
+import { openNowPlaying } from './music-store';
 import { SEARCH_TABS, canLoadMore, mergeSongPages } from './search-core';
 import { SongRow } from './SongRow';
 import type { Song } from './types';
@@ -173,7 +174,11 @@ export function SearchTab({ client, player }: { client: MusicClient; player: Mus
                 key={song.videoId}
                 song={song}
                 current={song.videoId === currentId}
-                onPlay={() => player.play(songs, i)}
+                // Lagu yang sedang diputar tidak dimulai ulang — ia membuka layar
+                // "Sedang diputar", sama seperti di tab Antrean.
+                onPlay={() =>
+                  song.videoId === currentId ? openNowPlaying() : player.play(songs, i)
+                }
               />
             ))}
           </ul>

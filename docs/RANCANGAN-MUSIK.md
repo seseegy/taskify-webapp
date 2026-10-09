@@ -134,29 +134,73 @@ kemudian.
    jadi harus dijelaskan — bukan ditutup spinner tanpa keterangan.
 4. **Ikuti bahasa desain yang ada.** Tidak ada warna baru, tidak ada ikon di luar lucide.
 
-### Anatomi: dua lapis saja
+### Anatomi: tiga lapis
 
 ```
 ┌─ Lapis 1: BILAH MINI (selalu terlihat saat ada yang diputar) ─────────┐
 │  [▶]  Monokrom                            [◀][▶]  [🔇] [━━━━○──]     │
 │       Tulus · 3/16                                                     │
-│  ▓▓▓▓▓▓▓▓░░░░░░░  Menyiapkan audio… 45%     ← hanya saat menyiapkan   │
+│  ▓▓▓▓▓▓▓▓░░░░░░░  45%                        ← hanya saat menyiapkan   │
 └────────────────────────────────────────────────────────────────────────┘
-        ↑ ketuk judulnya → buka lapis 2
+        ↑ ketuk judulnya → lapis 2
 
-┌─ Lapis 2: SHEET (dipanggil, tidak permanen) ──────────────────────────┐
-│  [ Cari lagu ] [ Antrean (16) ] [ Lirik ] [ Radio ]   ← SegmentedControl│
-│  ──────────────────────────────────────────────────────────────────── │
-│  isi tab                                                               │
+┌─ Lapis 2: SEDANG DIPUTAR (Sheet sendiri) ─────────────────────────────┐
+│            ┌─────────────┐                                             │
+│            │ gambar album│  ← thumbnail TERBESAR (544px)              │
+│            └─────────────┘                                             │
+│                 Monokrom                     ← h2, dua baris          │
+│                   Tulus                                                │
+│              dari album Monokrom                                       │
+│         ━━━━━━━━━━●──────────────                                      │
+│         0:42                  3:28           ← garis, BUKAN slider     │
+│              ⏮      ▶      ⏭                 ← 48 · 64 · 48 px         │
+│            🔁   🔀   ♾️                                                  │
+│            🔊 ━━━━━●────────                                            │
+│         [ Antrean (16) ]  [ Lirik ]                                    │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─ Lapis 3: SHEET TIGA TAB ─────────────────────────────────────────────┐
+│  [ Cari lagu ] [ Antrean (16) ] [ Lirik ]     ← SegmentedControl       │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-Semua yang berat — pencarian, antrean, lirik, pilih stasiun — ada di `Sheet`.
-Bilah mini hanya: putar/jeda, lagu sekarang, lagu sebelum/berikutnya, bisu, volume.
+Lapis 2 dan 3 **tidak pernah terbuka bersamaan**, dan itu dijamin oleh tipe: `MusicPanel`
+adalah satu field (`'none' | 'sekarang' | MusicTab`), bukan beberapa boolean. Dua `<dialog>`
+bertumpuk membuat Esc dan pengembalian fokus jadi tebak-tebakan, jadi keadaan itu dibuat
+**mustahil dibentuk** alih-alih dihindari dengan disiplin.
 
-**Kenapa begini:** `Sheet` sudah menangani fokus terkunci, Esc, dan klik backdrop. Membuat
-panel sendiri berarti menulis ulang semua itu — dan di mobile `Sheet variant="side"` sudah
-jadi bottom sheet `max-h-[88dvh]`, yang persis bentuk yang dibutuhkan.
+**Kenapa "Sedang diputar" bukan tab keempat:** tiga label tab sudah hampir tidak muat di
+320px — terukur ~246px dari 272px yang tersedia. Label keempat pasti terbungkus dua baris,
+dan menyembunyikan teksnya bukan pilihan karena tombol radio tanpa teks kehilangan nama
+aksesibelnya.
+
+**Pemicu lapis 2:** ketuk bilah mini, ketuk baris lagu **yang sedang diputar** di Antrean
+atau hasil pencarian (sebelumnya klik itu praktis tidak melakukan apa-apa), atau item
+"Sedang diputar" di CommandPalette.
+
+#### Yang sengaja TIDAK ada di lapis 2
+
+Bilah geser posisi lagu — padahal itu biasanya pusat layar seperti ini. Hulu tidak melayani
+`Range`, jadi audionya memang tidak bisa dipindah posisinya. Yang ada garis tipis tanpa
+handle, tanpa `cursor-pointer`, dengan waktu di dua ujungnya. Konsekuensinya layar ini terasa
+lebih tenang daripada pemutar komersial, dan itu lebih baik daripada kontrol yang tampak bisa
+dipakai lalu diam.
+
+#### Ukuran yang diukur, bukan dikira
+
+| Hal                | Nilai                     | Alasan                                                                                                 |
+| ------------------ | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Gambar album       | `min(72vw, 38dvh, 20rem)` | Batas **tinggi** (`38dvh`) yang penting: tanpa itu, di layar 667px tombol putar jatuh di bawah lipatan |
+|                    | `sm:min(100%, 22rem)`     | Panel kanan 440px − padding ≈ 376px, jadi 352px masih longgar                                          |
+| Tombol putar       | 64px                      | Pusat layar; 44px hanya minimum, bukan target                                                          |
+| Lewati lagu        | 48px                      | ≥44px, dan tetap jelas sekunder terhadap tombol putar                                                  |
+| Jarak antar tombol | 16px                      | Panduan target sentuh: minimum 8px antar target berdampingan                                           |
+| Judul              | `line-clamp-2`            | Judul lagu yang terpotong satu baris di HP tidak berguna                                               |
+| Bingkai gambar     | `aspect-square` + latar   | Memesan ruang lebih dulu, jadi isi di bawahnya tidak melompat saat gambar selesai dimuat               |
+
+Gambar album memakai thumbnail **terbesar**, dipilih dari `width` dan bukan dari posisi
+terakhir di daftar: urutan "terkecil dulu" itu kebiasaan hulu, bukan janji di kontrak API.
+`object-cover` menangani hasil tab "Video" yang rasionya 16:9.
 
 ### Penempatan — berbeda di desktop dan mobile, dengan alasan
 
@@ -349,11 +393,14 @@ src/features/music/
   queue-core.ts           mesin keadaan antrean, murni (dari music-taskify, teruji)
   queue-core.test.ts
   MusicBar.tsx            bilah mini (desktop + mobile) — titik pasang di AppShell
+  NowPlayingSheet.tsx     layar "Sedang diputar"
+  MusicProgress.tsx       bilah menyiapkan & garis posisi — satu tempat untuk ARIA-nya
+  ModeButton.tsx          tombol mode berkeadaan (aria-pressed, 44px)
   MusicSheet.tsx          Sheet dengan 3 tab
   SearchTab.tsx           pencarian + "Muat lagi"
   QueueTab.tsx            antrean + lompat lagu
   LyricsTab.tsx           lirik
-  music-store.ts          store Zustand untuk Sheet (pola toast-store)
+  music-store.ts          panel terbuka + cermin keadaan untuk palette (pola toast-store)
   useMusicPlayer.ts       antrean + prefetch + elemen <audio> + mediaSession
   music-view.ts           durasi, waktu, dan baris status — murni
   music-view.test.ts

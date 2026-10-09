@@ -60,6 +60,8 @@ export interface MusicPlayerApi {
   elapsed: number;
   /** Durasi lagu sekarang dalam detik, atau 0 bila hulu tidak memberinya. */
   totalSeconds: number;
+  /** Nama album lagu sekarang; kosong bila belum tiba atau hulu tidak memberinya. */
+  album: string;
   /** URL audio lagu sekarang sudah siap (jadi putar/jeda tetap bisa saat offline). */
   hasUrl: boolean;
   hasNext: boolean;
@@ -94,6 +96,15 @@ export function useMusicPlayer(
   const [volume, setVolumeState] = useState(0.8);
   const [muted, setMuted] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  /**
+   * Nama album per videoId, dari `/v1/track`.
+   *
+   * Disimpan di sini dan **bukan** di dalam `TrackDetails` milik `queue-core`: album murni
+   * metadata tampilan — tidak ada satu pun keputusan mesin antrean yang bergantung padanya.
+   * Menambahkannya ke sana berarti mengubah berkas yang dipindahkan apa adanya beserta 60
+   * tesnya, demi satu baris teks di layar.
+   */
+  const [albums, setAlbums] = useState<Record<string, string>>({});
 
   /**
    * Setiap peristiwa langsung dirapikan oleh `settleQueue` — menyambung antrean dan melewati
@@ -219,6 +230,7 @@ export function useMusicPlayer(
       .track(detailsId)
       .then((track) => {
         if (!mountedRef.current) return;
+        if (track.album) setAlbums((prev) => ({ ...prev, [detailsId]: track.album }));
         send({
           type: 'detailsDone',
           videoId: detailsId,
@@ -285,6 +297,7 @@ export function useMusicPlayer(
   const hasNext = nextPosition(state, true) !== null;
   const hasPrev = prevPosition(state) !== null;
   const totalSeconds = parseDuration(song?.duration ?? '') ?? 0;
+  const album = albums[songId] ?? '';
 
   const api = useMemo<MusicPlayerApi>(
     () => ({
@@ -304,6 +317,7 @@ export function useMusicPlayer(
       lyricsId: currentLyricsId(state),
       elapsed,
       totalSeconds,
+      album,
       hasUrl,
       hasNext,
       hasPrev,
@@ -344,6 +358,7 @@ export function useMusicPlayer(
       muted,
       elapsed,
       totalSeconds,
+      album,
       hasUrl,
       hasNext,
       hasPrev,
