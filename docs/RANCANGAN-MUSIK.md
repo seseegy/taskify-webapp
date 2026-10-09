@@ -6,20 +6,21 @@ Rancangan UI/UX, backend, dan keamanan untuk memasang pemutar musik
 **Kontrak API-nya ada di dokumen terpisah:** [`music-taskify/docs/API.md`](https://github.com/seseegy/music-taskify/blob/main/docs/API.md).
 Dokumen ini tentang **cara memasangnya di sini** — bukan mengulang kontrak API.
 
-> **Status:** tahap 1–5 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
-> repo `music-taskify`; **tahap 4 (CSP + variabel tumpukan bawah) dan tahap 5 (mesin antrean +
-> tipe data) sudah dikerjakan di repo ini.** Tahap 6–9 belum ada; tahap 10 dibatalkan.
+> **Status:** tahap 1–6 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
+> repo `music-taskify`; **tahap 4 (CSP + variabel tumpukan bawah), 5 (mesin antrean + tipe data),
+> dan 6 (klien REST + JWT) sudah dikerjakan di repo ini.** Tahap 7–9 belum ada; tahap 10
+> dibatalkan.
 
 ## Keputusan yang berubah setelah rancangan ini ditulis
 
-| Hal                   | Keputusan                                                                                                     |
-| --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| **Radio**             | **Tidak dibawa.** Hanya cari lagu lalu putar. Tab "Radio" dan `stations.ts`/`radio-core.ts` batal dipindahkan |
-| **Lirik**             | **Ikut.** Hampir gratis — `/v1/track` yang dipanggil tiap lagu sudah mengembalikan `lyricsId`                 |
-| **Base URL Worker**   | `https://music-taskify.rosdiyttaa.workers.dev` (bukan `…-api…` seperti di `wrangler.toml`)                    |
-| **JWT Supabase**      | Sudah **asimetris**. `SUPABASE_JWT_SECRET` tidak diperlukan dan tidak boleh disetel                           |
-| **Kontrol OS**        | `mediaSession` action handler ditambahkan (tidak ada di rancangan asli) agar bisa dikontrol dari layar kunci  |
-| **Geser posisi lagu** | Tetap tidak mungkin (hulu tidak melayani `Range`). Tidak akan dibuat bilah yang tampak bisa digeser           |
+| Hal                   | Keputusan                                                                                                                                                                           |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Radio**             | **Tidak dibawa.** Hanya cari lagu lalu putar. Tab "Radio" dan `stations.ts`/`radio-core.ts` batal dipindahkan                                                                       |
+| **Lirik**             | **Ikut.** Hampir gratis — `/v1/track` yang dipanggil tiap lagu sudah mengembalikan `lyricsId`                                                                                       |
+| **Base URL Worker**   | `https://music-taskify.rosdiyttaa.workers.dev` (bukan `…-api…` seperti di `wrangler.toml`), lewat `VITE_MUSIC_API_URL` yang **opsional** — kosong = pintu masuk musik disembunyikan |
+| **JWT Supabase**      | Sudah **asimetris**. `SUPABASE_JWT_SECRET` tidak diperlukan dan tidak boleh disetel                                                                                                 |
+| **Kontrol OS**        | `mediaSession` action handler ditambahkan (tidak ada di rancangan asli) agar bisa dikontrol dari layar kunci                                                                        |
+| **Geser posisi lagu** | Tetap tidak mungkin (hulu tidak melayani `Range`). Tidak akan dibuat bilah yang tampak bisa digeser                                                                                 |
 
 **Konsekuensi membuang radio yang perlu diingat:** radio tadinya satu-satunya cadangan saat
 layanan konverter mati — dan tabel [Risiko](#risiko) menilai kemungkinan itu **"Tinggi"**.
@@ -668,7 +669,7 @@ Dipecah supaya setiap langkah bisa diuji sendiri dan tidak ada PR raksasa.
 | 3      | Anda deploy: `wrangler secret put` ×2, `wrangler deploy`                                                                           | —                | `curl` ke Worker sungguhan                                            |
 | 4 ✅   | **CSP + variabel tumpukan bawah**                                                                                                  | `taskify-webapp` | buka aplikasi, periksa konsol bersih                                  |
 | 5 ✅   | **Pindahkan mesin keadaan antrean + tesnya, dan tipe datanya**                                                                     | `taskify-webapp` | 60 tes yang sudah ada tetap lulus                                     |
-| 6      | `api-client.ts` + ambil JWT                                                                                                        | `taskify-webapp` | tes dengan `fetch` palsu                                              |
+| 6 ✅   | **`api-client.ts` + ambil JWT + `VITE_MUSIC_API_URL` (opsional)**                                                                  | `taskify-webapp` | 32 tes dengan `fetch` palsu                                           |
 | 7      | `MusicBar` + pasang di `AppShell`                                                                                                  | `taskify-webapp` | tes komponen + lihat di layar                                         |
 | 8      | `MusicSheet` 3 tab (Cari lagu, Antrean, Lirik — tanpa Radio)                                                                       | `taskify-webapp` | tes komponen                                                          |
 | 9      | Item CommandPalette                                                                                                                | `taskify-webapp` | tes komponen                                                          |
