@@ -12,12 +12,14 @@ export function Toaster() {
 
   return (
     // Satu live region permanen (polite). Item TIDAK diberi role="status" lagi agar tidak
-    // diumumkan ganda. Di HP (< sm) posisinya di atas FAB "Catat transaksi" (bottom-28 + size-14).
+    // diumumkan ganda. Posisinya memakai `--stack-bottom-overlay` (lihat styles/index.css):
+    // satu nilai yang sudah menghitung navigasi bawah, bilah musik, dan FAB halaman — jadi
+    // tidak ada lagi angka literal per breakpoint yang harus dicocokkan dengan tangan.
     <div
       role="region"
       aria-label="Notifikasi"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 bottom-44 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-28 lg:bottom-6"
+      className="pointer-events-none fixed inset-x-0 bottom-[var(--stack-bottom-overlay)] z-[60] flex flex-col items-center gap-2 px-4"
     >
       {toasts.map((t) => {
         const Icon = ICONS[t.tone];

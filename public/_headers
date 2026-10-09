@@ -10,6 +10,18 @@
 #    'self' tetap melarang pengiriman form ke domain luar.
 #  - connect-src sengaja longgar (https: wss:) agar tidak perlu menulis URL Supabase &
 #    PowerSync ke dalam repo. Perketat ke domain proyekmu sendiri jika mau lebih ketat.
+#    Worker musik (music-taskify) sudah tercakup di sini, jadi tidak perlu ditambah.
+#  - media-src WAJIB ADA untuk pemutar musik. Tanpa direktif ini CSP jatuh ke
+#    `default-src 'self'`, dan akibatnya SELURUH audio dari domain luar diblokir —
+#    gejalanya tidak ada suara sama sekali, TANPA pesan error yang jelas di UI. Jadi
+#    kalau pemutar terasa "jalan tapi bisu", periksa direktif ini lebih dulu.
+#    Host audio konverter berupa subdomain bernomor (mis. ricky4.savenow.to), jadi
+#    wildcard memang diperlukan — menulis satu host saja tidak cukup. Dua domain karena
+#    yang kedua adalah fallback saat yang pertama mati.
+#    Syarat ini berasal dari kontrak API: music-taskify/docs/API.md §"Syarat CSP".
+#  - img-src: tiga host gambar album YouTube. Sengaja TIDAK dibuka `https:` — hanya host
+#    yang benar-benar terpantau dari respons asli. Kalau ada host baru muncul, tambahkan
+#    setelah dilihat, jangan diborong.
 
 /*
   X-Content-Type-Options: nosniff
@@ -17,7 +29,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=()
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-OyH5VurHb7D/FJVf9S6pVTmwsfwGExfTmW3Oe5dqhqg='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https: wss:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-OyH5VurHb7D/FJVf9S6pVTmwsfwGExfTmW3Oe5dqhqg='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com https://yt3.googleusercontent.com https://yt3.ggpht.com; media-src 'self' blob: https://*.savenow.to https://*.lbserver.xyz; font-src 'self'; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https: wss:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
 
 # Service worker & HTML tidak boleh di-cache CDN, supaya versi baru langsung terdeteksi.
 /sw.js

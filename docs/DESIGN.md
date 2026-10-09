@@ -69,3 +69,21 @@ pakai warna tetap seperti `bg-rose-800/90`.
 - **≥ 1024px**: sidebar kaca di kiri.
 - **< 1024px**: header atas (pencarian, status sync, Vault, Sandi, Pengaturan; teks logo disembunyikan di bawah 400px agar muat) + bottom nav. **Kalender** berada di tengah dan menonjol sebagai pusat aplikasi.
 - Safe-area iOS/Android dihormati (`env(safe-area-inset-*)`).
+
+### Elemen mengapung di dasar layar
+
+Jangan menulis `bottom-<angka>` sendiri untuk elemen `fixed` di dasar layar. Pakai variabel di
+`src/styles/index.css`:
+
+| Variabel                 | Untuk                                                           |
+| ------------------------ | --------------------------------------------------------------- |
+| `--stack-bottom`         | Kontrol milik halaman (FAB Keuangan, bilah pemutar musik)       |
+| `--stack-bottom-overlay` | Yang harus di atas segalanya (Toaster, UpdatePrompt) — ikut FAB |
+
+Keduanya sudah menjumlahkan tinggi navigasi bawah (`--bottom-nav-h`, nol di `lg`), bilah musik
+(`--music-bar-h`), dan FAB halaman (`--fab-h`), termasuk safe-area. Menambah elemen baru =
+menambah satu suku di berkas itu, bukan mengarang angka baru lalu mencocokkannya dengan tangan.
+
+Halaman yang punya FAB memasang penandanya di `document.documentElement` (`[data-fab]`), bukan di
+`<body>` — `var()` di dalam custom property memakai nilai pada elemen tempat ia dideklarasikan,
+jadi penanda di body tidak akan terbaca oleh variabel yang dideklarasikan di `:root`.

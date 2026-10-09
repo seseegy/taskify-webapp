@@ -8,6 +8,7 @@ import {
   Settings2,
   Wallet,
 } from 'lucide-react';
+import { useEffect } from 'react';
 import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -44,6 +45,22 @@ export function FinancePage() {
   const walletId = params.get('dompet');
   const createTx = useTxSheet((s) => s.create);
   const totals = usePeriodTotals(month, monthEnd(month));
+
+  /**
+   * Memberi tahu tumpukan bawah bahwa halaman ini punya tombol melayang, supaya Toaster &
+   * UpdatePrompt menyingkir ke atasnya (lihat `--fab-h` di styles/index.css).
+   *
+   * Penandanya di `documentElement`, BUKAN di body: `--stack-bottom-overlay` dideklarasikan
+   * di `:root`, dan `var()` di dalam nilai custom property memakai nilai pada elemen tempat
+   * ia dideklarasikan — penanda di body tidak akan terbaca. Berapa tinggi yang dipakai (dan
+   * kapan jadi nol di layar lebar) diputuskan CSS, bukan di sini.
+   */
+  useEffect(() => {
+    document.documentElement.dataset.fab = 'finance';
+    return () => {
+      delete document.documentElement.dataset.fab;
+    };
+  }, []);
 
   const update = (patch: Record<string, string | null>) =>
     setParams(
@@ -118,12 +135,13 @@ export function FinancePage() {
       {tab === 'hutang' && <DebtTab />}
       {tab === 'kelola' && <ManageTab />}
 
-      {/* Tombol tambah melayang (HP) */}
+      {/* Tombol tambah melayang (HP). Posisinya dari `--stack-bottom` (styles/index.css),
+          jadi ia otomatis naik saat bilah musik terlihat. */}
       <button
         type="button"
         aria-label="Catat transaksi"
         onClick={() => createTx({ walletId: walletId ?? undefined })}
-        className="shine fixed right-5 bottom-28 z-20 flex size-14 items-center justify-center rounded-2xl bg-gradient-finance text-white shadow-xl shadow-emerald-500/30 transition active:scale-95 sm:hidden"
+        className="shine fixed right-5 bottom-[var(--stack-bottom)] z-20 flex size-14 items-center justify-center rounded-2xl bg-gradient-finance text-white shadow-xl shadow-emerald-500/30 transition active:scale-95 sm:hidden"
       >
         <Plus className="size-6" />
       </button>

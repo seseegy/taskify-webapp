@@ -124,6 +124,68 @@
 }
 
 /* -----------------------------------------------------------------------------
+   Tumpukan elemen mengapung di dasar layar — SATU sumber kebenaran
+   -----------------------------------------------------------------------------
+   Toaster, UpdatePrompt, dan FAB Keuangan sama-sama `position: fixed` di dasar layar.
+   Sebelum ini jaraknya berupa angka literal yang terpisah di tiga berkas (`bottom-44`,
+   `bottom-24`, `bottom-28`) dengan breakpoint yang berbeda-beda (`sm` untuk Toaster & FAB,
+   `lg` untuk Toaster & UpdatePrompt), dan dicocokkan dengan tangan. Akibatnya: menambah
+   satu elemen lagi pasti menabrak yang sudah ada, dan tabrakan dengan UpdatePrompt hanya
+   muncul saat ada pembaruan service worker — jenis bug yang baru ketemu berbulan-bulan
+   kemudian.
+
+   Sekarang tingginya dijumlahkan di satu tempat. Menambah elemen = menambah satu suku di
+   sini, bukan mengedit tiga berkas.
+
+   Diukur dari dasar viewport ke atas:
+     --bottom-nav-h   navigasi bawah (hanya < lg; di lg ia jadi sidebar kiri)
+     --music-bar-h    bilah pemutar musik (0 selama belum terlihat; diisi oleh pemutar)
+     --fab-h          tombol melayang milik satu halaman (hanya < sm; lihat [data-fab])
+
+   PENTING: ketiga suku dan `--stack-bottom` harus dideklarasikan pada ELEMEN YANG SAMA
+   (`:root`). `var()` di dalam nilai custom property disubstitusi memakai nilai pada elemen
+   tempat property itu dideklarasikan — jadi menyetel `--fab-h` di `<body>` TIDAK akan
+   mengubah `--stack-bottom` milik `:root`. Karena itu penandanya dipasang di
+   `document.documentElement`, bukan di body.
+   ----------------------------------------------------------------------------- */
+:root {
+  /* Pil nav ±4,5rem (py-2 + ikon size-9 + label text-[11px]) + padding bawah nav itu sendiri,
+     yang sudah menghormati safe-area iOS/Android. */
+  --bottom-nav-h: calc(4.5rem + max(env(safe-area-inset-bottom), 0.75rem));
+  --music-bar-h: 0px;
+  --fab-h: 0px;
+  --stack-gap: 0.75rem;
+
+  /* Lapis halaman: FAB dan bilah musik — duduk tepat di atas navigasi bawah. */
+  --stack-bottom: calc(var(--bottom-nav-h) + var(--music-bar-h) + var(--stack-gap));
+  /* Lapis mengapung: Toaster & UpdatePrompt — harus di atas FAB juga, kalau tidak
+     spanduk pembaruan menutupi tombol "Catat transaksi". */
+  --stack-bottom-overlay: calc(var(--stack-bottom) + var(--fab-h));
+}
+
+/* Di lg navigasi pindah ke sidebar, jadi dasar layar kosong. Jaraknya dilebarkan ke 1.5rem
+   supaya hasilnya tetap 24px — sama dengan `lg:bottom-6` yang dipakai sebelum ini. */
+@media (width >= 64rem) {
+  :root {
+    --bottom-nav-h: 0px;
+    --stack-gap: 1.5rem;
+  }
+}
+
+/* Tombol melayang milik halaman tertentu: halaman memasang penandanya selama ter-mount
+   (lihat FinancePage), dan CSS yang memutuskan kapan penanda itu memakan ruang — tombolnya
+   `sm:hidden`, jadi di sm ke atas tingginya kembali nol. */
+:root[data-fab] {
+  /* size-14 (3,5rem) + jarak 0,75rem */
+  --fab-h: 4.25rem;
+}
+@media (width >= 40rem) {
+  :root[data-fab] {
+    --fab-h: 0px;
+  }
+}
+
+/* -----------------------------------------------------------------------------
    Utility kustom
    ----------------------------------------------------------------------------- */
 
