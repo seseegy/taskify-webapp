@@ -26,8 +26,37 @@ import type { Song, Track } from './types';
  */
 export type SearchFilter = 'songs' | 'videos' | 'albums' | 'artists' | 'playlists';
 
-/** Format audio. `m4a` (bawaan Worker) paling hemat di antara yang didukung Safari/iOS. */
+/** Format audio yang didukung Worker. */
 export type AudioFormat = 'm4a' | 'mp3' | 'opus' | 'webm';
+
+/**
+ * Format yang diminta kalau pemanggil tidak menyebutkan apa pun.
+ *
+ * **`mp3`, bukan `m4a`** — dan ini mengoreksi keputusan di rancangan. `m4a` dipilih di sana
+ * karena ukurannya 3,31 MB lawan 8,22 MB, tapi angka itu pengukuran **ukuran berkas**, bukan
+ * uji pemutaran. Ternyata `m4a` dari konverter **tidak bisa diputar sama sekali** di Chrome.
+ *
+ * Diperiksa pada berkas sungguhan dari konverter:
+ *
+ * ```
+ * ftyp(32) → moov(833) → moof(size=0)
+ * moov berisi mvex/trex           → fragmented MP4
+ * stts/stsc/stsz/stco semuanya 0  → moov tidak memuat satu pun lokasi sampel
+ * ```
+ *
+ * Jadi seluruh audionya ada di fragmen `moof`+`mdat`, tapi `moof` pertama mendeklarasikan
+ * `size = 0` ("sampai akhir berkas") — yang hanya sah untuk atom terakhir, dan `moof` wajib
+ * diikuti `mdat`. Indeks fragmennya tidak bisa diurai, jadi Chrome menolaknya dengan
+ * `MEDIA_ERR_SRC_NOT_SUPPORTED`. Gejalanya di UI: berkas terunduh penuh dengan **200 OK**,
+ * lalu "Audio gagal diputar" — kegagalan yang tidak terlihat di log Worker maupun di CSP.
+ *
+ * `mp3` tidak punya kontainer sama sekali (hanya rangkaian frame), jadi tidak ada metadata
+ * yang bisa salah urai. Ongkosnya jujur: **±8,2 MB per lagu, bukan 3,3 MB** — sekit
+ * 165 MB/jam. `webm` (3,69 MB) dan `opus` (2,74 MB) jauh lebih hemat dan hampir pasti jalan
+ * di Chrome, tapi keduanya belum diuji di sini dan `opus` berisiko bisu di iPhone. Jangan
+ * menggantinya tanpa benar-benar mendengarkan hasilnya.
+ */
+export const DEFAULT_AUDIO_FORMAT: AudioFormat = 'mp3';
 
 /**
  * Sepotong hasil pencarian.
@@ -223,9 +252,14 @@ export function createMusicClient(
        * sudah punya hasilnya di cache dan langsung memberi `url` tanpa tugas apa pun.
        * Periksa `url` dulu, baru `job`.
        */
+      /*
+        `format` SELALU dikirim, tidak pernah dibiarkan kosong. Bawaan Worker adalah `m4a`,
+        dan `m4a` dari konverter tidak bisa diputar — jadi mengandalkan bawaan sisi server
+        berarti diam-diam memilih format yang rusak. Lihat `DEFAULT_AUDIO_FORMAT`.
+      */
       const init = await post<{ job?: string; url?: string }>(
         '/v1/stream/init',
-        { videoId, ...(format ? { format } : {}) },
+        { videoId, format: format ?? DEFAULT_AUDIO_FORMAT },
         signal,
       );
       if (init.url) {

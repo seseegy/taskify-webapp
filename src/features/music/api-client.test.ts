@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   CONVERT_TIMEOUT_MS,
+  DEFAULT_AUDIO_FORMAT,
   MusicError,
   POLL_INTERVAL_MS,
   createMusicClient,
@@ -285,12 +286,24 @@ describe('menyiapkan audio', () => {
     expect(seen[0]).toBe(0);
   });
 
-  it('format diteruskan bila diminta, dan tidak dikirim bila tidak', async () => {
-    const { c, calls } = client(() => json({ url: 'https://x/f.m4a' }));
+  it('format SELALU dikirim — bawaan Worker (m4a) tidak bisa diputar', async () => {
+    /*
+     * Ini bukan sekadar kerapian. Kalau `format` dibiarkan kosong, Worker memakai
+     * bawaannya `m4a`, dan m4a dari konverter adalah fragmented MP4 dengan `moof`
+     * berukuran 0 — Chrome menolaknya dengan MEDIA_ERR_SRC_NOT_SUPPORTED setelah
+     * berkasnya terunduh penuh dengan 200 OK. Jadi mengandalkan bawaan sisi server
+     * berarti diam-diam memilih format yang rusak.
+     */
+    const { c, calls } = client(() => json({ url: 'https://x/f.mp3' }));
     await c.resolveStream('x');
-    await c.resolveStream('x', { format: 'mp3' });
-    expect(calls[0]?.body).toEqual({ videoId: 'x' });
-    expect(calls[1]?.body).toEqual({ videoId: 'x', format: 'mp3' });
+    expect(calls[0]?.body).toEqual({ videoId: 'x', format: DEFAULT_AUDIO_FORMAT });
+    expect(DEFAULT_AUDIO_FORMAT).toBe('mp3');
+  });
+
+  it('format yang diminta pemanggil menang atas bawaan', async () => {
+    const { c, calls } = client(() => json({ url: 'https://x/f.webm' }));
+    await c.resolveStream('x', { format: 'webm' });
+    expect(calls[0]?.body).toEqual({ videoId: 'x', format: 'webm' });
   });
 
   it('balasan tanpa url dan tanpa job diberi pesan, bukan menggantung', async () => {
