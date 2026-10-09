@@ -8,6 +8,8 @@ import { Toaster } from '@/components/ui/Toaster';
 import { useAttachmentOutbox } from '@/features/attachments/attachment-actions';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
 import { useRecurringProcessor } from '@/features/finance/finance-actions';
+import { isMusicConfigured } from '@/features/music/api-client';
+import { MusicBar } from '@/features/music/MusicBar';
 import { CommandPalette } from '@/features/search/CommandPalette';
 import { useSandiAutoLock } from '@/features/sandi/useSandiAutoLock';
 import { usePalette } from '@/features/search/palette-store';
@@ -64,13 +66,25 @@ export function AppShell() {
           id="konten"
           ref={mainRef}
           tabIndex={-1}
-          className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-28 outline-none sm:px-6 lg:px-10 lg:pt-10 lg:pb-12"
+          /*
+            Jarak bawah ikut tinggi bilah musik (`--music-bar-h`, nol saat bilahnya tidak
+            terlihat), supaya isi halaman terakhir tidak tertutup pemutar. Angka dasarnya
+            sama dengan sebelumnya: 7rem = pb-28 di mobile, 3rem = pb-12 di lg.
+          */
+          className="mx-auto w-full max-w-6xl flex-1 px-4 pt-4 pb-[calc(7rem+var(--music-bar-h))] outline-none sm:px-6 lg:px-10 lg:pt-10 lg:pb-[calc(3rem+var(--music-bar-h))]"
         >
           <Outlet />
         </main>
       </div>
 
       <BottomNav />
+      {/*
+        Pemutar musik hanya dipasang bila `VITE_MUSIC_API_URL` diisi. Gerbangnya di sini,
+        bukan di dalam komponennya, supaya aturan "tanpa konfigurasi = tidak ada pintu masuk"
+        terlihat di tempat ia dipasang. Nilainya konstanta build, jadi tidak ada
+        mount/unmount di tengah jalan yang bisa memutus musik.
+      */}
+      {isMusicConfigured && <MusicBar />}
       <UpdatePrompt />
       <TaskDetailSheet />
       <TransactionSheet />

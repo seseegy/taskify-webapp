@@ -266,6 +266,15 @@
 @utility bg-gradient-settings {
   background-image: linear-gradient(135deg, #64748b 0%, #8b5cf6 100%);
 }
+/* Musik: fuchsia → violet. Dipilih karena masih jelas berbeda dari tetangga terdekatnya —
+   Sandi (rose → violet) mulai dari merah, Tugas (violet → indigo) berakhir di biru, dan
+   gradasi brand (indigo → ungu → pink) melewati tiga warna. Tidak ada `--color-mod-music`:
+   token `bg-mod-*` hanya dipakai untuk titik aktivitas di kalender dan legenda Review, dan
+   musik tidak pernah muncul di sana — menambahkannya berarti menambah token yang tidak
+   dipakai siapa pun. */
+@utility bg-gradient-music {
+  background-image: linear-gradient(135deg, #d946ef 0%, #7c3aed 100%);
+}
 
 @utility text-gradient-brand {
   background-image: linear-gradient(120deg, #6366f1, #a855f7 45%, #ec4899);
