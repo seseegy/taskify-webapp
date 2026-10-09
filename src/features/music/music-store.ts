@@ -33,3 +33,63 @@ export const useMusicSheet = create<MusicSheetState>((set) => ({
 export function openMusicSheet(tab?: MusicTab) {
   useMusicSheet.getState().show(tab);
 }
+
+/**
+ * Ringkasan keadaan pemutar untuk pintu masuk di LUAR pemutar.
+ *
+ * Keadaan pemutar yang sebenarnya hidup di `useMusicPlayer` — satu hook di `MusicBar`, yang
+ * memegang antrean dan elemen `<audio>`. CommandPalette adalah komponen bersaudara, jadi ia
+ * tidak bisa membacanya. Yang dibutuhkannya pun sedikit: cukup untuk memutuskan item mana
+ * yang masuk akal ditampilkan ("Lirik lagu ini" tidak ada gunanya kalau lagunya tanpa lirik).
+ *
+ * Jadi ini **cermin satu arah**, bukan sumber kebenaran kedua: hanya `MusicBar` yang menulis,
+ * hanya primitif yang disimpan, dan tidak ada satu pun keputusan pemutar yang dibuat dari
+ * sini. Kalau nanti ada yang perlu lebih dari ini, yang benar adalah memindahkan keadaan
+ * pemutar ke store — bukan memperlebar cermin ini.
+ */
+export interface MusicRemoteState {
+  /** Ada antrean, jadi ada yang bisa dijeda atau dilompati. */
+  active: boolean;
+  playing: boolean;
+  /** Lagu sekarang punya lirik yang bisa diambil. */
+  hasLyrics: boolean;
+}
+
+const INITIAL_REMOTE: MusicRemoteState = { active: false, playing: false, hasLyrics: false };
+
+export const useMusicRemote = create<MusicRemoteState>(() => INITIAL_REMOTE);
+
+/** Dipanggil `MusicBar`. Tidak menulis apa pun bila ringkasannya tidak berubah. */
+export function publishMusicRemote(next: MusicRemoteState) {
+  const current = useMusicRemote.getState();
+  if (
+    current.active === next.active &&
+    current.playing === next.playing &&
+    current.hasLyrics === next.hasLyrics
+  ) {
+    return;
+  }
+  useMusicRemote.setState(next);
+}
+
+/**
+ * Putar/jeda dari luar pemutar.
+ *
+ * Disimpan sebagai variabel biasa, **bukan** di dalam store: fungsinya ikut berubah
+ * identitasnya setiap keadaan pemutar berubah, dan menaruhnya di store berarti setiap
+ * laporan progres memicu render di tiap pembacanya. Diikat ulang memang sering, tapi satu
+ * penugasan variabel tidak ada biayanya.
+ *
+ * Harus selalu yang terbaru: `toggle()` memutuskan peristiwa mana yang dikirim berdasarkan
+ * status saat itu, jadi handler yang basi akan mengambil keputusan dari status lama.
+ */
+let toggleHandler: (() => void) | null = null;
+
+export function bindMusicToggle(handler: (() => void) | null) {
+  toggleHandler = handler;
+}
+
+/** Tidak melakukan apa-apa kalau pemutarnya tidak terpasang (musik tidak dikonfigurasi). */
+export function toggleMusicPlayback() {
+  toggleHandler?.();
+}

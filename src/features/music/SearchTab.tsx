@@ -3,7 +3,6 @@ import { useId, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { cn } from '@/lib/utils';
 import type { MusicClient, SearchFilter } from './api-client';
 import { SEARCH_TABS, canLoadMore, mergeSongPages } from './search-core';
 import { SongRow } from './SongRow';
@@ -99,6 +98,13 @@ export function SearchTab({ client, player }: { client: MusicClient; player: Mus
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Judul lagu atau nama penyanyi…"
+            /*
+              `aria-label` wajib walau sudah ada `<label htmlFor>`: label-nya hanya memuat
+              ikon yang `aria-hidden`, jadi tanpa ini kolomnya tidak punya nama aksesibel
+              sama sekali. Label-nya tetap ada supaya mengetuk seluruh kotak memfokuskan
+              kolom. Placeholder bukan nama — ia hilang begitu ada teks.
+            */
+            aria-label="Cari lagu"
             aria-describedby={hintId}
             enterKeyHint="search"
             autoComplete="off"
@@ -200,7 +206,7 @@ export function SearchTab({ client, player }: { client: MusicClient; player: Mus
           title="Cari lagu"
           description="Ketik judul lagu atau nama penyanyi, lalu ketuk hasilnya untuk memutar."
           gradient="bg-gradient-music"
-          className={cn('py-8')}
+          className="py-8"
         />
       )}
     </div>

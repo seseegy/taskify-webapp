@@ -239,6 +239,18 @@ DEK (256 bit acak) ─AES-256-GCM, IV acak, AAD = user + id item─► isi item 
 
 **Belum ada** (sengaja di luar cakupan awal): impor/ekspor CSV, pindai QR lewat kamera (kunci TOTP ditempel manual), passkey/biometrik untuk membuka, pengecekan kebocoran (HIBP), Sampah khusus sandi.
 
+## Musik (opsional)
+
+Satu-satunya modul yang **tidak menyentuh basis data sama sekali**: tanpa tabel, tanpa migrasi, tanpa entri di `powersync/sync-config.yaml`, tanpa `withMeta`/`deleted_at`, tanpa FTS. Antrean, URL audio, dan lirik hidup di memori selama satu sesi dan hilang saat tab ditutup — memang itu yang diinginkan, karena URL hasil konversi berumur pendek.
+
+- Datanya dari Worker terpisah, [`seseegy/music-taskify`](https://github.com/seseegy/music-taskify), lewat `VITE_MUSIC_API_URL` yang **opsional**: kosong = seluruh pintu masuk musik disembunyikan dan aplikasi tetap boot (pola `VITE_VAPID_PUBLIC_KEY`).
+- Autentikasi memakai **JWT sesi Supabase**, diambil segar tiap permintaan lewat `getSession()` (pola `db/connector.ts`). Tidak ada token yang dibundel ke browser.
+- `MusicBar` dipasang di `AppShell`, bukan di dalam halaman — router meng-unmount halaman saat pindah menu dan itu memutus musik. Ia memegang satu-satunya `<audio>` dan `useMusicPlayer()`.
+- Pintu masuknya **hanya** CommandPalette (seksi "Musik") dan bilah itu sendiri. Tidak ada item di `NAV_ITEMS`: sidebar dan BottomNav sudah penuh.
+- Mesin antreannya (`queue-core.ts`) dipindahkan apa adanya dari repo Worker beserta 60 tesnya.
+
+Rancangan, batasan, dan alasannya: [`RANCANGAN-MUSIK.md`](RANCANGAN-MUSIK.md). Dua batas yang bukan bug: audionya **tidak bisa digeser posisinya** (hulu tidak melayani `Range`), dan lagu **pertama** perlu 12–28 detik (lagu berikutnya disiapkan di latar belakang).
+
 ## Batas data & penolakan server
 
 - CHECK Postgres menolak baris yang melanggar batas (mis. `transactions.title` ≤ 120). Penolakan permanen masuk `upload_errors` (lokal), dan **sisa operasi dalam satu transaksi lokal ikut dibuang**; operasi sebelumnya sudah diterapkan, jadi satu transaksi lokal bisa berlaku sebagian di server. Karena itu semua jalur tulis memotong teks lewat `clip(…, LIMITS.x)` (`src/lib/limits.ts`, per code point seperti `char_length`). Ubah `LIMITS` bersamaan dengan CHECK-nya.
@@ -274,3 +286,5 @@ Sengaja tidak diubah (trade-off atau terlalu jarang untuk sebanding dengan risik
 | 5     | Quick capture, tag & tautan silang, pencarian global FTS5, Sampah                          | ✅     |
 | 6     | Vault: snippet + zip ke R2 (Edge Function presign, lihat isi zip, versi, SHA-256)          | ✅     |
 | 7     | Dashboard review, heatmap, GitHub Action keep-alive + backup `pg_dump` ke R2, Share Target | ✅     |
+| 8     | Sandi (password manager E2EE)                                                              | ✅     |
+| 9     | Pemutar musik (opsional, Worker terpisah — tanpa basis data)                               | ✅     |

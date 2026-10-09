@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 import { musicClient } from './api-client';
 import { barAnnouncement, barControls, barStatus, elapsedPercent, formatClock } from './music-view';
-import { openMusicSheet } from './music-store';
+import { bindMusicToggle, openMusicSheet, publishMusicRemote } from './music-store';
 import { MusicSheet } from './MusicSheet';
 import { useMusicPlayer } from './useMusicPlayer';
 
@@ -76,6 +76,28 @@ export function MusicBar() {
     awaitingMore: player.awaitingMore,
     title: song?.title ?? '',
   });
+
+  /*
+    Mengabarkan ringkasan pemutar ke luar, untuk CommandPalette. Ini memang pekerjaan efek:
+    menyinkronkan sistem di luar React dengan keadaan React terbaru. `publishMusicRemote`
+    tidak menulis apa-apa kalau ringkasannya tidak berubah, jadi laporan progres dan
+    `timeupdate` (empat kali sedetik) tidak memicu render di palette.
+  */
+  const hasLyrics = Boolean(player.lyricsId);
+  useEffect(() => {
+    publishMusicRemote({ active, playing, hasLyrics });
+  }, [active, playing, hasLyrics]);
+
+  /*
+    Putar/jeda dari palette. Diikat ulang setiap `toggle` berubah identitasnya, karena
+    `toggle` memutuskan peristiwa mana yang dikirim dari status saat itu — handler yang basi
+    akan mengambil keputusan dari status lama.
+  */
+  const toggle = player.toggle;
+  useEffect(() => {
+    bindMusicToggle(toggle);
+    return () => bindMusicToggle(null);
+  }, [toggle]);
 
   return (
     <>
