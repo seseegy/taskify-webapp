@@ -24,6 +24,7 @@ Dokumen ini tentang **cara memasangnya di sini** — bukan mengulang kontrak API
 | **JWT Supabase**      | Sudah **asimetris**. `SUPABASE_JWT_SECRET` tidak diperlukan dan tidak boleh disetel                                                                                                 |
 | **Kontrol OS**        | `mediaSession` action handler ditambahkan (tidak ada di rancangan asli) agar bisa dikontrol dari layar kunci                                                                        |
 | **Geser posisi lagu** | Tetap tidak mungkin (hulu tidak melayani `Range`). Tidak akan dibuat bilah yang tampak bisa digeser                                                                                 |
+| **Format audio**      | **`mp3`, bukan `m4a`.** `m4a` dari konverter tidak bisa diputar sama sekali — lihat [Format audio](#format-audio-m4a-ditolak-chrome)                                                |
 
 **Konsekuensi membuang radio yang perlu diingat:** radio tadinya satu-satunya cadangan saat
 layanan konverter mati — dan tabel [Risiko](#risiko) menilai kemungkinan itu **"Tinggi"**.
@@ -46,15 +47,15 @@ Sekarang bila konverter mati, yang bisa dilakukan hanya menampilkan pesan error 
 
 ## Keputusan utama
 
-| #   | Keputusan                                                     | Alasan singkat                                                                                                                   |
-| --- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | **UI pindah ke repo ini**, `music-taskify` jadi REST API saja | Yang sering disentuh adalah tampilan & penempatan; itu jauh lebih enak kalau menyatu dengan aplikasi                             |
-| 2   | **Bilah tipis + `Sheet`**, bukan panel besar permanen         | Sidebar sudah kehabisan tinggi dan header mobile sudah kehabisan lebar — terukur, bukan perasaan                                 |
-| 3   | **Pintu masuk lewat CommandPalette**                          | Satu-satunya tempat menambah fitur dengan ongkos ruang **nol**                                                                   |
-| 4   | **Autentikasi pakai JWT Supabase, bukan token bundel**        | Karena privat dan khusus aplikasi ini, identitas penggunanya sudah ada. Token bundel bisa dibaca siapa pun yang membuka aplikasi |
-| 5   | **Satu variabel CSS untuk tumpukan bawah**                    | Offset Toaster/UpdatePrompt/FAB sekarang angka literal yang dikoordinasi manual; menambah bilah akan menabraknya                 |
-| 6   | **Format audio `m4a`**                                        | 3,31 MB vs 8,22 MB mp3 — 60% lebih hemat, dan didukung Safari/iOS                                                                |
-| 7   | **Timer Pomodoro tidak dibawa**                               | Sudah ada modul produktivitas sendiri di Taskify; menambah timer kedua membingungkan                                             |
+| #   | Keputusan                                                     | Alasan singkat                                                                                                                           |
+| --- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **UI pindah ke repo ini**, `music-taskify` jadi REST API saja | Yang sering disentuh adalah tampilan & penempatan; itu jauh lebih enak kalau menyatu dengan aplikasi                                     |
+| 2   | **Bilah tipis + `Sheet`**, bukan panel besar permanen         | Sidebar sudah kehabisan tinggi dan header mobile sudah kehabisan lebar — terukur, bukan perasaan                                         |
+| 3   | **Pintu masuk lewat CommandPalette**                          | Satu-satunya tempat menambah fitur dengan ongkos ruang **nol**                                                                           |
+| 4   | **Autentikasi pakai JWT Supabase, bukan token bundel**        | Karena privat dan khusus aplikasi ini, identitas penggunanya sudah ada. Token bundel bisa dibaca siapa pun yang membuka aplikasi         |
+| 5   | **Satu variabel CSS untuk tumpukan bawah**                    | Offset Toaster/UpdatePrompt/FAB sekarang angka literal yang dikoordinasi manual; menambah bilah akan menabraknya                         |
+| 6   | ~~**Format audio `m4a`**~~ → **`mp3`**                        | ~~3,31 MB vs 8,22 MB~~ — **dibatalkan:** `m4a` dari konverter tidak bisa diputar. Lihat [Format audio](#format-audio-m4a-ditolak-chrome) |
+| 7   | **Timer Pomodoro tidak dibawa**                               | Sudah ada modul produktivitas sendiri di Taskify; menambah timer kedua membingungkan                                                     |
 
 ---
 
@@ -451,11 +452,56 @@ Ongkos CPU terberat terukur **1,90 ms dari 10 ms**.
 
 ### Pemakaian data pengguna
 
-|               | Rancangan lama (mentah + mp3) | Rancangan ini (rapi + m4a) |
-| ------------- | ----------------------------- | -------------------------- |
-| Metadata/jam  | ~11 MB                        | ~0,4 MB                    |
-| Audio/jam     | 164 MB                        | 66 MB                      |
-| **Total/jam** | **~175 MB**                   | **~67 MB**                 |
+|               | Rancangan lama (mentah + mp3) | ~~Rancangan ini (rapi + m4a)~~ | Yang dipakai (rapi + mp3) |
+| ------------- | ----------------------------- | ------------------------------ | ------------------------- |
+| Metadata/jam  | ~11 MB                        | ~0,4 MB                        | ~0,4 MB                   |
+| Audio/jam     | 164 MB                        | ~~66 MB~~                      | 164 MB                    |
+| **Total/jam** | **~175 MB**                   | ~~**~67 MB**~~                 | **~165 MB**               |
+
+Penghematan metadata tetap didapat (parser pindah ke server). Penghematan **audio** tidak —
+lihat di bawah.
+
+### Format audio: `m4a` ditolak Chrome
+
+Rancangan memilih `m4a` karena ukurannya 3,31 MB lawan 8,22 MB mp3. Angka itu benar, tapi ia
+pengukuran **ukuran berkas** — bukan uji pemutaran. Dan `m4a` dari konverter **tidak bisa
+diputar sama sekali.**
+
+Gejalanya menyesatkan: log Worker **200 ok**, permintaan audio **200 OK dengan 4,16 MB
+terunduh penuh**, `Content-Type: audio/mp4` benar, dan tidak ada pelanggaran CSP di console —
+lalu "Audio gagal diputar". Tidak ada satu pun lapisan yang melaporkan kesalahan.
+
+Struktur berkas yang sebenarnya dikirim:
+
+```
+ftyp(32) → moov(833) → moof(size=0)
+moov berisi mvex/trex                → fragmented MP4
+stts / stsc / stsz / stco = 0 entri  → moov tidak memuat satu pun lokasi sampel
+```
+
+Seluruh audio ada di fragmen `moof`+`mdat`, tapi `moof` pertama mendeklarasikan `size = 0` —
+artinya "sampai akhir berkas", yang **hanya sah untuk atom terakhir**, sementara `moof` wajib
+diikuti `mdat`. Indeks fragmennya tidak bisa diurai, jadi Chrome menolak dengan
+`MEDIA_ERR_SRC_NOT_SUPPORTED`.
+
+`mp3` tidak punya kontainer sama sekali — hanya rangkaian frame — jadi tidak ada metadata yang
+bisa salah urai.
+
+Dua konsekuensi yang harus diterima:
+
+- **Pemakaian data naik 2,5×**: ±8,2 MB per lagu, ±165 MB/jam. Nyata di kuota seluler.
+- **Klaim di `music-taskify/docs/API.md`** bahwa "`m4a`-nya faststart (`moov` di offset 36,
+  `mdat` di 37923)" **tidak lagi benar** untuk keluaran konverter sekarang. Perlu dikoreksi di
+  repo itu.
+
+`webm` (3,69 MB) dan `opus` (2,74 MB) jauh lebih hemat dan kemungkinan besar jalan di Chrome,
+tapi **belum diuji dengan benar-benar mendengarkannya**, dan `opus` berisiko bisu di iPhone.
+Formatnya satu konstanta di `api-client.ts` (`DEFAULT_AUDIO_FORMAT`), jadi mudah dicoba — tapi
+jangan diganti tanpa mendengar hasilnya.
+
+Pelajarannya: untuk audio, satu-satunya uji yang berarti adalah **suara yang keluar dari
+speaker.** Ukuran berkas, status HTTP, dan `Content-Type` yang benar bisa ketiga-tiganya lolos
+sementara berkasnya tidak bisa diputar.
 
 ---
 
