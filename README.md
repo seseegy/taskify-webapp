@@ -8,7 +8,7 @@ Aplikasi produktivitas pribadi — **Tugas, Jurnal, Keuangan, Kalender, Vault Ko
 
 ```bash
 pnpm install
-cp .env.example .env.local  # isi kredensial — lihat docs/SETUP.md
+cp .env.example .env.local # isi kredensial — lihat docs/SETUP.md
 pnpm dev
 ```
 
