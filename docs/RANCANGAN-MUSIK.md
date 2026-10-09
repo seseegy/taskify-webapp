@@ -6,10 +6,13 @@ Rancangan UI/UX, backend, dan keamanan untuk memasang pemutar musik
 **Kontrak API-nya ada di dokumen terpisah:** [`music-taskify/docs/API.md`](https://github.com/seseegy/music-taskify/blob/main/docs/API.md).
 Dokumen ini tentang **cara memasangnya di sini** — bukan mengulang kontrak API.
 
-> **Status:** tahap 1–8 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
+> **Status:** tahap 1–9 selesai — pemutarnya lengkap. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
 > repo `music-taskify`; **tahap 4 (CSP + variabel tumpukan bawah), 5 (mesin antrean + tipe data),
-> 6 (klien REST + JWT), 7 (bilah pemutar), dan 8 (panel 3 tab) sudah dikerjakan di repo ini.**
-> Tahap 9 belum ada; tahap 10 dibatalkan.
+> 6 (klien REST + JWT), 7 (bilah pemutar), 8 (panel 3 tab), dan 9 (item CommandPalette) sudah
+> dikerjakan di repo ini.** Tahap 10 dibatalkan bersama radionya.
+>
+> Yang belum pernah diuji: **suara yang benar-benar keluar dari speaker.** Itu uji pertama
+> yang harus Anda lakukan.
 
 ## Keputusan yang berubah setelah rancangan ini ditulis
 
@@ -229,13 +232,17 @@ bug itu hanya muncul saat ada update service worker.
 **CommandPalette** (`Ctrl/Cmd+K`, atau `/`, atau tombol Search di header mobile) — section
 baru `"Musik"`:
 
-| Item           | `keywords`                         | Aksi                                                        |
-| -------------- | ---------------------------------- | ----------------------------------------------------------- |
-| Cari lagu      | `musik lagu putar play music cari` | buka Sheet tab "Cari lagu"                                  |
-| Antrean        | `musik antrean queue daftar`       | buka Sheet tab "Antrean"                                    |
-| Lirik lagu ini | `musik lirik lyrics teks`          | buka Sheet tab "Lirik" (disembunyikan bila tidak ada lirik) |
-| Radio fokus    | `musik radio fokus ambient lofi`   | buka Sheet tab "Radio"                                      |
-| Putar / Jeda   | `musik putar jeda pause stop`      | toggle langsung, tanpa membuka Sheet                        |
+| Item                   | Muncul saat               | Aksi                                 |
+| ---------------------- | ------------------------- | ------------------------------------ |
+| Jeda musik / Lanjutkan | ada antrean               | toggle langsung, tanpa membuka Sheet |
+| Antrean musik          | ada antrean               | buka Sheet tab "Antrean"             |
+| Lirik lagu ini         | lagu sekarang punya lirik | buka Sheet tab "Lirik"               |
+| Cari lagu              | selalu                    | buka Sheet tab "Cari lagu"           |
+
+Daftarnya **menyusut saat tidak ada yang diputar** — ketiga item pertama berujung di tempat
+yang kosong kalau belum ada lagu, dan palette yang menawarkan empat pilihan dengan tiga jalan
+buntu lebih buruk daripada satu pilihan yang jelas. Seluruh seksi hilang bila
+`VITE_MUSIC_API_URL` tidak diisi.
 
 Ongkos ruang: **nol**. Dan di mobile ini otomatis dapat pintu masuk, karena tombol Search
 di header sudah membuka palette yang sama.
@@ -682,7 +689,7 @@ Dipecah supaya setiap langkah bisa diuji sendiri dan tidak ada PR raksasa.
 | 6 ✅   | **`api-client.ts` + ambil JWT + `VITE_MUSIC_API_URL` (opsional)**                                                                  | `taskify-webapp` | 32 tes dengan `fetch` palsu                                           |
 | 7 ✅   | **`useMusicPlayer` + `MusicBar` di `AppShell` + `mediaSession`**                                                                   | `taskify-webapp` | 51 tes logika murni + lihat di layar                                  |
 | 8 ✅   | **`MusicSheet` 3 tab (Cari lagu, Antrean, Lirik — tanpa Radio)**                                                                   | `taskify-webapp` | 14 tes logika pencarian + lihat di layar                              |
-| 9      | Item CommandPalette                                                                                                                | `taskify-webapp` | tes komponen                                                          |
+| 9 ✅   | **Item CommandPalette, seksi "Musik"**                                                                                             | `taskify-webapp` | 12 tes daftar item + aksinya                                          |
 | ~~10~~ | ~~Radio + stasiun~~ — **dibatalkan**, lihat [keputusan](#keputusan-yang-berubah-setelah-rancangan-ini-ditulis)                     | —                | —                                                                     |
 
 Langkah **4 harus lebih dulu dari 7**. Tanpa CSP yang benar, pemutarnya akan terlihat

@@ -35,6 +35,9 @@ import {
 import { useCategories } from '@/features/finance/finance-queries';
 import { useCapture } from '@/features/capture/useCapture';
 import { useOpenEntity } from '@/features/entities/entities';
+import { isMusicConfigured } from '@/features/music/api-client';
+import { musicCommands } from '@/features/music/music-palette';
+import { useMusicRemote } from '@/features/music/music-store';
 import { entitySubtitle } from '@/features/entities/entity-format';
 import { EntityIcon } from '@/features/entities/EntityChip';
 import { useTxSheet } from '@/features/finance/tx-sheet-store';
@@ -114,6 +117,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
   const { resolved, setPreference } = useTheme();
   const { hits, tags, ready, fts } = useGlobalSearch(text);
   const categories = useCategories();
+  const musicRemote = useMusicRemote();
 
   const parsed = useMemo(() => (text.trim() ? parseCapture(text, today) : null), [text, today]);
   const cap: Capture | null = parsed && override ? applyKind(parsed, override, today) : parsed;
@@ -164,6 +168,24 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
       keywords: 'tema gelap terang dark light mode',
       run: () => setPreference(resolved === 'dark' ? 'light' : 'dark'),
     },
+    /*
+      Musik: seksi ini kosong sama sekali kalau `VITE_MUSIC_API_URL` tidak diisi. Itu memang
+      aturannya — tanpa konfigurasi, tidak ada pintu masuk yang menggantung.
+
+      Palette adalah satu-satunya pintu masuk musik yang ongkos ruangnya nol: sidebar sudah
+      penuh, header mobile sudah kehabisan lebar, dan BottomNav sudah 5 item. Jadi tidak ada
+      item baru di NAV_ITEMS. Isi daftarnya ikut keadaan pemutar — lihat `music-palette.ts`.
+    */
+    ...(isMusicConfigured
+      ? musicCommands(musicRemote).map((m) => ({
+          key: m.key,
+          section: 'Musik',
+          icon: <ItemIcon icon={m.icon} gradient="bg-gradient-music" />,
+          title: m.title,
+          keywords: m.keywords,
+          run: m.run,
+        }))
+      : []),
   ];
 
   const q = text.trim().toLowerCase();
