@@ -6,10 +6,10 @@ Rancangan UI/UX, backend, dan keamanan untuk memasang pemutar musik
 **Kontrak API-nya ada di dokumen terpisah:** [`music-taskify/docs/API.md`](https://github.com/seseegy/music-taskify/blob/main/docs/API.md).
 Dokumen ini tentang **cara memasangnya di sini** — bukan mengulang kontrak API.
 
-> **Status:** tahap 1–6 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
+> **Status:** tahap 1–7 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
 > repo `music-taskify`; **tahap 4 (CSP + variabel tumpukan bawah), 5 (mesin antrean + tipe data),
-> dan 6 (klien REST + JWT) sudah dikerjakan di repo ini.** Tahap 7–9 belum ada; tahap 10
-> dibatalkan.
+> 6 (klien REST + JWT), dan 7 (bilah pemutar) sudah dikerjakan di repo ini.** Tahap 8–9 belum
+> ada; tahap 10 dibatalkan.
 
 ## Keputusan yang berubah setelah rancangan ini ditulis
 
@@ -179,8 +179,12 @@ lebih baik daripada yang harus diingat.
 Bilah mini **hanya muncul saat ada yang diputar**, menempel di atas BottomNav:
 
 ```
-fixed inset-x-3 bottom-[var(--stack-bottom)]  z-40
+fixed inset-x-0 bottom-[var(--bottom-nav-h)] pb-[var(--stack-gap)] px-3  z-40
 ```
+
+**Bukan** `bottom-[var(--stack-bottom)]` seperti tertulis di rancangan awal: variabel itu sudah
+memuat `--music-bar-h`, jadi bilahnya akan melayang satu tinggi bilah di atas tempatnya. Bilah
+duduk dari suku **di bawahnya** dan mengumumkan tingginya sendiri ke `--music-bar-h`.
 
 Saat tidak ada yang diputar: **tidak ada apa pun**. Pintu masuknya CommandPalette.
 
@@ -240,15 +244,16 @@ di header sudah membuka palette yang sama.
 
 ### Keadaan dan apa yang dilihat pengguna
 
-| Keadaan        | Bilah mini                                        | Status                               |
-| -------------- | ------------------------------------------------- | ------------------------------------ |
-| `idle`         | Desktop: ramping, tombol putar. Mobile: tidak ada | "Musik"                              |
-| `preparing`    | Judul + bilah progres determinate                 | "Menyiapkan audio… 45%"              |
-| `playing`      | Judul + artis + `3/16`                            | artis · posisi antrean               |
-| `paused`       | Sama, ikon jadi putar                             | artis                                |
-| `awaitingMore` | Judul lagu terakhir                               | "Mencari lagu lanjutan…"             |
-| `error`        | Judul + tombol "Coba lagi"                        | pesan dari API, langsung ditampilkan |
-| offline        | Bilah tetap, kontrol dinonaktifkan                | "Tidak ada koneksi"                  |
+| Keadaan            | Bilah mini                                        | Status                                 |
+| ------------------ | ------------------------------------------------- | -------------------------------------- |
+| `idle`             | Desktop: ramping, tombol Musik. Mobile: tidak ada | "Cari lagu untuk diputar"              |
+| `preparing`        | Judul + bilah progres determinate                 | "Menyiapkan audio… 45%"                |
+| `playing`          | Judul + artis + `3/16`                            | artis · posisi antrean                 |
+| `paused`           | Sama, ikon jadi putar                             | artis                                  |
+| `awaitingMore`     | Judul lagu terakhir                               | "Mencari lagu lanjutan…"               |
+| `error`            | Judul + tombol "Coba lagi"                        | pesan dari API, langsung ditampilkan   |
+| offline + berbunyi | Bilah tetap, pindah lagu dinonaktifkan            | artis — audionya sudah ada di peramban |
+| offline            | Bilah tetap, kontrol dinonaktifkan                | "Tidak ada koneksi"                    |
 
 Pesan error dari API sudah berbahasa Indonesia dan **dirancang untuk ditampilkan langsung**
 — tidak perlu diterjemahkan ulang di sini.
@@ -670,7 +675,7 @@ Dipecah supaya setiap langkah bisa diuji sendiri dan tidak ada PR raksasa.
 | 4 ✅   | **CSP + variabel tumpukan bawah**                                                                                                  | `taskify-webapp` | buka aplikasi, periksa konsol bersih                                  |
 | 5 ✅   | **Pindahkan mesin keadaan antrean + tesnya, dan tipe datanya**                                                                     | `taskify-webapp` | 60 tes yang sudah ada tetap lulus                                     |
 | 6 ✅   | **`api-client.ts` + ambil JWT + `VITE_MUSIC_API_URL` (opsional)**                                                                  | `taskify-webapp` | 32 tes dengan `fetch` palsu                                           |
-| 7      | `MusicBar` + pasang di `AppShell`                                                                                                  | `taskify-webapp` | tes komponen + lihat di layar                                         |
+| 7 ✅   | **`useMusicPlayer` + `MusicBar` di `AppShell` + `mediaSession`**                                                                   | `taskify-webapp` | 51 tes logika murni + lihat di layar                                  |
 | 8      | `MusicSheet` 3 tab (Cari lagu, Antrean, Lirik — tanpa Radio)                                                                       | `taskify-webapp` | tes komponen                                                          |
 | 9      | Item CommandPalette                                                                                                                | `taskify-webapp` | tes komponen                                                          |
 | ~~10~~ | ~~Radio + stasiun~~ — **dibatalkan**, lihat [keputusan](#keputusan-yang-berubah-setelah-rancangan-ini-ditulis)                     | —                | —                                                                     |

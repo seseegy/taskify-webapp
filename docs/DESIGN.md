@@ -20,7 +20,7 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `glass` / `glass-strong`                                                                    | Kartu, panel, input, nav (kaca semi-transparan + blur) |
 | `bg-gradient-brand`                                                                         | Aksi utama, logo (indigo → ungu → pink)                |
-| `bg-gradient-{tasks,journal,finance,vault,calendar,sandi,settings}`                         | Identitas modul (ikon, header, sel aktif)              |
+| `bg-gradient-{tasks,journal,finance,vault,calendar,sandi,settings,music}`                   | Identitas modul (ikon, header, sel aktif)              |
 | `text-gradient-brand`                                                                       | Angka/judul penting (saldo, logo)                      |
 | `shine`                                                                                     | Kilau tipis di atas elemen bergradasi                  |
 | `text-fg`, `text-muted`, `bg-surface`, `border-line`, `text-primary/danger/success/warning` | Token warna yang otomatis menyesuaikan tema            |
@@ -36,6 +36,15 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | Vault    | cyan → blue     | `#06b6d4`      |
 | Kalender | indigo → sky    | `#6366f1`      |
 | Sandi    | rose → violet   | `#f43f5e`      |
+| Musik    | fuchsia → ungu  | —              |
+
+Musik **tidak punya** `--color-mod-music`. Token `bg-mod-*` ada khusus untuk titik aktivitas di
+kalender dan legenda Review, dan musik tidak pernah muncul di sana — tidak ada "aktivitas musik"
+yang tersimpan per tanggal, karena pemutar tidak menyentuh basis data sama sekali. Menambahkan
+tokennya berarti menambah warna yang tidak dipakai siapa pun.
+
+Gradasinya dipilih supaya masih jelas berbeda dari tetangga terdekatnya: Sandi mulai dari merah,
+Tugas berakhir di biru, dan gradasi brand melewati tiga warna.
 
 ## Kontras warna
 
@@ -77,8 +86,16 @@ Jangan menulis `bottom-<angka>` sendiri untuk elemen `fixed` di dasar layar. Pak
 
 | Variabel                 | Untuk                                                           |
 | ------------------------ | --------------------------------------------------------------- |
-| `--stack-bottom`         | Kontrol milik halaman (FAB Keuangan, bilah pemutar musik)       |
+| `--stack-bottom`         | Kontrol milik halaman (FAB Keuangan)                            |
 | `--stack-bottom-overlay` | Yang harus di atas segalanya (Toaster, UpdatePrompt) — ikut FAB |
+
+Bilah pemutar musik adalah pengecualian, dan harus begitu: ia tidak bisa memakai
+`--stack-bottom`, karena variabel itu sudah **memuat tingginya sendiri** (`--music-bar-h`) —
+hasilnya bilah akan melayang satu tinggi bilah di atas tempatnya. Jadi bilah musik duduk di
+`bottom-[var(--bottom-nav-h)]` dengan `pb-[var(--stack-gap)]` sendiri, dan **mengumumkan** tinggi
+terukurnya ke `--music-bar-h` supaya yang lain menyingkir. Aturan umumnya: elemen yang menjadi
+salah satu suku `--stack-bottom` memposisikan dirinya dari suku di bawahnya, bukan dari
+jumlahnya.
 
 Keduanya sudah menjumlahkan tinggi navigasi bawah (`--bottom-nav-h`, nol di `lg`), bilah musik
 (`--music-bar-h`), dan FAB halaman (`--fab-h`), termasuk safe-area. Menambah elemen baru =
