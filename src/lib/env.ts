@@ -24,4 +24,10 @@ export const env = {
   powersyncUrl: import.meta.env.VITE_POWERSYNC_URL ?? '',
   /** Opsional: tanpa ini fitur notifikasi pengingat dinonaktifkan */
   vapidPublicKey: import.meta.env.VITE_VAPID_PUBLIC_KEY ?? '',
+  /**
+   * Opsional: asal Worker music-taskify. Tanpa ini seluruh pintu masuk pemutar musik
+   * disembunyikan — aplikasi tetap boot seperti biasa, sama seperti VITE_VAPID_PUBLIC_KEY.
+   * Sengaja TIDAK masuk REQUIRED: musik fitur tambahan, bukan syarat Taskify bisa dipakai.
+   */
+  musicApiUrl: import.meta.env.VITE_MUSIC_API_URL ?? '',
 };

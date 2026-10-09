@@ -137,7 +137,7 @@ Halaman Keuangan/Beranda memakai dompet hasil seed, jadi saldo `Rp 0` berarti sy
    - Build command: `pnpm build`
    - Deploy command: `npx wrangler deploy`
    - Root directory: `/`
-   - Environment variables: 4 variabel `VITE_*` dari `.env.local`, plus `NODE_VERSION=22`
+   - Environment variables: semua variabel `VITE_*` yang kamu pakai dari `.env.local` (3 wajib + yang opsional), plus `NODE_VERSION=22`
 4. Setelah deploy, tambahkan URL `https://<nama>.<subdomain>.workers.dev` ke:
    - Supabase **Authentication → URL Configuration** (Site URL & Redirect URLs)
    - **CORS policy** bucket `taskify-files` (§8.2) — tanpa ini upload Vault gagal di produksi
@@ -389,11 +389,43 @@ Lalu buka **Sandi** di aplikasi: wizard 3 langkah meminta master password dan me
 
 > **Penting:** lupa master password **dan** kunci pemulihan berarti data tidak bisa dipulihkan siapa pun, termasuk Anda dan pemilik Supabase. Backup mingguan (§9) hanya berisi data terenkripsi, jadi tidak membantu bila keduanya hilang.
 
+## 11. Pemutar musik (opsional)
+
+Pemutar musik memakai Worker terpisah, [`seseegy/music-taskify`](https://github.com/seseegy/music-taskify).
+Deploy Worker-nya ada di repo itu (`docs/DEPLOY.md`); yang perlu dilakukan **di sini** hanya satu baris:
+
+```bash
+# .env.local — dan environment variables Cloudflare Workers (§5)
+VITE_MUSIC_API_URL=https://music-taskify.<subdomain>.workers.dev
+```
+
+Tanpa garis miring di akhir. Ini **opsional**, seperti `VITE_VAPID_PUBLIC_KEY`: kalau dikosongkan,
+aplikasi tetap boot normal dan seluruh pintu masuk musik disembunyikan — tidak ada tombol yang
+menggantung dan tidak ada permintaan yang dikirim.
+
+Ini hanya URL, **bukan rahasia.** Autentikasinya memakai JWT sesi Supabase pengguna yang sudah ada,
+jadi tidak ada token yang perlu dibundel ke browser. Di sisi Worker, `sub` pengguna harus terdaftar
+di `ALLOWED_USER_IDS` — login saja tidak cukup. Rancangan lengkapnya ada di
+[`RANCANGAN-MUSIK.md`](RANCANGAN-MUSIK.md).
+
+Dua hal yang perlu diketahui sebelum menyalahkan kode pemutarnya:
+
+- **Audio tidak bisa digeser posisinya.** CDN konverter tidak melayani `Range`, jadi hanya
+  putar/jeda/pindah lagu. Bukan fitur yang belum dibuat.
+- **Lagu pertama butuh 12–28 detik.** Lagu berikutnya terasa seketika karena disiapkan di latar
+  belakang selagi yang sekarang berbunyi.
+
+Dan `media-src` di [`public/_headers`](../public/_headers) sudah mengizinkan host audionya. Kalau
+pemutar terasa "jalan tapi bisu", periksa direktif itu lebih dulu — CSP memblokir audio **tanpa**
+pesan error yang jelas di UI.
+
 ## Troubleshooting
 
 | Gejala                                   | Penyebab & solusi                                                                                                  |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | Layar "Konfigurasi belum lengkap"        | `.env.local` belum diisi / server dev belum di-restart                                                             |
+| Pintu masuk musik tidak ada di palette   | `VITE_MUSIC_API_URL` kosong (§11), atau server dev belum di-restart                                                |
+| Musik "jalan tapi bisu"                  | `media-src` di `public/_headers` — periksa Console untuk pesan _"Refused to load media"_                           |
 | Sandi tidak muncul di perangkat lain     | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan |
 | Status macet di _Menyinkron…_            | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)                               |
 | Error `PSYNC_S2101` di console           | Client Auth PowerSync belum dicentang _Use Supabase Auth_                                                          |
