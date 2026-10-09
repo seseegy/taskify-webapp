@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 import { musicClient } from './api-client';
 import { barAnnouncement, barControls, barStatus, elapsedPercent, formatClock } from './music-view';
 import { openMusicSheet } from './music-store';
+import { MusicSheet } from './MusicSheet';
 import { useMusicPlayer } from './useMusicPlayer';
 
 /**
@@ -84,6 +85,19 @@ export function MusicBar() {
         menyembunyikan bilah akan memutus suaranya.
       */}
       <audio ref={audioRef} preload="none" className="hidden" />
+
+      {/*
+        Panel musik dirender di sini, bukan di `AppShell`: ia perlu API pemutar yang sama
+        dengan bilah ini. `musicClient` dipersempit di sini supaya tab-tabnya tidak perlu
+        menangani kemungkinan "klien tidak ada" yang sebenarnya mustahil — komponen ini hanya
+        dipasang saat `VITE_MUSIC_API_URL` diisi.
+
+        Letaknya di LUAR pembungkus bilah dengan sengaja: pembungkus itu `display: none` di
+        mobile saat tidak ada yang diputar, dan `<dialog>` di dalam subtree yang tidak
+        dirender tidak bisa dibuka — padahal justru di keadaan itulah panel pencarian
+        dipanggil dari CommandPalette.
+      */}
+      {musicClient && <MusicSheet client={musicClient} player={player} />}
 
       {/*
         Satu live region, dan sengaja di LUAR bilah: elemen di dalam subtree `display: none`

@@ -6,10 +6,10 @@ Rancangan UI/UX, backend, dan keamanan untuk memasang pemutar musik
 **Kontrak API-nya ada di dokumen terpisah:** [`music-taskify/docs/API.md`](https://github.com/seseegy/music-taskify/blob/main/docs/API.md).
 Dokumen ini tentang **cara memasangnya di sini** — bukan mengulang kontrak API.
 
-> **Status:** tahap 1–7 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
+> **Status:** tahap 1–8 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
 > repo `music-taskify`; **tahap 4 (CSP + variabel tumpukan bawah), 5 (mesin antrean + tipe data),
-> 6 (klien REST + JWT), dan 7 (bilah pemutar) sudah dikerjakan di repo ini.** Tahap 8–9 belum
-> ada; tahap 10 dibatalkan.
+> 6 (klien REST + JWT), 7 (bilah pemutar), dan 8 (panel 3 tab) sudah dikerjakan di repo ini.**
+> Tahap 9 belum ada; tahap 10 dibatalkan.
 
 ## Keputusan yang berubah setelah rancangan ini ditulis
 
@@ -349,6 +349,11 @@ src/features/music/
   useMusicPlayer.ts       antrean + prefetch + elemen <audio> + mediaSession
   music-view.ts           durasi, waktu, dan baris status — murni
   music-view.test.ts
+  queue-settle.ts         dua transisi murni yang dulu berupa useEffect
+  queue-settle.test.ts
+  search-core.ts          gabung halaman + aturan paginasi — murni
+  search-core.test.ts
+  SongRow.tsx             satu baris lagu (dipakai tab Cari lagu & Antrean)
   api-client.ts           klien REST + ambil JWT Supabase
   api-client.test.ts
   music-palette.ts        item untuk CommandPalette
@@ -676,7 +681,7 @@ Dipecah supaya setiap langkah bisa diuji sendiri dan tidak ada PR raksasa.
 | 5 ✅   | **Pindahkan mesin keadaan antrean + tesnya, dan tipe datanya**                                                                     | `taskify-webapp` | 60 tes yang sudah ada tetap lulus                                     |
 | 6 ✅   | **`api-client.ts` + ambil JWT + `VITE_MUSIC_API_URL` (opsional)**                                                                  | `taskify-webapp` | 32 tes dengan `fetch` palsu                                           |
 | 7 ✅   | **`useMusicPlayer` + `MusicBar` di `AppShell` + `mediaSession`**                                                                   | `taskify-webapp` | 51 tes logika murni + lihat di layar                                  |
-| 8      | `MusicSheet` 3 tab (Cari lagu, Antrean, Lirik — tanpa Radio)                                                                       | `taskify-webapp` | tes komponen                                                          |
+| 8 ✅   | **`MusicSheet` 3 tab (Cari lagu, Antrean, Lirik — tanpa Radio)**                                                                   | `taskify-webapp` | 14 tes logika pencarian + lihat di layar                              |
 | 9      | Item CommandPalette                                                                                                                | `taskify-webapp` | tes komponen                                                          |
 | ~~10~~ | ~~Radio + stasiun~~ — **dibatalkan**, lihat [keputusan](#keputusan-yang-berubah-setelah-rancangan-ini-ditulis)                     | —                | —                                                                     |
 
