@@ -6,9 +6,9 @@ Rancangan UI/UX, backend, dan keamanan untuk memasang pemutar musik
 **Kontrak API-nya ada di dokumen terpisah:** [`music-taskify/docs/API.md`](https://github.com/seseegy/music-taskify/blob/main/docs/API.md).
 Dokumen ini tentang **cara memasangnya di sini** — bukan mengulang kontrak API.
 
-> **Status:** tahap 1–4 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
-> repo `music-taskify`; **tahap 4 (CSP + variabel tumpukan bawah) sudah dikerjakan di repo ini.**
-> Kode pemutarnya (tahap 5–10) belum ada.
+> **Status:** tahap 1–5 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
+> repo `music-taskify`; **tahap 4 (CSP + variabel tumpukan bawah) dan tahap 5 (mesin antrean +
+> tipe data) sudah dikerjakan di repo ini.** Tahap 6–9 belum ada; tahap 10 dibatalkan.
 
 ## Keputusan yang berubah setelah rancangan ini ditulis
 
@@ -331,31 +331,39 @@ volume akan langsung sesuai tema tanpa kerja tambahan.
 
 ```
 src/features/music/
-  MusicBar.tsx            bilah mini (desktop + mobile)
-  MusicSheet.tsx          Sheet dengan 4 tab
+  types.ts                bentuk data dari API (Thumb, Song, Track)
+  queue-core.ts           mesin keadaan antrean, murni (dari music-taskify, teruji)
+  queue-core.test.ts
+  MusicBar.tsx            bilah mini (desktop + mobile) — titik pasang di AppShell
+  MusicSheet.tsx          Sheet dengan 3 tab
   SearchTab.tsx           pencarian + "Muat lagi"
   QueueTab.tsx            antrean + lompat lagu
   LyricsTab.tsx           lirik
-  RadioTab.tsx            pilih stasiun
-  music-store.ts          store Zustand (pola toast-store)
-  useMusicPlayer.ts       antrean + prefetch + elemen <audio>
-  useRadio.ts             radio + sambung ulang
-  queue-core.ts           mesin keadaan murni (dari music-taskify, teruji)
-  queue-core.test.ts
-  radio-core.ts           mesin keadaan radio murni (teruji)
-  radio-core.test.ts
-  stations.ts             katalog radio
+  music-store.ts          store Zustand untuk Sheet (pola toast-store)
+  useMusicPlayer.ts       antrean + prefetch + elemen <audio> + mediaSession
+  music-view.ts           durasi, waktu, dan baris status — murni
+  music-view.test.ts
   api-client.ts           klien REST + ambil JWT Supabase
   api-client.test.ts
   music-palette.ts        item untuk CommandPalette
+  music-palette.test.ts
 ```
+
+Tanpa `RadioTab.tsx`, `useRadio.ts`, `radio-core.ts`, dan `stations.ts`: radio
+[tidak dibawa](#keputusan-yang-berubah-setelah-rancangan-ini-ditulis).
 
 `MusicBar` dipasang di `AppShell`, **bukan** di dalam halaman — router meng-unmount halaman
 saat pindah menu dan itu akan memutus musik di tengah lagu. Pola yang sama seperti
 `Toaster` dan `ConfirmDialog`.
 
-Mesin keadaan murni (`queue-core`, `radio-core`) dipindahkan **apa adanya** beserta
-tesnya — totalnya sudah 98 tes yang lulus dan tidak ada alasan menulis ulang.
+`queue-core.ts` dipindahkan **apa adanya** beserta tesnya (60 tes) — satu-satunya perubahan
+adalah jalur impor tipe `Song`. Perilakunya sudah terkunci tes itu, jadi tidak ada alasan
+menulis ulang.
+
+Tipe `Track` di repo asal punya field `lyrics`; field itu **dibuang** di sini karena
+`/v1/track` tidak pernah mengirimnya — teks liriknya datang dari `/v1/lyrics`. Tipe album,
+playlist, dan artis juga tidak dibawa: lingkupnya "cari lagu lalu putar", jadi tipe itu akan
+jadi kode mati.
 
 ---
 
@@ -659,7 +667,7 @@ Dipecah supaya setiap langkah bisa diuji sendiri dan tidak ada PR raksasa.
 | 2      | Autentikasi JWT Supabase + JWKS + daftar izin `sub`, hapus `APP_TOKEN`                                                             | `music-taskify`  | tes unit (JWT palsu, kedaluwarsa, `alg` salah, `sub` tidak terdaftar) |
 | 3      | Anda deploy: `wrangler secret put` ×2, `wrangler deploy`                                                                           | —                | `curl` ke Worker sungguhan                                            |
 | 4 ✅   | **CSP + variabel tumpukan bawah**                                                                                                  | `taskify-webapp` | buka aplikasi, periksa konsol bersih                                  |
-| 5      | Pindahkan mesin keadaan murni + tesnya                                                                                             | `taskify-webapp` | 98 tes yang sudah ada tetap lulus                                     |
+| 5 ✅   | **Pindahkan mesin keadaan antrean + tesnya, dan tipe datanya**                                                                     | `taskify-webapp` | 60 tes yang sudah ada tetap lulus                                     |
 | 6      | `api-client.ts` + ambil JWT                                                                                                        | `taskify-webapp` | tes dengan `fetch` palsu                                              |
 | 7      | `MusicBar` + pasang di `AppShell`                                                                                                  | `taskify-webapp` | tes komponen + lihat di layar                                         |
 | 8      | `MusicSheet` 3 tab (Cari lagu, Antrean, Lirik — tanpa Radio)                                                                       | `taskify-webapp` | tes komponen                                                          |
