@@ -28,7 +28,7 @@ export function UpdatePrompt() {
   return (
     <div
       role="alert"
-      className="fixed inset-x-4 bottom-24 z-40 mx-auto flex max-w-md animate-fade-up items-center gap-3 rounded-2xl p-4 glass-strong lg:bottom-6"
+      className="fixed inset-x-4 bottom-[var(--stack-bottom-overlay)] z-40 mx-auto flex max-w-md animate-fade-up items-center gap-3 rounded-2xl p-4 glass-strong"
     >
       <div className="shine flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
         <Sparkles className="size-5" />

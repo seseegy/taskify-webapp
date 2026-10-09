@@ -6,7 +6,24 @@ Rancangan UI/UX, backend, dan keamanan untuk memasang pemutar musik
 **Kontrak API-nya ada di dokumen terpisah:** [`music-taskify/docs/API.md`](https://github.com/seseegy/music-taskify/blob/main/docs/API.md).
 Dokumen ini tentang **cara memasangnya di sini** — bukan mengulang kontrak API.
 
-> **Status:** rancangan, belum diimplementasikan. Tidak ada kode pemutar di repo ini saat ini.
+> **Status:** tahap 1–4 selesai. Tahap 1–3 (Worker jadi REST API, autentikasi JWT, deploy) ada di
+> repo `music-taskify`; **tahap 4 (CSP + variabel tumpukan bawah) sudah dikerjakan di repo ini.**
+> Kode pemutarnya (tahap 5–10) belum ada.
+
+## Keputusan yang berubah setelah rancangan ini ditulis
+
+| Hal                   | Keputusan                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Radio**             | **Tidak dibawa.** Hanya cari lagu lalu putar. Tab "Radio" dan `stations.ts`/`radio-core.ts` batal dipindahkan |
+| **Lirik**             | **Ikut.** Hampir gratis — `/v1/track` yang dipanggil tiap lagu sudah mengembalikan `lyricsId`                 |
+| **Base URL Worker**   | `https://music-taskify.rosdiyttaa.workers.dev` (bukan `…-api…` seperti di `wrangler.toml`)                    |
+| **JWT Supabase**      | Sudah **asimetris**. `SUPABASE_JWT_SECRET` tidak diperlukan dan tidak boleh disetel                           |
+| **Kontrol OS**        | `mediaSession` action handler ditambahkan (tidak ada di rancangan asli) agar bisa dikontrol dari layar kunci  |
+| **Geser posisi lagu** | Tetap tidak mungkin (hulu tidak melayani `Range`). Tidak akan dibuat bilah yang tampak bisa digeser           |
+
+**Konsekuensi membuang radio yang perlu diingat:** radio tadinya satu-satunya cadangan saat
+layanan konverter mati — dan tabel [Risiko](#risiko) menilai kemungkinan itu **"Tinggi"**.
+Sekarang bila konverter mati, yang bisa dilakukan hanya menampilkan pesan error yang jelas.
 
 ---
 
@@ -636,18 +653,18 @@ konverter. Rancangan berlapis:
 
 Dipecah supaya setiap langkah bisa diuji sendiri dan tidak ada PR raksasa.
 
-| #   | Pekerjaan                                                                                                                          | Repo             | Bisa diuji dengan                                                     |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------- |
-| 1   | Worker jadi REST API rapi: parser pindah ke server, paginasi cursor, `format`, perbaiki plafon antrean 15→49, tambah awalan `MPLY` | `music-taskify`  | `curl` + `verify-dev.sh` + tes                                        |
-| 2   | Autentikasi JWT Supabase + JWKS + daftar izin `sub`, hapus `APP_TOKEN`                                                             | `music-taskify`  | tes unit (JWT palsu, kedaluwarsa, `alg` salah, `sub` tidak terdaftar) |
-| 3   | Anda deploy: `wrangler secret put` ×2, `wrangler deploy`                                                                           | —                | `curl` ke Worker sungguhan                                            |
-| 4   | **CSP + variabel tumpukan bawah**                                                                                                  | `taskify-webapp` | buka aplikasi, periksa konsol bersih                                  |
-| 5   | Pindahkan mesin keadaan murni + tesnya                                                                                             | `taskify-webapp` | 98 tes yang sudah ada tetap lulus                                     |
-| 6   | `api-client.ts` + ambil JWT                                                                                                        | `taskify-webapp` | tes dengan `fetch` palsu                                              |
-| 7   | `MusicBar` + pasang di `AppShell`                                                                                                  | `taskify-webapp` | tes komponen + lihat di layar                                         |
-| 8   | `MusicSheet` 4 tab                                                                                                                 | `taskify-webapp` | tes komponen                                                          |
-| 9   | Item CommandPalette                                                                                                                | `taskify-webapp` | tes komponen                                                          |
-| 10  | Radio + stasiun                                                                                                                    | `taskify-webapp` | dengarkan sungguhan                                                   |
+| #      | Pekerjaan                                                                                                                          | Repo             | Bisa diuji dengan                                                     |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------- |
+| 1      | Worker jadi REST API rapi: parser pindah ke server, paginasi cursor, `format`, perbaiki plafon antrean 15→49, tambah awalan `MPLY` | `music-taskify`  | `curl` + `verify-dev.sh` + tes                                        |
+| 2      | Autentikasi JWT Supabase + JWKS + daftar izin `sub`, hapus `APP_TOKEN`                                                             | `music-taskify`  | tes unit (JWT palsu, kedaluwarsa, `alg` salah, `sub` tidak terdaftar) |
+| 3      | Anda deploy: `wrangler secret put` ×2, `wrangler deploy`                                                                           | —                | `curl` ke Worker sungguhan                                            |
+| 4 ✅   | **CSP + variabel tumpukan bawah**                                                                                                  | `taskify-webapp` | buka aplikasi, periksa konsol bersih                                  |
+| 5      | Pindahkan mesin keadaan murni + tesnya                                                                                             | `taskify-webapp` | 98 tes yang sudah ada tetap lulus                                     |
+| 6      | `api-client.ts` + ambil JWT                                                                                                        | `taskify-webapp` | tes dengan `fetch` palsu                                              |
+| 7      | `MusicBar` + pasang di `AppShell`                                                                                                  | `taskify-webapp` | tes komponen + lihat di layar                                         |
+| 8      | `MusicSheet` 3 tab (Cari lagu, Antrean, Lirik — tanpa Radio)                                                                       | `taskify-webapp` | tes komponen                                                          |
+| 9      | Item CommandPalette                                                                                                                | `taskify-webapp` | tes komponen                                                          |
+| ~~10~~ | ~~Radio + stasiun~~ — **dibatalkan**, lihat [keputusan](#keputusan-yang-berubah-setelah-rancangan-ini-ditulis)                     | —                | —                                                                     |
 
 Langkah **4 harus lebih dulu dari 7**. Tanpa CSP yang benar, pemutarnya akan terlihat
 bekerja tapi bisu — dan itu akan terasa seperti bug di kode pemutar, padahal bukan.
