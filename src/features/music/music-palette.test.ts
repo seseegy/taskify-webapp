@@ -94,6 +94,32 @@ describe('apa yang dilakukan item', () => {
     expect(useMusicPanel.getState().tab).toBe('lirik');
   });
 
+  it('berpindah dari layar Sedang diputar ke tab TIDAK menutup panelnya', () => {
+    /*
+     * Ini yang dulu rusak. Dua `<dialog>` terpisah dikendalikan satu field `panel`, dan
+     * `ui/Sheet` memanggil `onClose` juga saat ditutup secara TERPROGRAM — jadi menutup
+     * layar Sedang diputar memicu `hide()` yang menghapus `panel` yang baru saja dipasang
+     * untuk Sheet satunya, dan keduanya tertutup.
+     *
+     * Perbaikannya struktural (satu dialog, isinya yang berganti), jadi tes ini tidak bisa
+     * menangkap bug aslinya — yang rusak interaksi antar komponen, dan repo ini tidak punya
+     * tes komponen. Yang dikunci di sini kontrak store-nya: berpindah panel memang
+     * perpindahan, bukan penutupan.
+     */
+    useMusicPanel.getState().show('sekarang');
+    expect(useMusicPanel.getState().panel).toBe('sekarang');
+
+    find(state({ active: true }), 'music-queue').run();
+    expect(useMusicPanel.getState().panel).toBe('antrean');
+
+    find(state({ active: true, hasLyrics: true }), 'music-lyrics').run();
+    expect(useMusicPanel.getState().panel).toBe('lirik');
+
+    // Dan hanya `hide()` yang boleh menutupnya.
+    useMusicPanel.getState().hide();
+    expect(useMusicPanel.getState().panel).toBe('none');
+  });
+
   it('putar/jeda TIDAK membuka panel — menjeda tidak perlu melihat apa pun', () => {
     const toggle = vi.fn();
     bindMusicToggle(toggle);

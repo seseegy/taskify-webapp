@@ -164,10 +164,26 @@ kemudian.
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-Lapis 2 dan 3 **tidak pernah terbuka bersamaan**, dan itu dijamin oleh tipe: `MusicPanel`
-adalah satu field (`'none' | 'sekarang' | MusicTab`), bukan beberapa boolean. Dua `<dialog>`
-bertumpuk membuat Esc dan pengembalian fokus jadi tebak-tebakan, jadi keadaan itu dibuat
-**mustahil dibentuk** alih-alih dihindari dengan disiplin.
+Lapis 2 dan 3 adalah **satu `Sheet` yang sama**, isinya yang berganti — bukan dua `<dialog>`
+yang dikendalikan satu keadaan. `MusicPanel` satu field (`'none' | 'sekarang' | MusicTab`)
+menentukan isi mana yang tampil.
+
+> **Ini sudah pernah salah, dan sebabnya layak dicatat.** Versi pertama memakai dua `Sheet`
+> terpisah. Hasilnya: menekan "Antrean" dari lapis 2 **menutup segalanya**. Penyebabnya ada
+> di `ui/Sheet.tsx` — `onClose` dipasang pada event `close` native, dan event itu ikut
+> terpicu saat dialog ditutup **secara terprogram** (`dialog.close()` di efeknya), bukan
+> hanya saat pengguna menutupnya:
+>
+> ```
+> panel = 'antrean'   → lapis 2 jadi open=false
+> dialog.close()      → event `close` native
+> onClose → hide()    → panel = 'none'   ← menghapus keadaan milik lapis 3
+> lapis 3             → open=false lagi, tidak pernah terbuka
+> ```
+>
+> Dengan satu dialog, berpindah panel hanya **mengganti isi**: tidak ada `dialog.close()`,
+> jadi tidak ada event `close`, jadi tidak ada yang menghapus keadaan. Aturan umumnya:
+> untuk beberapa panel yang saling eksklusif, pakai **satu** `Sheet` lalu ganti isinya.
 
 **Kenapa "Sedang diputar" bukan tab keempat:** tiga label tab sudah hampir tidak muat di
 320px — terukur ~246px dari 272px yang tersedia. Label keempat pasti terbungkus dua baris,
@@ -177,6 +193,10 @@ aksesibelnya.
 **Pemicu lapis 2:** ketuk bilah mini, ketuk baris lagu **yang sedang diputar** di Antrean
 atau hasil pencarian (sebelumnya klik itu praktis tidak melakukan apa-apa), atau item
 "Sedang diputar" di CommandPalette.
+
+**Jalan kembali:** lapis 3 memuat satu baris ringkas di atas tab-nya (gambar kecil + judul +
+chevron) yang membuka lapis 2. Tanpa itu perjalanannya satu arah — dari lapis 2 bisa ke
+Antrean, tapi dari Antrean harus menutup panel dan mengetuk bilah mini lagi.
 
 #### Yang sengaja TIDAK ada di lapis 2
 
@@ -393,10 +413,10 @@ src/features/music/
   queue-core.ts           mesin keadaan antrean, murni (dari music-taskify, teruji)
   queue-core.test.ts
   MusicBar.tsx            bilah mini (desktop + mobile) — titik pasang di AppShell
-  NowPlayingSheet.tsx     layar "Sedang diputar"
+  NowPlayingView.tsx      isi layar "Sedang diputar" (tanpa Sheet sendiri)
   MusicProgress.tsx       bilah menyiapkan & garis posisi — satu tempat untuk ARIA-nya
   ModeButton.tsx          tombol mode berkeadaan (aria-pressed, 44px)
-  MusicSheet.tsx          Sheet dengan 3 tab
+  MusicSheet.tsx          SATU Sheet: layar Sedang diputar + 3 tab
   SearchTab.tsx           pencarian + "Muat lagi"
   QueueTab.tsx            antrean + lompat lagu
   LyricsTab.tsx           lirik

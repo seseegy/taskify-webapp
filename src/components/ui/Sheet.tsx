@@ -19,6 +19,21 @@ interface Props {
  * Panel modal berbasis <dialog> native → fokus terkunci, Esc menutup, aksesibel.
  * Tandai input dengan `data-autofocus` agar difokuskan saat dibuka.
  * Klik di luar panel (backdrop) juga menutup.
+ *
+ * ## Sisi tajam: `onClose` juga terpanggil saat ditutup secara TERPROGRAM
+ *
+ * `onClose` dipasang pada event `close` native, dan event itu terpicu oleh `dialog.close()`
+ * di efek di bawah — bukan hanya oleh Esc, backdrop, atau tombol Tutup. Jadi `onClose`
+ * berarti "dialog ini tertutup", **bukan** "pengguna menutupnya".
+ *
+ * Untuk satu dialog yang menyetel `open`-nya sendiri jadi `false`, itu tidak terasa: aksinya
+ * idempoten. Tapi kalau DUA `Sheet` berbagi satu keadaan (mis. satu field yang menentukan
+ * panel mana yang terbuka), menutup yang satu akan memanggil `onClose`-nya dan menghapus
+ * keadaan yang baru saja dipasang untuk yang lain — hasilnya kedua panel tertutup. Itu sudah
+ * pernah terjadi; lihat catatan di `features/music/MusicSheet.tsx`.
+ *
+ * Jadi: untuk beberapa panel yang saling eksklusif, pakai **satu** `Sheet` lalu ganti
+ * isinya — jangan beberapa `Sheet` yang dikendalikan satu keadaan.
  */
 export function Sheet({
   open,
