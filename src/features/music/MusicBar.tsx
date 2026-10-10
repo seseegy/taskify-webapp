@@ -17,7 +17,6 @@ import { barAnnouncement, barControls, barStatus } from './music-view';
 import { PositionProgress, PrepareProgress } from './MusicProgress';
 import { bindMusicToggle, openMusicSheet, openNowPlaying, publishMusicRemote } from './music-store';
 import { MusicSheet } from './MusicSheet';
-import { NowPlayingSheet } from './NowPlayingSheet';
 import { useMusicPlayer } from './useMusicPlayer';
 
 /**
@@ -111,8 +110,8 @@ export function MusicBar() {
       <audio ref={audioRef} preload="none" className="hidden" />
 
       {/*
-        Panel musik dirender di sini, bukan di `AppShell`: ia perlu API pemutar yang sama
-        dengan bilah ini. `musicClient` dipersempit di sini supaya tab-tabnya tidak perlu
+        SATU panel musik untuk semua isi — layar "Sedang diputar" dan tiga tab. Dirender di
+        sini, bukan di `AppShell`: ia perlu API pemutar yang sama dengan bilah ini. `musicClient` dipersempit di sini supaya tab-tabnya tidak perlu
         menangani kemungkinan "klien tidak ada" yang sebenarnya mustahil — komponen ini hanya
         dipasang saat `VITE_MUSIC_API_URL` diisi.
 
@@ -122,7 +121,6 @@ export function MusicBar() {
         dipanggil dari CommandPalette.
       */}
       {musicClient && <MusicSheet client={musicClient} player={player} />}
-      <NowPlayingSheet player={player} />
 
       {/*
         Satu live region, dan sengaja di LUAR bilah: elemen di dalam subtree `display: none`
