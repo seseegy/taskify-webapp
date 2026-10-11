@@ -47,3 +47,6 @@ streams:
       - SELECT * FROM attachments WHERE user_id = auth.user_id()
       - SELECT * FROM pw_items WHERE user_id = auth.user_id()
       - SELECT * FROM pw_totp_log WHERE user_id = auth.user_id()
+      # Vault · Konfigurasi: metadata teks biasa, isi versi terenkripsi (DEK Sandi)
+      - SELECT * FROM config_files WHERE user_id = auth.user_id()
+      - SELECT * FROM config_versions WHERE user_id = auth.user_id()

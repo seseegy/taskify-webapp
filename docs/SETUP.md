@@ -43,7 +43,7 @@ pnpm db:push
 
 **B. Manual** — buka **SQL Editor**, jalankan isi file di `supabase/migrations/` **berurutan** (nama file = urutan).
 
-Migrasi membuat: 16 tabel, RLS + grant, publication `powersync`, dan trigger data awal.
+Migrasi membuat: 21 tabel tersinkron (plus 2 tabel khusus server untuk pengingat), RLS + grant, publication `powersync`, dan trigger data awal.
 
 ### 2.4 Role replikasi untuk PowerSync
 
@@ -419,28 +419,42 @@ Dan `media-src` di [`public/_headers`](../public/_headers) sudah mengizinkan hos
 pemutar terasa "jalan tapi bisu", periksa direktif itu lebih dulu — CSP memblokir audio **tanpa**
 pesan error yang jelas di UI.
 
+## 12. Konfigurasi berversi (Vault)
+
+Berkas `.env`/JSON berversi di Vault. Isinya dienkripsi dengan kunci brankas **Sandi**, jadi
+brankas Sandi harus sudah dibuat (§10). Tidak butuh layanan baru, tetapi **dua langkah deploy
+wajib**:
+
+1. `pnpm db:push`: menerapkan migrasi `20261011000100_config_files.sql` (tabel `config_files` dan
+   `config_versions`, RLS, publication, hak baca role PowerSync).
+2. **PowerSync Dashboard → Sync Streams**: tempel ulang isi
+   [`powersync/sync-config.yaml`](../powersync/sync-config.yaml) → **Validate** → **Deploy**.
+
+Bila Validate gagal dengan `permission denied for table config_…`, jalankan blok hak baca di §2.4b.
+
 ## Troubleshooting
 
-| Gejala                                   | Penyebab & solusi                                                                                                  |
-| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Layar "Konfigurasi belum lengkap"        | `.env.local` belum diisi / server dev belum di-restart                                                             |
-| Pintu masuk musik tidak ada di palette   | `VITE_MUSIC_API_URL` kosong (§11), atau server dev belum di-restart                                                |
-| Musik "jalan tapi bisu"                  | `media-src` di `public/_headers` — periksa Console untuk pesan _"Refused to load media"_                           |
-| Sandi tidak muncul di perangkat lain     | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan |
-| Status macet di _Menyinkron…_            | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)                               |
-| Error `PSYNC_S2101` di console           | Client Auth PowerSync belum dicentang _Use Supabase Auth_                                                          |
-| Error `PSYNC_S2105` (aud)                | Tambahkan audience `authenticated` di Client Auth                                                                  |
-| Upload gagal `42501 permission denied`   | Migrasi 2 (grant) belum dijalankan                                                                                 |
-| Pengaturan menampilkan "Ditolak server"  | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`                                      |
-| Login "Tidak bisa terhubung"             | Login pertama butuh internet; setelah itu aplikasi jalan offline                                                   |
-| Notifikasi "Belum tersedia"              | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                                                   |
-| Notifikasi uji "Edge Function gagal"     | Fungsi belum di-deploy, atau Verify JWT masih menyala                                                              |
-| Upload gagal "periksa koneksi atau CORS" | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)                                           |
-| "Edge Function gagal" saat upload        | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah                                     |
-| Uji berhasil tapi pengingat tidak datang | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi                             |
-| Backup gagal "Network is unreachable"    | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)                                    |
-| Backup gagal "server version mismatch"   | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`                              |
-| "Bagikan" tidak menampilkan Taskify      | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                                              |
+| Gejala                                     | Penyebab & solusi                                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| Layar "Konfigurasi belum lengkap"          | `.env.local` belum diisi / server dev belum di-restart                                                             |
+| Pintu masuk musik tidak ada di palette     | `VITE_MUSIC_API_URL` kosong (§11), atau server dev belum di-restart                                                |
+| Musik "jalan tapi bisu"                    | `media-src` di `public/_headers` — periksa Console untuk pesan _"Refused to load media"_                           |
+| Sandi tidak muncul di perangkat lain       | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan |
+| Konfigurasi tidak muncul di perangkat lain | `sync-config.yaml` belum di-deploy ulang (§12), atau migrasi `…_config_files.sql` belum diterapkan                 |
+| Status macet di _Menyinkron…_              | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)                               |
+| Error `PSYNC_S2101` di console             | Client Auth PowerSync belum dicentang _Use Supabase Auth_                                                          |
+| Error `PSYNC_S2105` (aud)                  | Tambahkan audience `authenticated` di Client Auth                                                                  |
+| Upload gagal `42501 permission denied`     | Migrasi 2 (grant) belum dijalankan                                                                                 |
+| Pengaturan menampilkan "Ditolak server"    | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`                                      |
+| Login "Tidak bisa terhubung"               | Login pertama butuh internet; setelah itu aplikasi jalan offline                                                   |
+| Notifikasi "Belum tersedia"                | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                                                   |
+| Notifikasi uji "Edge Function gagal"       | Fungsi belum di-deploy, atau Verify JWT masih menyala                                                              |
+| Upload gagal "periksa koneksi atau CORS"   | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)                                           |
+| "Edge Function gagal" saat upload          | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah                                     |
+| Uji berhasil tapi pengingat tidak datang   | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi                             |
+| Backup gagal "Network is unreachable"      | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)                                    |
+| Backup gagal "server version mismatch"     | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`                              |
+| "Bagikan" tidak menampilkan Taskify        | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                                              |
 
 ## Perawatan rutin
 

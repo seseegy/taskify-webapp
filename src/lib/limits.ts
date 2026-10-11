@@ -14,6 +14,8 @@ export const LIMITS = {
   snippetTitle: 200,
   projectName: 120,
   counterparty: 100,
+  configName: 120,
+  configEnvironment: 40,
 } as const;
 
 /**

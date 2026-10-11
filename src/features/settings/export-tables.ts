@@ -21,4 +21,7 @@ export const EXPORT_TABLES = [
   'pw_keys',
   'pw_items',
   'pw_totp_log',
+  // Konfigurasi: metadata teks biasa + isi versi terenkripsi (sama amannya dengan Sandi)
+  'config_files',
+  'config_versions',
 ] as const;
