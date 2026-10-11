@@ -274,6 +274,27 @@ hampir selalu memuat rahasia, jadi diperlakukan seperti isi brankas. Kode: `src/
 - **Tidak ada tombol unduh**: isi hanya bisa disalin lewat `copySecret` (papan klip dihapus
   otomatis), supaya tidak ada salinan tanpa enkripsi yang tertinggal di disk.
 
+**UI.** Tab ketiga di Vault (`/vault?tab=konfigurasi`, satu berkas di `?config=<id>`), plus seksi
+di panel Project yang dibatasi project itu. Pintu masuk palette hanya membuka daftarnya.
+
+- **Daftar tetap berguna saat brankas terkunci** — itu alasan metadata disimpan teks biasa. Baris
+  terkunci ditandai ikon gembok + teks `sr-only`, bukan hanya warna.
+- **Gerbang buka brankas ada di dalam panelnya** (`UnlockScreen` yang sama dengan Sandi), jadi
+  tidak perlu pindah halaman. **Pemulihan master password sengaja TIDAK ada di sini**: itu
+  merotasi kunci seluruh brankas, jadi tempatnya tetap di halaman Sandi.
+- `useVaultKey` (`features/sandi/useVaultKey.ts`) adalah **satu-satunya** tempat yang membuang DEK
+  usang dan membuka otomatis untuk perangkat tepercaya. Halaman Sandi memakainya juga. Kalau
+  pemeriksaan itu diduplikasi, layar yang ketinggalan bisa diam-diam menulis dengan kunci usang —
+  dan datanya tidak akan bisa dibuka setelah sinkron.
+- Isi versi hanya didekripsi di komponen yang **di-mount saat brankas terbuka**, jadi plaintext
+  ikut hilang saat dikunci. Terkunci saat mengedit = draf dibuang, dan itu diberitahukan.
+- **Nilai disembunyikan secara bawaan** dengan jumlah titik tetap (panjang nilai tidak bocor),
+  tersembunyi lagi otomatis setelah 15 detik. Teks mentah berada di balik gerbang yang sama.
+- Pembersihan 30 hari (`purgeExpiredConfigFiles`) **menghapus versinya secara eksplisit**:
+  `ON DELETE CASCADE` hanya ada di Postgres, tabel lokal PowerSync tidak punya foreign key.
+  Berkas yang dihapus tidak tampil di halaman Sampah (pola `pw_items`); pemulihannya lewat
+  &ldquo;Urungkan&rdquo; di toast.
+
 ## Musik (opsional)
 
 Satu-satunya modul yang **tidak menyentuh basis data sama sekali**: tanpa tabel, tanpa migrasi, tanpa entri di `powersync/sync-config.yaml`, tanpa `withMeta`/`deleted_at`, tanpa FTS. Antrean, URL audio, dan lirik hidup di memori selama satu sesi dan hilang saat tab ditutup — memang itu yang diinginkan, karena URL hasil konversi berumur pendek.

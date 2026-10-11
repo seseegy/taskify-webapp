@@ -2,6 +2,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CornerDownLeft,
+  FileCog,
   Hash,
   ListChecks,
   Moon,
@@ -159,6 +160,16 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
       title: 'Tulis jurnal hari ini',
       keywords: 'jurnal tulis catatan diary',
       run: () => navigate(`/jurnal?tanggal=${today}`),
+    },
+    {
+      key: 'config-list',
+      section: 'Aksi',
+      icon: <ItemIcon icon={FileCog} gradient="bg-gradient-vault" />,
+      title: 'Konfigurasi (.env & JSON)',
+      // Hanya pintu masuk DAFTAR-nya: membuat berkas butuh brankas terbuka, dan palette bukan
+      // tempat yang baik untuk meminta master password.
+      keywords: 'konfigurasi config env json lingkungan environment variabel rahasia vault',
+      run: () => navigate('/vault?tab=konfigurasi'),
     },
     {
       key: 'theme',

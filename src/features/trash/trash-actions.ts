@@ -12,6 +12,8 @@ import { deleteEntityRefs } from '@/db/refs';
 import {
   budgets,
   codeProjects,
+  configFiles,
+  configVersions,
   debts,
   journalEntries,
   pwItems,
@@ -118,6 +120,28 @@ export async function purgeExpiredSupportRows(db: AppDatabase, cutoff: string) {
   await db
     .delete(pwItems)
     .where(and(isNotNull(pwItems.deleted_at), lt(pwItems.deleted_at, cutoff)));
+  await purgeExpiredConfigFiles(db, cutoff);
+}
+
+/**
+ * Konfigurasi Vault yang dihapus. Juga tidak tampil di Sampah (pola `pw_items`): pemulihannya
+ * lewat tombol "Urungkan" di toast, lalu dibuang permanen setelah 30 hari.
+ *
+ * Versi HARUS dihapus eksplisit: `ON DELETE CASCADE` hanya ada di Postgres, sedangkan tabel lokal
+ * PowerSync tidak punya foreign key. Tanpa ini, versi milik berkas yang sudah hilang akan
+ * menggantung di perangkat sampai server mengabarkan penghapusannya — dan ciphertext-nya tetap
+ * ada di perangkat selama itu.
+ */
+export async function purgeExpiredConfigFiles(db: AppDatabase, cutoff: string) {
+  const expired = await db
+    .select({ id: configFiles.id })
+    .from(configFiles)
+    .where(and(isNotNull(configFiles.deleted_at), lt(configFiles.deleted_at, cutoff)));
+  if (expired.length === 0) return;
+  for (const { id } of expired) {
+    await db.delete(configVersions).where(eq(configVersions.file_id, id));
+    await db.delete(configFiles).where(eq(configFiles.id, id));
+  }
 }
 
 /** Hapus permanen isi Sampah yang lebih tua dari 30 hari (sekali per sesi, setelah sync awal). */

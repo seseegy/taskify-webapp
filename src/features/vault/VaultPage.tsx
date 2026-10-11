@@ -1,4 +1,4 @@
-import { CodeXml, FolderGit2, HardDrive, Plus, Search, Star } from 'lucide-react';
+import { CodeXml, FileCog, FolderGit2, HardDrive, Plus, Search, Star } from 'lucide-react';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -16,6 +16,8 @@ import { formatBytes } from '@/lib/bytes';
 import { parseTimestamp, relativeDayLabel, todayLocal } from '@/lib/date';
 import { languageLabel } from '@/lib/prism';
 import { cn } from '@/lib/utils';
+import { ConfigSheet } from './config/ConfigSheet';
+import { ConfigTab } from './config/ConfigTab';
 import { CopySnippet } from './components/CopySnippet';
 import { ProjectDialog, ProjectPanel } from './components/ProjectPanel';
 import { SnippetSheet } from './components/SnippetSheet';
@@ -30,15 +32,22 @@ import {
 } from './vault-data';
 import { useToday } from '@/lib/useToday';
 
-type Tab = 'snippet' | 'project';
+type Tab = 'snippet' | 'project' | 'konfigurasi';
 const R2_FREE_BYTES = 10 * 1024 ** 3;
 
-/** URL: ?tab=snippet|project · ?snippet=<id|baru> · ?project=<id> */
+/** URL: ?tab=snippet|project|konfigurasi · ?snippet=<id|baru> · ?project=<id> · ?config=<id> */
 export function VaultPage() {
   const [params, setParams] = useSearchParams();
   const snippetParam = params.get('snippet');
   const projectId = params.get('project');
-  const tab: Tab = projectId || params.get('tab') === 'project' ? 'project' : 'snippet';
+  const configId = params.get('config');
+  const tabParam = params.get('tab');
+  const tab: Tab =
+    configId || tabParam === 'konfigurasi'
+      ? 'konfigurasi'
+      : projectId || tabParam === 'project'
+        ? 'project'
+        : 'snippet';
   const usage = useStorageUsage();
   const [creatingProject, setCreatingProject] = useState(false);
 
@@ -54,18 +63,22 @@ export function VaultPage() {
         icon={CodeXml}
         gradient="bg-gradient-vault"
         actions={
-          <Button
-            // Di HP tombol hanya berupa ikon → wajib punya nama aksesibel
-            aria-label={tab === 'snippet' ? 'Snippet baru' : 'Project baru'}
-            onClick={() =>
-              tab === 'snippet'
-                ? set({ tab: 'snippet', snippet: 'baru' })
-                : setCreatingProject(true)
-            }
-          >
-            <Plus />{' '}
-            <span className="hidden sm:inline">{tab === 'snippet' ? 'Snippet' : 'Project'}</span>
-          </Button>
+          // Tab Konfigurasi punya tombol tambahnya sendiri (butuh brankas terbuka), jadi
+          // tombol header disembunyikan di sana agar tidak ada dua pintu yang berbeda nasib.
+          tab === 'konfigurasi' ? undefined : (
+            <Button
+              // Di HP tombol hanya berupa ikon → wajib punya nama aksesibel
+              aria-label={tab === 'snippet' ? 'Snippet baru' : 'Project baru'}
+              onClick={() =>
+                tab === 'snippet'
+                  ? set({ tab: 'snippet', snippet: 'baru' })
+                  : setCreatingProject(true)
+              }
+            >
+              <Plus />{' '}
+              <span className="hidden sm:inline">{tab === 'snippet' ? 'Snippet' : 'Project'}</span>
+            </Button>
+          )
         }
       />
 
@@ -74,10 +87,11 @@ export function VaultPage() {
           label="Bagian vault"
           value={tab}
           onChange={(t) => set({ tab: t })}
-          className="w-full sm:w-80"
+          className="w-full sm:w-[26rem]"
           options={[
             { value: 'snippet', label: 'Snippet', icon: <CodeXml /> },
             { value: 'project', label: 'Project', icon: <FolderGit2 /> },
+            { value: 'konfigurasi', label: 'Konfig', icon: <FileCog /> },
           ]}
         />
         <span
@@ -95,7 +109,9 @@ export function VaultPage() {
         </span>
       </div>
 
-      {tab === 'snippet' ? (
+      {tab === 'konfigurasi' ? (
+        <ConfigTab onOpen={(id) => set({ tab: 'konfigurasi', config: id })} />
+      ) : tab === 'snippet' ? (
         <SnippetsTab onOpen={(id) => set({ tab: 'snippet', snippet: id })} />
       ) : (
         <ProjectsTab
@@ -118,6 +134,7 @@ export function VaultPage() {
         onClose={() => setCreatingProject(false)}
         onCreated={(id) => set({ tab: 'project', project: id })}
       />
+      <ConfigSheet fileId={configId} onClose={() => set({ tab: 'konfigurasi' })} />
     </>
   );
 }
