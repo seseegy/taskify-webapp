@@ -2,6 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   changePassword,
   createVault,
+  decryptConfig,
+  encryptConfig,
+  parseConfigPayload,
+  reencryptConfigVersions,
   DEFAULT_ITERATIONS,
   MAX_ITERATIONS,
   MIN_ITERATIONS,
@@ -554,5 +558,103 @@ describe('parsePayload & base64', () => {
       crypto.getRandomValues(big.subarray(i, i + 65_536));
     expect(Array.from(fromB64(toB64(big))).length).toBe(200_000);
     expect(fromB64(toB64(big))[199_999]).toBe(big[199_999]);
+  });
+});
+
+describe('konfigurasi Vault · enkripsi', () => {
+  const payload = { text: 'API_URL=https://api.example.com\nTOKEN=rahasia-sekali', note: 'awal' };
+  const FILE = 'file-1';
+  const VER = 'ver-1';
+
+  it('bolak-balik utuh, termasuk teks mentah multi-baris dan catatan', async () => {
+    const v = await setup();
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    expect(await decryptConfig(v.dek, USER, FILE, VER, enc)).toEqual(payload);
+  });
+
+  it('komentar, baris kosong, dan urutan bertahan apa adanya (teks mentah = sumber kebenaran)', async () => {
+    const v = await setup();
+    const text = '# atas\n\nB=2\nA=1\n\n# bawah\n';
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, { text, note: '' });
+    expect((await decryptConfig(v.dek, USER, FILE, VER, enc)).text).toBe(text);
+  });
+
+  it('ciphertext tidak memuat isi polos maupun catatannya', async () => {
+    const v = await setup();
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    for (const needle of ['rahasia-sekali', 'API_URL', 'api.example.com', 'awal'])
+      expect(enc).not.toContain(needle);
+  });
+
+  it('padding: isi pendek dan agak panjang menghasilkan panjang ciphertext yang sama', async () => {
+    const v = await setup();
+    const a = await encryptConfig(v.dek, USER, FILE, VER, { text: 'A=1', note: '' });
+    const b = await encryptConfig(v.dek, USER, FILE, VER, { text: 'A=1234567890', note: '' });
+    expect(a.length).toBe(b.length);
+  });
+
+  it('AAD: ciphertext tidak bisa dipindah ke berkas lain, versi lain, atau akun lain', async () => {
+    const v = await setup();
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    await expect(decryptConfig(v.dek, USER, 'file-2', VER, enc)).rejects.toThrow(SandiError);
+    await expect(decryptConfig(v.dek, USER, FILE, 'ver-2', enc)).rejects.toThrow(SandiError);
+    await expect(decryptConfig(v.dek, OTHER_USER, FILE, VER, enc)).rejects.toThrow(SandiError);
+  });
+
+  it('domain terpisah: versi konfigurasi tidak bisa dibaca sebagai item Sandi, dan sebaliknya', async () => {
+    const v = await setup();
+    const cfg = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    await expect(decryptItem(v.dek, USER, VER, cfg)).rejects.toThrow(SandiError);
+
+    const it0 = await encryptItem(v.dek, USER, VER, item());
+    await expect(decryptConfig(v.dek, USER, FILE, VER, it0)).rejects.toThrow(SandiError);
+  });
+
+  it('kunci brankas lain, data diubah, atau bukan base64 → SandiError (bukan error lain)', async () => {
+    const v = await setup();
+    const other = await createVault('lain-lain-lain-lain', USER, FAST);
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload);
+
+    await expect(decryptConfig(other.dek, USER, FILE, VER, enc)).rejects.toThrow(SandiError);
+    const bytes = fromB64(enc);
+    bytes[bytes.length - 1]! ^= 1;
+    await expect(decryptConfig(v.dek, USER, FILE, VER, toB64(bytes))).rejects.toThrow(SandiError);
+    for (const bad of ['', 'x', 'bukan-base64!!'])
+      await expect(decryptConfig(v.dek, USER, FILE, VER, bad)).rejects.toThrow(SandiError);
+  });
+
+  it('field yang hilang diberi nilai bawaan (kompatibel ke depan)', () => {
+    expect(parseConfigPayload({})).toEqual({ text: '', note: '' });
+    expect(parseConfigPayload({ text: 'A=1', note: 123 })).toEqual({ text: 'A=1', note: '' });
+    for (const bad of [null, 'teks', [], 42])
+      expect(() => parseConfigPayload(bad)).toThrow(SandiError);
+  });
+
+  it('reencryptConfigVersions: memakai file_id masing-masing baris, melewati yang tak terbaca', async () => {
+    const v = await setup();
+    const next = (await rotateRecoveryKey(v.record, PASSWORD, USER, FAST))!;
+    const foreign = await createVault('lain-lain-lain-lain', USER, FAST);
+
+    const rows = [
+      { id: 'v1', file_id: 'f1', enc: await encryptConfig(v.dek, USER, 'f1', 'v1', payload) },
+      {
+        id: 'v2',
+        file_id: 'f2',
+        enc: await encryptConfig(v.dek, USER, 'f2', 'v2', { text: 'B=2', note: '' }),
+      },
+      {
+        id: 'v3',
+        file_id: 'f3',
+        enc: await encryptConfig(foreign.dek, USER, 'f3', 'v3', { text: 'C=3', note: '' }),
+      },
+    ];
+    // `next.previousDek` adalah DEK lama hasil rotasi; sama dengan `v.dek` yang dipakai di atas
+    const res = await reencryptConfigVersions(rows, next.previousDek, next.dek, USER);
+    expect(res.skipped).toEqual(['v3']);
+    expect(res.updated.map((r) => r.id)).toEqual(['v1', 'v2']);
+
+    const byId = new Map(res.updated.map((r) => [r.id, r.enc]));
+    expect(await decryptConfig(next.dek, USER, 'f1', 'v1', byId.get('v1')!)).toEqual(payload);
+    expect((await decryptConfig(next.dek, USER, 'f2', 'v2', byId.get('v2')!)).text).toBe('B=2');
   });
 });
