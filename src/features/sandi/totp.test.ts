@@ -199,6 +199,17 @@ describe('parseTotpInput', () => {
     expect(parseTotpInput('otpauth://totp/X')).toBeNull();
     expect(parseTotpInput('')).toBeNull();
   });
+
+  it('label dengan % rusak tidak melempar (dipanggil saat render); kuncinya tetap terbaca', () => {
+    const uri = 'otpauth://totp/Akun%E0:budi?secret=JBSWY3DPEHPK3PXP';
+    expect(() => parseTotpInput(uri)).not.toThrow();
+    expect(() => totpProblem(uri)).not.toThrow();
+    expect(totpProblem(uri)).toBeNull();
+    const r = parseTotpInput(uri);
+    expect(r?.config.secret).toBe('JBSWY3DPEHPK3PXP');
+    expect(r?.name).toBe('Akun%E0');
+    expect(r?.username).toBe('budi');
+  });
 });
 
 describe('parseTotpConfig (dari hasil dekripsi item)', () => {

@@ -206,6 +206,19 @@ export function parseTotpInput(text: string): TotpInput | null {
   return config ? { config, name: '', username: '' } : null;
 }
 
+/**
+ * `decodeURIComponent` melempar `URIError` pada `%` yang rusak (mis. "Akun%E0"). Fungsi ini
+ * dipanggil saat render, jadi lemparan itu menjatuhkan seluruh halaman. Label hanya nama
+ * tampilan — kunci rahasianya tetap sah — maka label dipakai apa adanya bila gagal diurai.
+ */
+function safeDecode(text: string): string {
+  try {
+    return decodeURIComponent(text);
+  } catch {
+    return text;
+  }
+}
+
 function parseOtpauth(uri: string): TotpInput | null {
   let url: URL;
   try {
@@ -226,7 +239,7 @@ function parseOtpauth(uri: string): TotpInput | null {
   if (!config) return null;
 
   // Label: "/Issuer:akun" atau "/akun". Parameter `issuer` menang bila ada.
-  const label = decodeURIComponent(url.pathname.replace(/^\//, ''));
+  const label = safeDecode(url.pathname.replace(/^\//, ''));
   const sep = label.indexOf(':');
   const labelIssuer = sep >= 0 ? label.slice(0, sep).trim() : '';
   const account = (sep >= 0 ? label.slice(sep + 1) : label).trim();
