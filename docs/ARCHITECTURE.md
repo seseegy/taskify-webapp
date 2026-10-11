@@ -239,6 +239,41 @@ DEK (256 bit acak) ─AES-256-GCM, IV acak, AAD = user + id item─► isi item 
 
 **Belum ada** (sengaja di luar cakupan awal): impor/ekspor CSV, pindai QR lewat kamera (kunci TOTP ditempel manual), passkey/biometrik untuk membuka, pengecekan kebocoran (HIBP), Sampah khusus sandi.
 
+## Konfigurasi berversi (Vault)
+
+Berkas `.env`/JSON berversi, **memakai kunci brankas Sandi** (bukan kunci sendiri): isi `.env`
+hampir selalu memuat rahasia, jadi diperlakukan seperti isi brankas. Kode: `src/features/vault/config/`.
+
+- **Metadata teks biasa, isi terenkripsi.** `config_files` memuat nama, format, lingkungan, dan
+  `project_id` apa adanya, supaya daftar tetap tampil saat brankas terkunci. `config_versions.enc`
+  memuat `{ text, note }` — isi berkas DAN catatan perubahannya (catatan bisa menyebut hal
+  sensitif). AAD = `taskify-sandi/config/v1/{user}/{file}/{versi}`, jadi ciphertext tidak bisa
+  dipindah ke berkas lain, versi lain, akun lain, atau ditukar menjadi item Sandi.
+- 🔴 **Setiap jenis data baru yang dienkripsi dengan DEK brankas WAJIB ditambahkan ke
+  `rekeyVaultRows`** (`features/sandi/vault-rekey.ts`). Kalau terlewat, mengganti master password
+  membuat data itu tidak bisa dibuka **selamanya**: DEK dirotasi di setiap penggantian kunci dan
+  kunci lama sudah ditimpa. Ada tes yang gagal bila integrasinya dilepas.
+- **Teks mentah adalah sumber kebenaran.** Parser (`config-parse.ts`) tidak pernah menulis ulang
+  berkas; hasilnya hanya untuk menampilkan nilai per kunci (agar bisa disembunyikan satu per
+  satu), memvalidasi, dan membandingkan. Komentar, urutan, dan baris kosong tidak pernah hilang.
+- **Perbandingan per kunci**, bukan per baris (untuk JSON per path seperti `db.pool.max`), jadi
+  memindahkan baris atau mengubah komentar bukan "perubahan". Bisa juga membandingkan dua berkas
+  berbeda — itulah cara menjawab "kunci apa yang belum ada di staging?"
+- **Nomor versi (v1, v2, …) TIDAK disimpan**, dihitung dari urutan `created_at`/`id`.
+  `UNIQUE(file_id, nomor)` akan menolak versi dari dua perangkat yang sama-sama offline (aturan
+  "hindari UNIQUE di data yang bisa diedit"). Konsekuensinya nomor bisa bergeser bila versi dari
+  perangkat yang tertinggal baru tiba belakangan.
+- **Batas 256 KB per versi** ditegakkan di klien (`CONFIG_MAX_BYTES`, diukur byte UTF-8), karena
+  CHECK Postgres berlaku pada ciphertext yang lebih panjang setelah padding + base64 — pesan
+  23514 dari server tidak bisa menyebut batas yang dimengerti pengguna.
+- **Rujukan lintas akun ditolak trigger** `config_check_owner`: FK hanya memeriksa baris ADA,
+  bukan pemiliknya. Pesannya sama untuk "milik orang lain" dan "tidak ada", jadi tidak
+  membocorkan keberadaan UUID.
+- Project dihapus permanen → berkas menjadi "Tanpa project" (`SET NULL`), tidak ikut terhapus.
+- Isi konfigurasi tidak masuk FTS, palette, tag, maupun tautan (sengaja, sama seperti Sandi).
+- **Tidak ada tombol unduh**: isi hanya bisa disalin lewat `copySecret` (papan klip dihapus
+  otomatis), supaya tidak ada salinan tanpa enkripsi yang tertinggal di disk.
+
 ## Musik (opsional)
 
 Satu-satunya modul yang **tidak menyentuh basis data sama sekali**: tanpa tabel, tanpa migrasi, tanpa entri di `powersync/sync-config.yaml`, tanpa `withMeta`/`deleted_at`, tanpa FTS. Antrean, URL audio, dan lirik hidup di memori selama satu sesi dan hilang saat tab ditutup — memang itu yang diinginkan, karena URL hasil konversi berumur pendek.

@@ -168,6 +168,12 @@ const aadItem = (userId: string, itemId: string) => `taskify-sandi/item/v1/${use
 // Domain terpisah: baris riwayat tidak bisa ditukar menjadi item, dan sebaliknya.
 const aadTotpLog = (userId: string, rowId: string) =>
   `taskify-sandi/totp-log/v1/${userId}/${rowId}`;
+/**
+ * Versi konfigurasi (Vault). Mengikat ke BERKAS-nya juga, bukan hanya ke barisnya: ciphertext
+ * versi `.env` production tidak bisa dipindah menjadi versi berkas staging.
+ */
+const aadConfig = (userId: string, fileId: string, versionId: string) =>
+  `taskify-sandi/config/v1/${userId}/${fileId}/${versionId}`;
 
 /** DEK polos hanya sesaat di memori: dipakai membungkus/mengimpor, lalu dinolkan. */
 async function importDek(raw: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
@@ -592,4 +598,83 @@ export async function decryptTotpLog(
     if (e instanceof SandiError) throw e;
     throw new SandiError('corrupt', 'Isi riwayat tidak valid.');
   }
+}
+
+// ----------------------------------------------------------------------------- konfigurasi (Vault)
+/**
+ * Isi satu versi berkas konfigurasi. `text` adalah teks MENTAH apa adanya (komentar, urutan, dan
+ * baris kosong ikut tersimpan), karena itulah yang dilihat dan ditempel pengguna.
+ */
+export interface ConfigPayload {
+  text: string;
+  /** Catatan perubahan, mis. "ganti URL Supabase". Ikut dienkripsi: bisa menyebut hal sensitif. */
+  note: string;
+}
+
+export function parseConfigPayload(value: unknown): ConfigPayload {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    throw new SandiError('corrupt', 'Isi konfigurasi tidak valid.');
+  const o = value as Record<string, unknown>;
+  return { text: str(o.text), note: str(o.note) };
+}
+
+/** Hasil: base64(IV ‖ ciphertext) untuk kolom `config_versions.enc`. */
+export async function encryptConfig(
+  dek: CryptoKey,
+  userId: string,
+  fileId: string,
+  versionId: string,
+  payload: ConfigPayload,
+): Promise<string> {
+  const plain = te.encode(JSON.stringify(payload));
+  return toB64(await seal(dek, pad(plain), aadConfig(userId, fileId, versionId)));
+}
+
+/** Melempar SandiError('corrupt') bila dibuat dengan kunci lain, diubah, atau dipindah berkas. */
+export async function decryptConfig(
+  dek: CryptoKey,
+  userId: string,
+  fileId: string,
+  versionId: string,
+  enc: string,
+): Promise<ConfigPayload> {
+  let bytes: Uint8Array<ArrayBuffer>;
+  try {
+    bytes = fromB64(enc);
+  } catch {
+    throw new SandiError('corrupt', 'Data konfigurasi rusak.');
+  }
+  const padded = await open(dek, bytes, aadConfig(userId, fileId, versionId));
+  const plain = padded && unpad(padded);
+  if (!plain) throw new SandiError('corrupt', 'Versi ini tidak bisa dibuka dengan kunci ini.');
+  try {
+    return parseConfigPayload(JSON.parse(td.decode(plain)));
+  } catch (e) {
+    if (e instanceof SandiError) throw e;
+    throw new SandiError('corrupt', 'Isi konfigurasi tidak valid.');
+  }
+}
+
+/** Baris `config_versions` untuk enkripsi ulang: AAD butuh `file_id`, jadi ikut dibawa. */
+export interface EncryptedConfigRow extends EncryptedRow {
+  file_id: string;
+}
+
+/**
+ * Seperti `reencryptItems`, untuk versi konfigurasi. WAJIB dipanggil saat kunci brankas dirotasi;
+ * tanpa itu seluruh konfigurasi tidak bisa dibuka lagi setelah ganti master password.
+ */
+export async function reencryptConfigVersions(
+  rows: EncryptedConfigRow[],
+  from: CryptoKey,
+  to: CryptoKey,
+  userId: string,
+): Promise<{ updated: EncryptedRow[]; skipped: string[] }> {
+  const byId = new Map(rows.map((r) => [r.id, r.file_id]));
+  const fileOf = (id: string) => byId.get(id)!;
+  return reencryptRows(
+    rows,
+    (id, enc) => decryptConfig(from, userId, fileOf(id), id, enc),
+    (id, payload) => encryptConfig(to, userId, fileOf(id), id, payload),
+  );
 }

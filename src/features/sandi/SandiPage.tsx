@@ -57,6 +57,7 @@ import { forgetDevice, loadTrustedDek, readTrustMeta, rememberDevice } from './d
 import { syncClockOffset } from './totp-clock';
 import { KEY_REJECTED_MESSAGE, REMOTE_KEY_MESSAGE, type RemoteKeyState } from './vault-guard';
 import { useSandiStore } from './sandi-store';
+import { skippedMessage } from './vault-rekey';
 import type { PwKeys } from '@/db/schema';
 
 type Tab = 'brankas' | 'kode' | 'generator';
@@ -343,13 +344,13 @@ function VaultTab({ view }: { view: VaultView }) {
             }
           }}
           onFinished={async (vault: RewrittenVault) => {
-            const { skipped } = await actions.replaceVault(row.id, vault);
+            const result = await actions.replaceVault(row.id, vault);
             setRecovering(false);
             // DEK dirotasi: kepercayaan lama jadi basi, jadi segarkan bila perangkat dipercaya
             if (await readTrustMeta()) await rememberDevice(vault.dek, vault.record.wrapped_key);
             unlock(vault.dek, vault.record.wrapped_key);
-            if (skipped > 0)
-              toast(`${skipped} sandi lama tidak bisa dibuka dan dibiarkan apa adanya.`);
+            const skippedNote = skippedMessage(result);
+            if (skippedNote) toast(skippedNote);
           }}
         />
       );
