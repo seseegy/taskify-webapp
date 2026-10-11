@@ -591,3 +591,193 @@ describe('Sandi · pw_keys & pw_items', () => {
     expect(await rows(`SELECT 1 FROM public.pw_items WHERE user_id = $1`, [carol])).toEqual([]);
   });
 });
+
+// -----------------------------------------------------------------------------------------
+// Vault · Konfigurasi: config_files & config_versions
+// -----------------------------------------------------------------------------------------
+describe('Vault · konfigurasi berversi', () => {
+  const ENC = 'A'.repeat(100);
+  let alice: string;
+  let bob: string;
+
+  async function asUser<T>(uid: string, fn: () => Promise<T>): Promise<T> {
+    await pg.exec('SET ROLE authenticated');
+    await pg.query(`SELECT set_config('app.uid', $1, false)`, [uid]);
+    try {
+      return await fn();
+    } finally {
+      await pg.exec('RESET ROLE');
+      await pg.query(`SELECT set_config('app.uid', '', false)`);
+    }
+  }
+  const uuid = () => rows<{ id: string }>(`SELECT gen_random_uuid() AS id`).then((r) => r[0]!.id);
+  const file = async (
+    over: { name?: string; format?: string; environment?: string | null; project_id?: string } = {},
+  ) => {
+    const id = await uuid();
+    await pg.query(
+      `INSERT INTO public.config_files (id, name, format, environment, project_id)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        id,
+        over.name ?? '.env',
+        over.format ?? 'env',
+        over.environment === undefined ? 'production' : over.environment,
+        over.project_id ?? null,
+      ],
+    );
+    return id;
+  };
+  const version = async (fileId: string, enc = ENC) => {
+    const id = await uuid();
+    await pg.query(`INSERT INTO public.config_versions (id, file_id, enc) VALUES ($1, $2, $3)`, [
+      id,
+      fileId,
+      enc,
+    ]);
+    return id;
+  };
+  const project = async () => {
+    const id = await uuid();
+    await pg.query(`INSERT INTO public.code_projects (id, name) VALUES ($1, 'proj')`, [id]);
+    return id;
+  };
+
+  beforeAll(async () => {
+    alice = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!
+      .id;
+    bob = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!.id;
+  });
+
+  it('pemilik membuat berkas + beberapa versi; user_id terisi dari auth.uid(), tanpa UNIQUE nomor versi', async () => {
+    const f = await asUser(alice, () => file());
+    await asUser(alice, () => version(f));
+    await asUser(alice, () => version(f)); // dua versi untuk berkas sama: boleh (nomor dihitung klien)
+    const v = await rows<{ user_id: string }>(
+      `SELECT user_id FROM public.config_versions WHERE file_id = $1`,
+      [f],
+    );
+    expect(v).toHaveLength(2);
+    expect(v.every((r) => r.user_id === alice)).toBe(true);
+  });
+
+  it('RLS: bob tidak melihat, mengubah, atau menghapus berkas & versi milik alice; anon tanpa akses', async () => {
+    const f = await asUser(alice, () => file({ name: 'rahasia.env' }));
+    const v = await asUser(alice, () => version(f));
+
+    expect(await asUser(bob, () => rows(`SELECT id FROM public.config_files`))).toEqual([]);
+    expect(await asUser(bob, () => rows(`SELECT id FROM public.config_versions`))).toEqual([]);
+    await asUser(bob, () =>
+      pg.query(`UPDATE public.config_files SET name = 'x' WHERE id = $1`, [f]),
+    );
+    await asUser(bob, () => pg.query(`DELETE FROM public.config_versions WHERE id = $1`, [v]));
+    const [still] = await rows<{ name: string }>(
+      `SELECT name FROM public.config_files WHERE id = $1`,
+      [f],
+    );
+    expect(still!.name).toBe('rahasia.env');
+    expect(await rows(`SELECT 1 FROM public.config_versions WHERE id = $1`, [v])).toHaveLength(1);
+
+    await pg.exec('SET ROLE anon');
+    try {
+      for (const t of ['config_files', 'config_versions'])
+        await expect(pg.query(`SELECT * FROM public.${t}`), t).rejects.toThrow(
+          /permission denied/i,
+        );
+    } finally {
+      await pg.exec('RESET ROLE');
+    }
+  });
+
+  it('rujukan lintas akun ditolak: versi ke berkas orang lain, berkas ke project orang lain', async () => {
+    const aliceFile = await asUser(alice, () => file());
+    const aliceProject = await asUser(alice, () => project());
+
+    await expect(asUser(bob, () => version(aliceFile))).rejects.toThrow(/milik user yang sama/);
+    await expect(asUser(bob, () => file({ project_id: aliceProject }))).rejects.toThrow(
+      /milik user yang sama/,
+    );
+    // Berkas milik sendiri tidak bisa dipindah ke project orang lain lewat UPDATE
+    const bobFile = await asUser(bob, () => file());
+    await expect(
+      asUser(bob, () =>
+        pg.query(`UPDATE public.config_files SET project_id = $1 WHERE id = $2`, [
+          aliceProject,
+          bobFile,
+        ]),
+      ),
+    ).rejects.toThrow(/milik user yang sama/);
+    // UUID yang tidak ada → pesan yang SAMA (tidak membocorkan apakah UUID itu ada)
+    await expect(asUser(bob, async () => version(await uuid()))).rejects.toThrow(
+      /milik user yang sama/,
+    );
+    // Project sendiri boleh
+    const bobProject = await asUser(bob, () => project());
+    await expect(asUser(bob, () => file({ project_id: bobProject }))).resolves.toBeDefined();
+  });
+
+  it('CHECK: format, panjang nama & lingkungan (selaras LIMITS), dan ukuran enc', async () => {
+    const bad: Parameters<typeof file>[0][] = [
+      { format: 'yaml' },
+      { name: '' },
+      { name: 'x'.repeat(121) },
+      { environment: '' },
+      { environment: 'x'.repeat(41) },
+    ];
+    for (const over of bad)
+      await expect(
+        asUser(alice, () => file(over)),
+        JSON.stringify(over),
+      ).rejects.toThrow(/check/i);
+    await expect(
+      asUser(alice, () => file({ name: 'x'.repeat(120), environment: 'x'.repeat(40) })),
+    ).resolves.toBeDefined();
+    await expect(asUser(alice, () => file({ environment: null }))).resolves.toBeDefined();
+
+    const f = await asUser(alice, () => file());
+    for (const enc of ['', 'x'.repeat(39), 'x'.repeat(360001)])
+      await expect(
+        asUser(alice, () => version(f, enc)),
+        `${enc.length}`,
+      ).rejects.toThrow(/check/i);
+    await expect(asUser(alice, () => version(f, 'x'.repeat(360000)))).resolves.toBeDefined();
+  });
+
+  it('project dihapus permanen → berkas tetap ada sebagai "Tanpa project"; berkas dihapus → versinya ikut', async () => {
+    const p = await asUser(alice, () => project());
+    const f = await asUser(alice, () => file({ project_id: p }));
+    const v = await asUser(alice, () => version(f));
+
+    await asUser(alice, () => pg.query(`DELETE FROM public.code_projects WHERE id = $1`, [p]));
+    const [after] = await rows<{ project_id: string | null }>(
+      `SELECT project_id FROM public.config_files WHERE id = $1`,
+      [f],
+    );
+    expect(after!.project_id).toBeNull();
+    expect(await rows(`SELECT 1 FROM public.config_versions WHERE id = $1`, [v])).toHaveLength(1);
+
+    await asUser(alice, () => pg.query(`DELETE FROM public.config_files WHERE id = $1`, [f]));
+    expect(await rows(`SELECT 1 FROM public.config_versions WHERE id = $1`, [v])).toEqual([]);
+  });
+
+  it('menghapus akun menghapus seluruh konfigurasinya (ON DELETE CASCADE)', async () => {
+    const carol = (
+      await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`)
+    )[0]!.id;
+    const f = await asUser(carol, () => file());
+    await asUser(carol, () => version(f));
+
+    await pg.query(`DELETE FROM auth.users WHERE id = $1`, [carol]);
+    expect(await rows(`SELECT 1 FROM public.config_files WHERE user_id = $1`, [carol])).toEqual([]);
+    expect(await rows(`SELECT 1 FROM public.config_versions WHERE user_id = $1`, [carol])).toEqual(
+      [],
+    );
+  });
+
+  it('fungsi pemeriksa pemilik tidak bisa dipanggil langsung oleh klien', async () => {
+    const [{ ok }] = await rows<{ ok: boolean }>(
+      `SELECT has_function_privilege('authenticated', 'public.config_check_owner()', 'execute') AS ok`,
+    );
+    expect(ok).toBe(false);
+  });
+});

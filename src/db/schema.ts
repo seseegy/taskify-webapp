@@ -321,6 +321,41 @@ export const pwTotpLog = sqliteTable('pw_totp_log', {
 });
 
 // -----------------------------------------------------------------------------
+// Vault · Konfigurasi (.env / JSON) berversi. Metadata teks biasa; ISI tiap versi terenkripsi
+// dengan DEK brankas Sandi (lihat supabase/migrations/…_config_files.sql).
+// -----------------------------------------------------------------------------
+export const CONFIG_FORMATS = ['env', 'json'] as const;
+export type ConfigFormat = (typeof CONFIG_FORMATS)[number];
+
+export const configFiles = sqliteTable(
+  'config_files',
+  {
+    ...base(),
+    ...softDelete(),
+    project_id: text('project_id'),
+    name: text('name').notNull(),
+    format: text('format').$type<ConfigFormat>().notNull(),
+    environment: text('environment'),
+  },
+  (t) => [index('config_files_project').on(t.project_id)],
+);
+
+/**
+ * Satu baris per versi. Nomor versi TIDAK disimpan (dihitung dari urutan created_at/id), dan
+ * `enc` tidak pernah diubah kecuali saat kunci brankas dirotasi.
+ */
+export const configVersions = sqliteTable(
+  'config_versions',
+  {
+    ...base(),
+    file_id: text('file_id').notNull(),
+    enc: text('enc').notNull(),
+    v: integer('v').notNull(),
+  },
+  (t) => [index('config_versions_file').on(t.file_id, t.created_at)],
+);
+
+// -----------------------------------------------------------------------------
 // LOCAL-ONLY: perubahan yang ditolak server permanen (constraint/RLS).
 // Tidak disinkron. Disimpan agar data tidak hilang diam-diam; daftar, salin, dan bersihkan
 // di Pengaturan → Sinkronisasi (features/settings/UploadErrors.tsx).
@@ -390,6 +425,8 @@ export const drizzleSchema = {
   pwKeys,
   pwItems,
   pwTotpLog,
+  configFiles,
+  configVersions,
   uploadErrors,
   taskListsRelations,
   tasksRelations,
@@ -420,3 +457,5 @@ export type UserSettings = typeof userSettings.$inferSelect;
 export type PwKeys = typeof pwKeys.$inferSelect;
 export type PwItem = typeof pwItems.$inferSelect;
 export type PwTotpLog = typeof pwTotpLog.$inferSelect;
+export type ConfigFile = typeof configFiles.$inferSelect;
+export type ConfigVersion = typeof configVersions.$inferSelect;

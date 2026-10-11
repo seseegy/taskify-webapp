@@ -190,7 +190,7 @@ App lain ── Bagikan ──► POST /bagikan (multipart) ──► sw-extra.j
 - `pg_dump` 17 dijalankan lewat Docker `postgres:17-alpine`, karena versi bawaan runner lebih lama dari server Supabase.
 - `keepalive.yml` (tiap 2 hari) menjalankan satu `SELECT` supaya project free tier tidak di-pause.
 - Pembersihan yatim di fungsi `files` hanya menyentuh key berpola `<uuid>/<uuid>/…`, jadi objek lain (mis. backup jika satu bucket) tidak pernah terhapus.
-- **Ekspor JSON** di Pengaturan (`features/settings/export-data.ts`) mengambil 16 tabel tersinkron dari SQLite lokal, tanpa server.
+- **Ekspor JSON** di Pengaturan (`features/settings/export-data.ts`) mengambil semua tabel tersinkron (`EXPORT_TABLES`, dijaga tes keselarasan) dari SQLite lokal, tanpa server.
 
 ## Keamanan
 
