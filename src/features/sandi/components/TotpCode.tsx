@@ -109,10 +109,11 @@ export function TotpCode({
       )}
 
       {skewed && (
-        <p className="flex items-start gap-1.5 text-xs text-warning" role="alert">
+        <p className="flex items-start gap-1.5 text-xs text-warning" role="status">
           <TriangleAlert className="mt-px size-3.5 shrink-0" aria-hidden="true" />
           Jam perangkat ini selisih {Math.round(getClockOffset() / 1000)} detik dari server. Kode
-          bisa ditolak — betulkan jam perangkat.
+          sudah dihitung dengan jam server, jadi tetap bisa dipakai. Betulkan jam perangkat agar
+          aplikasi lain tidak terpengaruh.
         </p>
       )}
     </div>

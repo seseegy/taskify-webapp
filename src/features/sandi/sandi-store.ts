@@ -2,8 +2,13 @@ import { create } from 'zustand';
 import { clearClipboardNow } from './clipboard';
 
 /**
- * Status kunci brankas. Kunci data (DEK) HANYA ada di memori sebagai CryptoKey non-extractable:
- * tidak pernah ke localStorage/IndexedDB, dan hilang saat tab dimuat ulang atau dikunci.
+ * Status kunci brankas. Store ini memegang kunci data (DEK) di memori sebagai CryptoKey
+ * non-extractable; ia hilang dari sini saat tab dimuat ulang atau dikunci, dan store ini tidak
+ * pernah menulisnya ke storage mana pun.
+ *
+ * Satu-satunya pengecualian adalah pilihan pengguna "Ingat perangkat ini" (`device-trust.ts`):
+ * DEK disimpan di IndexedDB sebagai CryptoKey BURAM (byte-nya tidak bisa dibaca JavaScript),
+ * berlaku 30 hari, dan batal saat kunci brankas diganti atau akun keluar.
  */
 export const AUTO_LOCK_OPTIONS = [0, 1, 5, 15] as const;
 export type AutoLockMinutes = (typeof AUTO_LOCK_OPTIONS)[number];

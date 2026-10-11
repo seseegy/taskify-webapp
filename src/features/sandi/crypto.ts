@@ -349,7 +349,8 @@ export interface RewrittenVault extends NewVault {
 }
 
 /**
- * Ganti master password. DEK tetap sama → semua item tetap terbaca tanpa dienkripsi ulang.
+ * Ganti master password. DEK ikut DIBUAT BARU (lihat `rewrap`), jadi semua item harus dienkripsi
+ * ulang dari `previousDek` ke `dek` (`reencryptItems`) dalam transaksi yang sama dengan record baru.
  * Kunci pemulihan IKUT DIPERBARUI (yang lama tidak berlaku lagi) dan harus ditampilkan ke pengguna.
  * null = master password lama salah.
  */

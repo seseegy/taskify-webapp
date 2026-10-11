@@ -162,7 +162,7 @@ Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──syn
 - Unduh/pratinjau: cache lokal dulu, baru presigned GET. Isi zip dibaca di browser (JSZip) tanpa ekstrak ke disk.
 - Sebelum upload, zip dianalisis (`features/vault/zip.ts`): file rahasia, node_modules, .git, hasil build. Duplikat dideteksi lewat SHA-256.
 - Hapus = soft delete lokal + hapus objek (best effort). Cron harian (`files` mode cleanup) membersihkan sisanya, termasuk objek yatim. Penelusuran bucket berhalaman (maks. 20 × 1000 objek dan 500 penghapusan per eksekusi).
-- **Logout** menghapus database lokal (`disconnectAndClear`) _dan_ Cache Storage lampiran + kotak masuk Bagikan (`clearDeviceData`).
+- **Logout** menghapus database lokal (`disconnectAndClear`) _dan_ Cache Storage lampiran + kotak masuk Bagikan + kepercayaan perangkat Sandi (`clearDeviceData`). Semuanya ditunggu sebelum halaman dimuat ulang.
 - Snippet: syntax highlight (prism-react-renderer + bahasa prismjs tambahan, dimuat lazy), variabel template `{{nama}}` diisi saat disalin.
 - Foto besar (>1,5 MB) diperkecil ke maks. 2000 px JPEG sebelum diunggah.
 
