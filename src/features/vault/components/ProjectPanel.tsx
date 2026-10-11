@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Textarea } from '@/components/ui/Field';
@@ -26,6 +27,7 @@ import {
 } from '@/features/attachments/attachment-actions';
 import { LinksPanel } from '@/features/links/LinksPanel';
 import { TagPicker } from '@/features/tags/TagPicker';
+import { ConfigTab } from '../config/ConfigTab';
 import { formatBytes } from '@/lib/bytes';
 import { localeId, parseTimestamp } from '@/lib/date';
 import { cn } from '@/lib/utils';
@@ -35,6 +37,7 @@ import { ZipViewer } from './ZipViewer';
 import { askConfirm } from '@/components/ui/confirm-store';
 
 export function ProjectPanel({ project, onBack }: { project: CodeProject; onBack: () => void }) {
+  const navigate = useNavigate();
   const versions = useAttachments('code_project', project.id);
   const actions = useVaultActions();
   const [editing, setEditing] = useState(false);
@@ -120,6 +123,23 @@ export function ProjectPanel({ project, onBack }: { project: CodeProject; onBack
             ))}
           </ol>
         )}
+      </section>
+
+      <section>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <h3 className="text-xs font-bold tracking-wide text-muted uppercase">Konfigurasi</h3>
+          <Link
+            to={`/vault?tab=konfigurasi`}
+            className="min-h-9 rounded-lg px-2 text-xs font-semibold text-primary transition hover:bg-surface"
+          >
+            Semua konfigurasi
+          </Link>
+        </div>
+        {/* Dibatasi ke project ini; isinya tetap butuh brankas Sandi terbuka */}
+        <ConfigTab
+          projectId={project.id}
+          onOpen={(id) => navigate(`/vault?tab=konfigurasi&config=${id}`)}
+        />
       </section>
 
       <div className="grid gap-4 sm:grid-cols-2">

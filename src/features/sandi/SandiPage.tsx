@@ -47,13 +47,13 @@ import {
   useDecryptedItems,
   useDecryptedTotpLog,
   usePwItemRows,
-  usePwKey,
   usePwTotpLogRows,
   useRejectedKeyUploads,
   useSandiActions,
   type DecryptedItem,
 } from './sandi-data';
-import { forgetDevice, loadTrustedDek, readTrustMeta, rememberDevice } from './device-trust';
+import { forgetDevice, readTrustMeta, rememberDevice } from './device-trust';
+import { useVaultKey } from './useVaultKey';
 import { syncClockOffset } from './totp-clock';
 import { KEY_REJECTED_MESSAGE, REMOTE_KEY_MESSAGE, type RemoteKeyState } from './vault-guard';
 import { useSandiStore } from './sandi-store';
@@ -205,50 +205,21 @@ function useRemoteKeyCheck(enabled: boolean) {
 // ============================================================================ brankas
 function VaultTab({ view }: { view: VaultView }) {
   const user = useUser();
-  const { row, isLoading } = usePwKey();
+  // Status kunci (termasuk pembuangan DEK usang & kepercayaan perangkat) ada di useVaultKey,
+  // supaya persis sama dengan layar lain yang memakai brankas (Konfigurasi di Vault).
+  const { status, dek, keyRow: row } = useVaultKey();
   const hasSynced = Boolean(useStatus().hasSynced);
-  const storedDek = useSandiStore((s) => s.dek);
-  const stamp = useSandiStore((s) => s.stamp);
-  const rekeying = useSandiStore((s) => s.rekeying);
   const unlock = useSandiStore((s) => s.unlock);
   const actions = useSandiActions();
   const [recovering, setRecovering] = useState(false);
   // Dipegang di sini (bukan di dalam TotpQuickCheck) supaya kunci yang ditempel saat brankas
   // terkunci tetap ada setelah brankas dibuka.
   const [quickText, setQuickText] = useState('');
-  // Perangkat yang dipercaya ("ingat 30 hari"): coba buka tanpa master password.
-  const [trustChecked, setTrustChecked] = useState(false);
-  const stampForTrust = row?.wrapped_key;
-  useEffect(() => {
-    if (!stampForTrust || storedDek) return;
-    let cancelled = false;
-    void loadTrustedDek(stampForTrust).then((key) => {
-      if (cancelled) return;
-      if (key) unlock(key, stampForTrust);
-      setTrustChecked(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [stampForTrust, storedDek, unlock]);
-  const remote = useRemoteKeyCheck(!isLoading && !row && hasSynced);
-
-  // DEK di memori hanya sah untuk record kunci yang dipakai membukanya. Bila record berubah
-  // (kunci diganti / DEK dirotasi di perangkat lain), DEK itu usang: kunci dan minta buka lagi.
-  const stale = storedDek !== null && row !== null && stamp !== row.wrapped_key && !rekeying;
-  const dek = stale ? null : storedDek;
-  useEffect(() => {
-    if (!stale) return;
-    const s = useSandiStore.getState();
-    if (s.dek && !s.rekeying && s.stamp !== row?.wrapped_key) {
-      s.lock();
-      toast('Kunci brankas diganti di perangkat lain. Buka lagi dengan master password terbaru.');
-    }
-  }, [stale, row?.wrapped_key]);
+  const remote = useRemoteKeyCheck(status === 'absent');
 
   // Jangan tampilkan "buat brankas" sebelum sinkron pertama selesai: brankas bisa saja sudah ada
   // di server tetapi belum sampai ke perangkat ini.
-  if (isLoading || (!row && !hasSynced)) {
+  if (status === 'syncing') {
     return (
       <Card className="mx-auto max-w-md" role="status">
         <EmptyState
@@ -261,7 +232,7 @@ function VaultTab({ view }: { view: VaultView }) {
     );
   }
 
-  if (!row) {
+  if (!row || status === 'absent') {
     if (remote.state !== 'none') {
       return (
         <Card className="mx-auto max-w-md" role="status">
@@ -305,7 +276,7 @@ function VaultTab({ view }: { view: VaultView }) {
 
   if (!dek) {
     // Hindari layar "Brankas terkunci" berkelip saat kepercayaan perangkat sedang diperiksa
-    if (!trustChecked && !recovering)
+    if (status === 'checking' && !recovering)
       return (
         <Card className="mx-auto max-w-md" role="status">
           <EmptyState
