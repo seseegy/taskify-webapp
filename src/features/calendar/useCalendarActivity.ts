@@ -49,7 +49,7 @@ interface Row {
  *  - Catatan hanya dihitung bila ditempel ke tanggal; catatan bebas tidak punya hari.
  *  - Vault (snippet, project, file) tidak punya tanggal lokal → created_at UTC dikonversi ke WIB.
  */
-const SQL = `
+export const CALENDAR_ACTIVITY_SQL = `
   SELECT entry_date AS day, 'journal' AS kind, COUNT(*) AS count, 0 AS done, AVG(mood) AS amount
     FROM journal_entries
    WHERE deleted_at IS NULL AND entry_date BETWEEN ?1 AND ?2
@@ -78,7 +78,11 @@ const SQL = `
 `;
 
 export function useCalendarActivity(from: LocalDate, to: LocalDate) {
-  const { data, isLoading, error } = useQuery<Row>(SQL, [from, to, SQLITE_TZ_MODIFIER]);
+  const { data, isLoading, error } = useQuery<Row>(CALENDAR_ACTIVITY_SQL, [
+    from,
+    to,
+    SQLITE_TZ_MODIFIER,
+  ]);
 
   const byDay = useMemo(() => {
     const map = new Map<LocalDate, DayActivity>();

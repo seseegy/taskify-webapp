@@ -17,6 +17,12 @@ export type CaptureKind = 'task' | 'expense' | 'income' | 'journal' | 'note';
 export interface Capture {
   kind: CaptureKind;
   title: string;
+  /**
+   * Ketikan asli (tanpa #tag). `title` sudah dibersihkan dari nominal/tanggal/jam yang dikenali
+   * parser, jadi menyimpan `title` ke Catatan akan menghilangkan "25rb" atau "jam 9". Catatan
+   * memakai `rawText` supaya teks bebas tersimpan utuh.
+   */
+  rawText: string;
   tags: string[];
   amount?: number;
   date?: LocalDate;
@@ -113,14 +119,23 @@ export function parseCapture(input: string, today: LocalDate): Capture {
     return ' ';
   });
 
+  // Ketikan asli tanpa #tag, untuk jenis Catatan (lihat Capture.rawText)
+  const rawText = text.replace(/\s+/g, ' ').trim();
+
   // Jurnal eksplisit
   const journal = text.match(/^\s*(?:j|jurnal|journal)\s*:\s*(.*)$/is);
-  if (journal) return { kind: 'journal', title: journal[1]!.trim(), tags, date: today };
+  if (journal) {
+    const body = journal[1]!.trim();
+    return { kind: 'journal', title: body, rawText: body, tags, date: today };
+  }
 
   // Catatan eksplisit — fitur sendiri, BEDA dengan Jurnal. Tanpa tanggal = catatan bebas.
   // (`catatan:` dulu menyimpan ke Jurnal; sekarang ke Catatan.)
   const note = text.match(/^\s*(?:c|catatan|note)\s*:\s*(.*)$/is);
-  if (note) return { kind: 'note', title: note[1]!.trim(), tags };
+  if (note) {
+    const body = note[1]!.replace(/\s+/g, ' ').trim();
+    return { kind: 'note', title: body, rawText: body, tags };
+  }
 
   // Transaksi: ada nominal uang
   const money = findMoney(text);
@@ -140,7 +155,15 @@ export function parseCapture(input: string, today: LocalDate): Capture {
       const title = rest.replace(/\s+/g, ' ').trim();
       const income = money[2] === '+' || INCOME_WORDS.test(title);
       const hint = CATEGORY_KEYWORDS.find(([re]) => re.test(title))?.[1];
-      return { kind: income ? 'income' : 'expense', title, tags, amount, date, categoryHint: hint };
+      return {
+        kind: income ? 'income' : 'expense',
+        title,
+        rawText,
+        tags,
+        amount,
+        date,
+        categoryHint: hint,
+      };
     }
   }
 
@@ -149,6 +172,7 @@ export function parseCapture(input: string, today: LocalDate): Capture {
   return {
     kind: 'task',
     title: t.title,
+    rawText,
     tags,
     date: t.due_date,
     time: t.due_time,
