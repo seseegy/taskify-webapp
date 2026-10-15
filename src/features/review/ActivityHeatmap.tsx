@@ -123,7 +123,7 @@ export function ActivityHeatmap({
                   }
                   const level = heatLevel(d?.score ?? 0, max);
                   const label = d
-                    ? `${formatLocalDate(day, 'EEEE, d MMMM yyyy')}: ${d.tasks} tugas selesai, ${d.journal} jurnal, ${d.transactions} transaksi, ${d.vault} vault`
+                    ? `${formatLocalDate(day, 'EEEE, d MMMM yyyy')}: ${d.tasks} tugas selesai, ${d.journal} jurnal, ${d.notes} catatan, ${d.transactions} transaksi, ${d.vault} vault`
                     : `${formatLocalDate(day, 'EEEE, d MMMM yyyy')}: tidak ada aktivitas`;
                   return (
                     <div key={day} role="gridcell">

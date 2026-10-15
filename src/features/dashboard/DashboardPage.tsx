@@ -6,6 +6,7 @@ import {
   NotebookPen,
   Plus,
   Sparkles,
+  StickyNote,
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
@@ -52,7 +53,8 @@ export function DashboardPage() {
       </section>
 
       {/* Ringkasan */}
-      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      {/* 5 kartu: di HP (2 kolom) kartu terakhir melebar penuh agar tidak ada sel kosong */}
+      <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         <StatCard
           to="/tugas"
           icon={ListChecks}
@@ -81,13 +83,23 @@ export function DashboardPage() {
           delay={120}
         />
         <StatCard
+          to="/catatan"
+          icon={StickyNote}
+          gradient="bg-gradient-notes"
+          label="Catatan"
+          value={s ? String(s.notes_total) : '–'}
+          hint="tersimpan"
+          delay={180}
+        />
+        <StatCard
           to="/vault"
           icon={CodeXml}
           gradient="bg-gradient-vault"
           label="Snippet tersimpan"
           value={s ? String(s.snippets_total) : '–'}
           hint="di vault"
-          delay={180}
+          delay={240}
+          className="col-span-2 lg:col-span-1"
         />
       </section>
 
@@ -137,6 +149,7 @@ function StatCard({
   value,
   hint,
   delay,
+  className,
 }: {
   to: string;
   icon: LucideIcon;
@@ -145,11 +158,15 @@ function StatCard({
   value: ReactNode;
   hint?: ReactNode;
   delay: number;
+  className?: string;
 }) {
   return (
     <Link
       to={to}
-      className="group relative animate-fade-up overflow-hidden rounded-card p-4 glass transition hover:-translate-y-0.5 sm:p-5"
+      className={cn(
+        'group relative animate-fade-up overflow-hidden rounded-card p-4 glass transition hover:-translate-y-0.5 sm:p-5',
+        className,
+      )}
       style={{ animationDelay: `${delay}ms` }}
     >
       <div

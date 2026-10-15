@@ -20,7 +20,7 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `glass` / `glass-strong`                                                                    | Kartu, panel, input, nav (kaca semi-transparan + blur) |
 | `bg-gradient-brand`                                                                         | Aksi utama, logo (indigo → ungu → pink)                |
-| `bg-gradient-{tasks,journal,finance,vault,calendar,sandi,settings,music}`                   | Identitas modul (ikon, header, sel aktif)              |
+| `bg-gradient-{tasks,journal,notes,finance,vault,calendar,sandi,settings,music}`             | Identitas modul (ikon, header, sel aktif)              |
 | `text-gradient-brand`                                                                       | Angka/judul penting (saldo, logo)                      |
 | `shine`                                                                                     | Kilau tipis di atas elemen bergradasi                  |
 | `text-fg`, `text-muted`, `bg-surface`, `border-line`, `text-primary/danger/success/warning` | Token warna yang otomatis menyesuaikan tema            |
@@ -32,6 +32,7 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | -------- | --------------- | -------------- |
 | Tugas    | violet → indigo | `#8b5cf6`      |
 | Jurnal   | amber → rose    | `#f59e0b`      |
+| Catatan  | lime → green    | `#65a30d`      |
 | Keuangan | emerald → sky   | `#10b981`      |
 | Vault    | cyan → blue     | `#06b6d4`      |
 | Kalender | indigo → sky    | `#6366f1`      |

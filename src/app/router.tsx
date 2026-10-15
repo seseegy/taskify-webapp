@@ -43,6 +43,12 @@ export const router = createBrowserRouter([
               import('@/features/journal/JournalPage').then((m) => ({ Component: m.JournalPage })),
           },
           {
+            path: 'catatan',
+            handle: { title: 'Catatan' },
+            lazy: () =>
+              import('@/features/notes/NotesPage').then((m) => ({ Component: m.NotesPage })),
+          },
+          {
             path: 'keuangan',
             handle: { title: 'Keuangan' },
             lazy: () =>

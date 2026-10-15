@@ -38,6 +38,7 @@ streams:
       - SELECT * FROM entity_links WHERE user_id = auth.user_id()
       - SELECT * FROM tasks WHERE user_id = auth.user_id()
       - SELECT * FROM journal_entries WHERE user_id = auth.user_id()
+      - SELECT * FROM notes WHERE user_id = auth.user_id()
       - SELECT * FROM debts WHERE user_id = auth.user_id()
       - SELECT * FROM recurring_transactions WHERE user_id = auth.user_id()
       - SELECT * FROM transactions WHERE user_id = auth.user_id()

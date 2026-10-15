@@ -12,7 +12,12 @@ import { entitySubtitle } from '@/features/entities/entity-format';
 import { EntityIcon } from '@/features/entities/EntityChip';
 import { localeId, parseTimestamp } from '@/lib/date';
 import { cn } from '@/lib/utils';
-import { TRASH_RETENTION_DAYS, useTrashActions, type TrashType } from './trash-actions';
+import {
+  TRASH_RETENTION_DAYS,
+  TRASH_TYPES,
+  useTrashActions,
+  type TrashType,
+} from './trash-actions';
 import { askConfirm } from '@/components/ui/confirm-store';
 
 interface TrashRow {
@@ -30,6 +35,9 @@ const SQL = `
   SELECT 'journal_entry', id, COALESCE(NULLIF(title, ''), substr(content, 1, 80), 'Jurnal'), entry_date, deleted_at
     FROM journal_entries WHERE deleted_at IS NOT NULL
   UNION ALL
+  SELECT 'note', id, COALESCE(NULLIF(title, ''), NULLIF(substr(content, 1, 80), ''), 'Catatan'), note_date, deleted_at
+    FROM notes WHERE deleted_at IS NOT NULL
+  UNION ALL
   SELECT 'transaction', t.id, COALESCE(NULLIF(t.title, ''), c.name, 'Transaksi'),
          t.occurred_on || '|' || t.kind || '|' || t.amount, t.deleted_at
     FROM transactions t LEFT JOIN categories c ON c.id = t.category_id WHERE t.deleted_at IS NOT NULL
@@ -39,7 +47,7 @@ const SQL = `
   SELECT 'code_project', id, name, NULL, deleted_at FROM code_projects WHERE deleted_at IS NOT NULL
   ORDER BY deleted_at DESC`;
 
-/** Sampah gabungan: tugas, jurnal, transaksi. */
+/** Sampah gabungan: tugas, jurnal, catatan, transaksi, snippet, project. */
 export function TrashPage() {
   const { data: rows } = useQuery<TrashRow>(SQL);
   const actions = useTrashActions();
@@ -51,13 +59,7 @@ export function TrashPage() {
       confirmLabel: 'Hapus permanen',
     });
     if (!ok) return;
-    for (const type of [
-      'task',
-      'journal_entry',
-      'transaction',
-      'snippet',
-      'code_project',
-    ] as TrashType[]) {
+    for (const type of TRASH_TYPES) {
       await actions.destroy(
         type,
         rows.filter((r) => r.type === type).map((r) => r.id),

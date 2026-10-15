@@ -23,6 +23,7 @@ const TABLE_LABEL: Record<string, string> = {
   tasks: 'Tugas',
   task_lists: 'Daftar tugas',
   journal_entries: 'Jurnal',
+  notes: 'Catatan',
   transactions: 'Transaksi',
   wallets: 'Dompet',
   categories: 'Kategori',

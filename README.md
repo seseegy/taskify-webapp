@@ -1,6 +1,6 @@
 # Taskify
 
-Aplikasi produktivitas pribadi — **Tugas, Jurnal, Keuangan, Kalender, Vault Kode, dan Sandi (password manager terenkripsi)** dalam satu PWA yang bisa dipakai **offline** di HP maupun laptop.
+Aplikasi produktivitas pribadi — **Tugas, Jurnal, Catatan, Keuangan, Kalender, Vault Kode, dan Sandi (password manager terenkripsi)** dalam satu PWA yang bisa dipakai **offline** di HP maupun laptop.
 
 **Stack:** Vite · React 19 · TypeScript · Tailwind CSS v4 · PowerSync (SQLite di browser) · Drizzle · Supabase (Auth + Postgres) · Cloudflare Workers (static assets) / R2
 

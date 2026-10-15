@@ -6,12 +6,13 @@
  *   "grab ke kantor 18rb kemarin" → pengeluaran kemarin
  *   "besok deploy jam 9 #kerja"   → tugas besok 09:00 bertag #kerja
  *   "j: hari ini capek tapi puas" → jurnal
+ *   "c: ide fitur export #app"    → catatan bebas (tidak terikat tanggal)
  */
 import { addLocalDays, type LocalDate } from '@/lib/date';
 import { parseIDR } from '@/lib/money';
 import { parseQuickAdd } from '@/features/tasks/quick-parse';
 
-export type CaptureKind = 'task' | 'expense' | 'income' | 'journal';
+export type CaptureKind = 'task' | 'expense' | 'income' | 'journal' | 'note';
 
 export interface Capture {
   kind: CaptureKind;
@@ -113,8 +114,13 @@ export function parseCapture(input: string, today: LocalDate): Capture {
   });
 
   // Jurnal eksplisit
-  const journal = text.match(/^\s*(?:j|jurnal|journal|catatan)\s*:\s*(.*)$/is);
+  const journal = text.match(/^\s*(?:j|jurnal|journal)\s*:\s*(.*)$/is);
   if (journal) return { kind: 'journal', title: journal[1]!.trim(), tags, date: today };
+
+  // Catatan eksplisit — fitur sendiri, BEDA dengan Jurnal. Tanpa tanggal = catatan bebas.
+  // (`catatan:` dulu menyimpan ke Jurnal; sekarang ke Catatan.)
+  const note = text.match(/^\s*(?:c|catatan|note)\s*:\s*(.*)$/is);
+  if (note) return { kind: 'note', title: note[1]!.trim(), tags };
 
   // Transaksi: ada nominal uang
   const money = findMoney(text);

@@ -19,6 +19,7 @@ export function ActivityDots({
   const dots = [
     activity.tasks > 0 && { key: 'task', className: 'bg-mod-tasks' },
     activity.journal > 0 && { key: 'journal', className: 'bg-mod-journal' },
+    activity.notes > 0 && { key: 'notes', className: 'bg-mod-notes' },
     activity.transactions > 0 && { key: 'finance', className: 'bg-mod-finance' },
     activity.vault > 0 && { key: 'vault', className: 'bg-mod-vault' },
   ].filter(Boolean) as { key: string; className: string }[];

@@ -781,3 +781,205 @@ describe('Vault · konfigurasi berversi', () => {
     expect(ok).toBe(false);
   });
 });
+
+// -----------------------------------------------------------------------------------------
+// Catatan: notes + tipe 'note' di tag/tautan
+// -----------------------------------------------------------------------------------------
+describe('Catatan · notes', () => {
+  let alice: string;
+  let bob: string;
+
+  async function asUser<T>(uid: string, fn: () => Promise<T>): Promise<T> {
+    await pg.exec('SET ROLE authenticated');
+    await pg.query(`SELECT set_config('app.uid', $1, false)`, [uid]);
+    try {
+      return await fn();
+    } finally {
+      await pg.exec('RESET ROLE');
+      await pg.query(`SELECT set_config('app.uid', '', false)`);
+    }
+  }
+  const uuid = () => rows<{ id: string }>(`SELECT gen_random_uuid() AS id`).then((r) => r[0]!.id);
+  const note = async (
+    over: { note_date?: string | null; title?: string | null; content?: string } = {},
+  ) => {
+    const id = await uuid();
+    await pg.query(
+      `INSERT INTO public.notes (id, note_date, title, content) VALUES ($1, $2, $3, $4)`,
+      [
+        id,
+        over.note_date === undefined ? null : over.note_date,
+        over.title === undefined ? null : over.title,
+        over.content ?? 'isi',
+      ],
+    );
+    return id;
+  };
+  const tag = async () => {
+    const id = await uuid();
+    await pg.query(`INSERT INTO public.tags (id, name) VALUES ($1, $2)`, [
+      id,
+      `t-${id.slice(0, 8)}`,
+    ]);
+    return id;
+  };
+
+  beforeAll(async () => {
+    alice = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!
+      .id;
+    bob = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!.id;
+  });
+
+  it('catatan bebas (tanpa tanggal) dan bertanggal sama-sama valid; user_id terisi otomatis', async () => {
+    const free = await asUser(alice, () => note({ note_date: null }));
+    const dated = await asUser(alice, () => note({ note_date: '2026-10-15', title: 'Rapat' }));
+    const r = await rows<{
+      id: string;
+      user_id: string;
+      note_date: Date | null;
+      is_pinned: boolean;
+    }>(`SELECT id, user_id, note_date, is_pinned FROM public.notes WHERE id IN ($1, $2)`, [
+      free,
+      dated,
+    ]);
+    expect(r).toHaveLength(2);
+    expect(r.every((x) => x.user_id === alice && x.is_pinned === false)).toBe(true);
+    expect(r.find((x) => x.id === free)!.note_date).toBeNull();
+    expect(r.find((x) => x.id === dated)!.note_date).not.toBeNull();
+  });
+
+  it('satu hari boleh punya banyak catatan (tidak ada UNIQUE pada tanggal)', async () => {
+    await asUser(alice, () => note({ note_date: '2026-11-01' }));
+    await expect(asUser(alice, () => note({ note_date: '2026-11-01' }))).resolves.toBeDefined();
+    const [{ n }] = await rows<{ n: number }>(
+      `SELECT count(*)::int AS n FROM public.notes WHERE user_id = $1 AND note_date = '2026-11-01'`,
+      [alice],
+    );
+    expect(n).toBe(2);
+  });
+
+  it('CHECK judul ≤ 200 karakter (selaras LIMITS.noteTitle)', async () => {
+    await expect(asUser(alice, () => note({ title: 'x'.repeat(200) }))).resolves.toBeDefined();
+    await expect(asUser(alice, () => note({ title: 'x'.repeat(201) }))).rejects.toThrow(/check/i);
+  });
+
+  it('RLS: bob tidak melihat, mengubah, atau menghapus catatan alice; anon tanpa akses', async () => {
+    const id = await asUser(alice, () => note({ title: 'rahasia' }));
+    expect(
+      await asUser(bob, () => rows(`SELECT id FROM public.notes WHERE id = $1`, [id])),
+    ).toEqual([]);
+    await asUser(bob, () => pg.query(`UPDATE public.notes SET title = 'x' WHERE id = $1`, [id]));
+    await asUser(bob, () => pg.query(`DELETE FROM public.notes WHERE id = $1`, [id]));
+    const [still] = await rows<{ title: string }>(`SELECT title FROM public.notes WHERE id = $1`, [
+      id,
+    ]);
+    expect(still!.title).toBe('rahasia');
+
+    await expect(
+      asUser(bob, async () =>
+        pg.query(`INSERT INTO public.notes (id, user_id, content) VALUES ($1, $2, 'x')`, [
+          await uuid(),
+          alice,
+        ]),
+      ),
+    ).rejects.toThrow(/row-level security/i);
+
+    await pg.exec('SET ROLE anon');
+    try {
+      await expect(pg.query(`SELECT * FROM public.notes`)).rejects.toThrow(/permission denied/i);
+    } finally {
+      await pg.exec('RESET ROLE');
+    }
+  });
+
+  it("tag boleh dipasang pada tipe 'note' (constraint taggings diperluas)", async () => {
+    const n = await asUser(alice, () => note());
+    const t = await asUser(alice, () => tag());
+    await expect(
+      asUser(alice, async () =>
+        pg.query(
+          `INSERT INTO public.taggings (id, tag_id, entity_type, entity_id) VALUES ($1, $2, 'note', $3)`,
+          [await uuid(), t, n],
+        ),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it("tautan boleh menunjuk 'note' di sisi mana pun, dan note ↔ jurnal valid", async () => {
+    const n = await asUser(alice, () => note());
+    const other = await uuid();
+    const link = (st: string, sid: string, tt: string, tid: string) =>
+      asUser(alice, async () =>
+        pg.query(
+          `INSERT INTO public.entity_links (id, source_type, source_id, target_type, target_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [await uuid(), st, sid, tt, tid],
+        ),
+      );
+    await expect(link('note', n, 'task', other)).resolves.toBeDefined();
+    await expect(link('journal_entry', other, 'note', n)).resolves.toBeDefined();
+    // tetap tidak boleh menautkan ke dirinya sendiri
+    await expect(link('note', n, 'note', n)).rejects.toThrow(/check/i);
+  });
+
+  it('tipe entitas yang tidak dikenal TETAP ditolak (constraint tidak longgar)', async () => {
+    const t = await asUser(alice, () => tag());
+    await expect(
+      asUser(alice, async () =>
+        pg.query(
+          `INSERT INTO public.taggings (id, tag_id, entity_type, entity_id) VALUES ($1, $2, 'bukan_tipe', $3)`,
+          [await uuid(), t, await uuid()],
+        ),
+      ),
+    ).rejects.toThrow(/check/i);
+    await expect(
+      asUser(alice, async () =>
+        pg.query(
+          `INSERT INTO public.entity_links (id, source_type, source_id, target_type, target_id)
+           VALUES ($1, 'bukan_tipe', $2, 'task', $3)`,
+          [await uuid(), await uuid(), await uuid()],
+        ),
+      ),
+    ).rejects.toThrow(/check/i);
+  });
+
+  it('lampiran belum mendukung catatan (entity_type attachments tidak diperluas)', async () => {
+    const n = await asUser(alice, () => note());
+    await expect(
+      asUser(alice, async () =>
+        pg.query(
+          `INSERT INTO public.attachments (id, entity_type, entity_id, storage_key, file_name, size_bytes, status)
+           VALUES ($1, 'note', $2, 'k/' || gen_random_uuid(), 'f.txt', 1, 'pending')`,
+          [await uuid(), n],
+        ),
+      ),
+    ).rejects.toThrow(/check/i);
+  });
+
+  it('hapus lunak: deleted_at terisi, baris tetap ada; menghapus akun menghapus catatannya', async () => {
+    const id = await asUser(alice, () => note());
+    await asUser(alice, () =>
+      pg.query(`UPDATE public.notes SET deleted_at = now() WHERE id = $1`, [id]),
+    );
+    const [r] = await rows<{ deleted_at: Date | null }>(
+      `SELECT deleted_at FROM public.notes WHERE id = $1`,
+      [id],
+    );
+    expect(r!.deleted_at).not.toBeNull();
+
+    const carol = (
+      await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`)
+    )[0]!.id;
+    await asUser(carol, () => note());
+    await pg.query(`DELETE FROM auth.users WHERE id = $1`, [carol]);
+    expect(await rows(`SELECT 1 FROM public.notes WHERE user_id = $1`, [carol])).toEqual([]);
+  });
+
+  it('publication powersync memuat notes dengan REPLICA IDENTITY FULL', async () => {
+    const [p] = await rows<{ relreplident: string }>(
+      `SELECT c.relreplident FROM pg_class c JOIN pg_publication_tables t ON t.tablename = c.relname
+        WHERE t.pubname = 'powersync' AND t.tablename = 'notes'`,
+    );
+    expect(p?.relreplident).toBe('f');
+  });
+});

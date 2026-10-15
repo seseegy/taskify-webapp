@@ -37,6 +37,7 @@ export const ENTITY_TYPES = [
   'transaction',
   'snippet',
   'code_project',
+  'note',
 ] as const;
 export type EntityType = (typeof ENTITY_TYPES)[number];
 
@@ -144,6 +145,23 @@ export const journalEntries = sqliteTable(
     is_pinned: integer('is_pinned').notNull(),
   },
   (t) => [index('journal_entries_date').on(t.entry_date)],
+);
+
+// -----------------------------------------------------------------------------
+// Catatan — beda dengan Jurnal: tidak ada mood, dan tanggalnya OPSIONAL (`note_date` null =
+// catatan bebas; terisi = ditempel ke hari itu). Satu hari boleh punya banyak catatan.
+// -----------------------------------------------------------------------------
+export const notes = sqliteTable(
+  'notes',
+  {
+    ...base(),
+    ...softDelete(),
+    note_date: text('note_date'),
+    title: text('title'),
+    content: text('content').notNull(),
+    is_pinned: integer('is_pinned').notNull(),
+  },
+  (t) => [index('notes_date').on(t.note_date)],
 );
 
 // -----------------------------------------------------------------------------
@@ -413,6 +431,7 @@ export const drizzleSchema = {
   taskLists,
   tasks,
   journalEntries,
+  notes,
   wallets,
   categories,
   debts,
@@ -447,6 +466,7 @@ export const AppSchema = new DrizzleAppSchema({
 export type Task = typeof tasks.$inferSelect;
 export type TaskList = typeof taskLists.$inferSelect;
 export type JournalEntry = typeof journalEntries.$inferSelect;
+export type Note = typeof notes.$inferSelect;
 export type Wallet = typeof wallets.$inferSelect;
 export type Category = typeof categories.$inferSelect;
 export type Transaction = typeof transactions.$inferSelect;

@@ -16,6 +16,7 @@ import {
   configVersions,
   debts,
   journalEntries,
+  notes,
   pwItems,
   recurringTransactions,
   snippets,
@@ -25,7 +26,18 @@ import {
   transactions,
 } from '@/db/schema';
 
-export type TrashType = 'task' | 'journal_entry' | 'transaction' | 'snippet' | 'code_project';
+export type TrashType =
+  'task' | 'journal_entry' | 'note' | 'transaction' | 'snippet' | 'code_project';
+
+/** Semua jenis yang tampil di Sampah, dalam urutan tampil/hapus. */
+export const TRASH_TYPES: readonly TrashType[] = [
+  'task',
+  'journal_entry',
+  'note',
+  'transaction',
+  'snippet',
+  'code_project',
+];
 export const TRASH_RETENTION_DAYS = 30;
 
 /** Hapus permanen (+ subtask untuk tugas, + tag & tautan). */
@@ -44,6 +56,9 @@ export async function destroyEntities(db: AppDatabase, type: TrashType, ids: str
     } else if (type === 'journal_entry') {
       await deleteEntityRefs(t, 'journal_entry', ids);
       await t.delete(journalEntries).where(inArray(journalEntries.id, ids));
+    } else if (type === 'note') {
+      await deleteEntityRefs(t, 'note', ids);
+      await t.delete(notes).where(inArray(notes.id, ids));
     } else if (type === 'transaction') {
       await deleteEntityRefs(t, 'transaction', ids);
       await t.delete(transactions).where(inArray(transactions.id, ids));
@@ -74,6 +89,8 @@ export function useTrashActions() {
           });
         } else if (type === 'journal_entry') {
           await db.update(journalEntries).set(values).where(eq(journalEntries.id, id));
+        } else if (type === 'note') {
+          await db.update(notes).set(values).where(eq(notes.id, id));
         } else if (type === 'transaction') {
           await db.update(transactions).set(values).where(eq(transactions.id, id));
         } else if (type === 'snippet') {
@@ -157,6 +174,7 @@ export function useTrashPurge() {
         const tables = [
           ['task', tasks],
           ['journal_entry', journalEntries],
+          ['note', notes],
           ['transaction', transactions],
           ['snippet', snippets],
           ['code_project', codeProjects],

@@ -51,6 +51,7 @@ export const WEEKDAY_NAMES = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabt
 export const ACTIVITY_LEGEND = [
   { label: 'Tugas', className: 'bg-mod-tasks' },
   { label: 'Jurnal', className: 'bg-mod-journal' },
+  { label: 'Catatan', className: 'bg-mod-notes' },
   { label: 'Keuangan', className: 'bg-mod-finance' },
   { label: 'Vault', className: 'bg-mod-vault' },
 ];
@@ -64,6 +65,7 @@ export function describeActivity(a: DayActivity): string {
     const mood = moodOf(a.mood)?.label;
     parts.push(mood ? `jurnal (mood ${mood})` : 'jurnal');
   }
+  if (a.notes > 0) parts.push(`${a.notes} catatan`);
   if (a.transactions > 0) {
     parts.push(
       `${a.transactions} transaksi${a.expense > 0 ? `, pengeluaran ${formatIDR(a.expense)}` : ''}`,

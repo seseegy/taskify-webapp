@@ -9,6 +9,7 @@
 export const LIMITS = {
   taskTitle: 300,
   journalTitle: 200,
+  noteTitle: 200,
   transactionTitle: 120,
   recurringTitle: 120,
   snippetTitle: 200,
