@@ -4,7 +4,9 @@ import { Logo } from '@/components/layout/Logo';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input, Label } from '@/components/ui/Input';
+import { TypedText } from '@/components/ui/TypedText';
 import { useAuth } from './auth-context';
+import { loginGreeting, readLoginName } from './display-name';
 
 const FEATURES = [
   { icon: ListChecks, gradient: 'bg-gradient-tasks', label: 'Tugas' },
@@ -28,6 +30,8 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Dibaca SEKALI saat mount dari penyimpanan perangkat (belum ada sesi/database di layar ini).
+  const [greeting] = useState(() => loginGreeting(readLoginName()));
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -47,9 +51,14 @@ export function LoginPage() {
       <div className="w-full max-w-md animate-fade-up">
         <div className="mb-8 flex flex-col items-center text-center">
           <Logo size="lg" />
-          <h1 className="mt-5 text-3xl font-extrabold tracking-tight">
-            Selamat datang di <span className="text-gradient-brand">Taskify</span>
-          </h1>
+          <TypedText
+            as="h1"
+            className="mt-5 text-3xl font-extrabold tracking-tight"
+            text={greeting.text}
+            accent={greeting.accent}
+            accentClassName="text-gradient-brand"
+            onceKey="taskify-fx-login-greet"
+          />
           <p className="mt-2 text-sm text-muted">Semua aktivitasmu, dalam satu tempat.</p>
           <div className="mt-5 flex gap-2">
             {FEATURES.map((f) => (

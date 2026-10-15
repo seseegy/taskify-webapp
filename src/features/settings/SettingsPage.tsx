@@ -34,6 +34,7 @@ import { useTheme, type ThemePreference } from '@/features/theme/theme-context';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/toast-store';
 import { clearDeviceData } from './clear-device-data';
+import { DisplayNameSettings } from './DisplayNameSettings';
 import { exportAllData } from './export-data';
 import { PinSettings } from './PinSettings';
 import { UploadErrors } from './UploadErrors';
@@ -218,7 +219,8 @@ function AccountSection() {
 
   return (
     <Section icon={UserRound} title="Akun" gradient="bg-gradient-journal">
-      <dl className="space-y-3 text-sm">
+      <DisplayNameSettings />
+      <dl className="mt-5 space-y-3 border-t border-line pt-4 text-sm">
         <Row label="Email">{user.email}</Row>
         <Row label="Versi aplikasi">v{__APP_VERSION__}</Row>
       </dl>

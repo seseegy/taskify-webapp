@@ -10,9 +10,12 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Button } from '@/components/ui/Button';
+import { TypedText } from '@/components/ui/TypedText';
+import { homeGreeting } from '@/features/auth/display-name';
+import { useDisplayName } from '@/features/auth/useDisplayName';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useTxSheet } from '@/features/finance/tx-sheet-store';
 import { ActivityHeatmap } from '@/features/review/ActivityHeatmap';
@@ -29,7 +32,17 @@ import { useTodaySummary } from './useTodaySummary';
 export function DashboardPage() {
   const { summary, today } = useTodaySummary();
   const createTx = useTxSheet((st) => st.create);
+  const { name, ready: nameReady } = useDisplayName();
+  // Efek ketik berurutan: sapaan dulu, lalu kalimat ringkasan (kalau tidak, dua animasi
+  // berjalan bersamaan). Ringkasan juga menunggu data tugas (`summary`) supaya yang terketik
+  // tidak berubah di tengah jalan dari "Belum ada tugas" menjadi "Ada 3 tugas".
+  const [greetDone, setGreetDone] = useState(false);
   const s = summary;
+  const summaryText = `${
+    s && s.tasks_today > 0
+      ? `Ada ${s.tasks_today - s.tasks_today_done} tugas tersisa hari ini.`
+      : 'Belum ada tugas untuk hari ini. Nikmati harimu!'
+  }${s && s.tasks_overdue > 0 ? ` ${s.tasks_overdue} tugas lewat tenggat.` : ''}`;
 
   return (
     <div className="space-y-6">
@@ -40,16 +53,28 @@ export function DashboardPage() {
         <p className="relative text-sm font-semibold text-muted capitalize">
           {formatLocalDate(today, 'EEEE, d MMMM yyyy')}
         </p>
-        <h1 className="relative mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl">
-          {greeting()}
-          <Sparkles className="ml-2 inline size-7 align-[-2px] text-fuchsia-400 sm:size-8" />
-        </h1>
-        <p className="relative mt-2 max-w-xl text-sm text-muted">
-          {s && s.tasks_today > 0
-            ? `Ada ${s.tasks_today - s.tasks_today_done} tugas tersisa hari ini.`
-            : 'Belum ada tugas untuk hari ini. Nikmati harimu!'}
-          {s && s.tasks_overdue > 0 && ` ${s.tasks_overdue} tugas lewat tenggat.`}
-        </p>
+        <TypedText
+          as="h1"
+          className="relative mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl"
+          text={homeGreeting(greeting(), name)}
+          // Menunggu pengaturan terbaca: nama belum diketahui sebelum itu
+          enabled={nameReady}
+          onceKey="taskify-fx-home-greet"
+          onDone={() => setGreetDone(true)}
+          after={
+            <Sparkles
+              aria-hidden="true"
+              className="ml-2 inline size-7 align-[-2px] text-fuchsia-400 sm:size-8"
+            />
+          }
+        />
+        <TypedText
+          as="p"
+          className="relative mt-2 max-w-xl text-sm text-muted"
+          text={summaryText}
+          enabled={greetDone && !!s}
+          onceKey="taskify-fx-home-summary"
+        />
       </section>
 
       {/* Ringkasan */}
