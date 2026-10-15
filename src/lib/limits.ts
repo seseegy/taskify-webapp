@@ -17,6 +17,8 @@ export const LIMITS = {
   counterparty: 100,
   configName: 120,
   configEnvironment: 40,
+  /** Hanya batas klien: `user_settings.display_name` tidak punya CHECK panjang di Postgres. */
+  displayName: 60,
 } as const;
 
 /**

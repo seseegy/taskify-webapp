@@ -148,6 +148,20 @@ Fitur sendiri, **beda dengan Jurnal**: tidak ada mood, dan tanggalnya opsional. 
 - `MarkdownEditor`, `SaveIndicator`, dan helper `lib/markdown.ts` (`plainExcerpt`, `wordCount`, `toggleChecklistLine`) dipakai bersama Jurnal dan Catatan.
 - Warna modul: lime → green (`bg-gradient-notes`, `--color-mod-notes` `#65a30d`).
 
+## Sapaan, nama, dan efek ketik
+
+- **Nama tampilan** = kolom `user_settings.display_name` (baris dibuat trigger saat akun didaftarkan; klien hanya boleh mengubahnya). Diisi di Pengaturan → Akun (`DisplayNameSettings`), dibaca lewat `useDisplayName`. Batas 60 karakter hanya di klien (`LIMITS.displayName`); Postgres tidak punya CHECK-nya. Nama lengkap dipakai apa adanya (tidak dipotong jadi nama depan).
+- **Sapaan Beranda**: "Selamat pagi, Nama". Efek ketik menunggu `useDisplayName().ready` (query selesai, baris ada atau tidak), lalu kalimat ringkasan tugas diketik SETELAH sapaan selesai dan data tugas (`summary`) ada.
+- **Layar masuk** dirender sebelum ada sesi/database, jadi tidak bisa membaca `user_settings`. Nama disalin ke `localStorage` (`taskify-login-name`, lihat `auth/display-name.ts`) dan dibaca sekali saat mount: "Selamat datang kembali, Nama". **Sengaja bertahan setelah Keluar** (`clearDeviceData` tidak menghapusnya) — kalau dihapus, fiturnya percuma. Konsekuensi privasi: di perangkat bersama, siapa pun yang membuka halaman masuk melihat nama pemilik. Karena itu ada saklar "Tampilkan namaku di layar masuk" di Pengaturan; mematikannya LANGSUNG menghapus nama tersimpan (`taskify-login-name-off` = `1`). Bawaan aktif.
+- **Efek ketik** (`lib/typewriter.ts` murni, `lib/useTypewriter.ts`, `components/ui/TypedText.tsx`):
+  - Sekali per sesi (`sessionStorage`, kunci `taskify-fx-*`); kunjungan berikutnya langsung utuh.
+  - `prefers-reduced-motion` dicek di JavaScript (`matchMedia`). Aturan CSS di `index.css` hanya mematikan animasi/transisi CSS dan TIDAK menjangkau timer JS.
+  - Pembaca layar membaca teks lengkap sekali (`sr-only`); salinan animasinya `aria-hidden`.
+  - Sebelum `enabled` (data belum siap) hanya satu baris kosong yang dirender. Merender teks sementara — walau tak terlihat — memesan ruang yang salah dan menggeser konten saat teks final membungkus ke baris lain (terukur: 36px di 375px sebelum diperbaiki). Setelah `enabled`, seluruh teks dirender dengan sisa huruf `invisible` sehingga tinggi tetap selama mengetik.
+  - Nama pada gradasi (`text-gradient-brand`) dirender sebagai satu elemen berlebar penuh agar warna huruf tidak bergeser tiap huruf bertambah.
+  - Semua yang memengaruhi tampilan adalah state, bukan ref (lint `react-hooks/refs` menolak membaca `ref.current` saat render).
+- **Placeholder kotak cari** (`search/useTypingPlaceholder.ts`): contoh catat cepat diketik bergantian ("Coba: …") dan mengajarkan sintaks. Diubah LANGSUNG lewat DOM, bukan state, karena `PaletteBody` berat. Berhenti saat pengguna mulai mengetik. Panjang contoh dibatasi: di layar 320px area isi input hanya ±201px dan placeholder tidak membungkus baris. `useTypingPlaceholder.test.ts` mengunci setiap contoh ke perilaku `parseCapture` — contoh yang tidak diurai seperti yang diajarkan menyesatkan pengguna.
+
 ## Pencarian, catat cepat, tag & tautan
 
 - **Pencarian global** memakai SQLite **FTS5** lokal (`db/search-index.ts`). Trigger pada tabel internal PowerSync `ps_data__<tabel>` memperbarui `search_index` untuk setiap perubahan, baik lokal maupun hasil sync. Item di Sampah dikeluarkan dari indeks. Naikkan `INDEX_VERSION` untuk membangun ulang. Tanpa FTS5, otomatis memakai LIKE.

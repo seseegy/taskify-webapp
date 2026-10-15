@@ -49,6 +49,11 @@ import { relativeDayLabel } from '@/lib/date';
 import { formatIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { usePalette } from './palette-store';
+import {
+  PLACEHOLDER_EXAMPLES,
+  PLACEHOLDER_PREFIX,
+  useTypingPlaceholder,
+} from './useTypingPlaceholder';
 import { splitSnippet, useGlobalSearch } from './useGlobalSearch';
 import { useToday } from '@/lib/useToday';
 
@@ -108,6 +113,9 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
   const [override, setOverride] = useState<CaptureKind | null>(null);
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Placeholder diketik bergantian selama kotak masih kosong (diubah lewat DOM, bukan state)
+  useTypingPlaceholder(inputRef, text === '');
   const baseId = useId();
   const listId = `${baseId}-list`;
   const hintId = `${baseId}-hint`;
@@ -317,6 +325,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
       <label className="mb-3 flex h-12 items-center gap-2 rounded-2xl px-3.5 glass focus-within:ring-4 focus-within:ring-primary/15">
         <Search className="size-5 text-muted" />
         <input
+          ref={inputRef}
           data-autofocus
           value={text}
           onChange={(e) => {
@@ -324,7 +333,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
             setActive(0);
             setOverride(null);
           }}
-          placeholder='Cari, atau ketik "makan siang 25rb", "besok rapat jam 9 #kerja"…'
+          placeholder={`${PLACEHOLDER_PREFIX}${PLACEHOLDER_EXAMPLES[0]}`}
           aria-label="Cari atau catat cepat"
           role="combobox"
           aria-expanded={items.length > 0}
