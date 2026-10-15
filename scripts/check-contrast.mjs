@@ -51,7 +51,7 @@ function periksa(nama, vars) {
     if (nilai < MIN) gagal.push(`${token} [${konteks}] = ${nilai.toFixed(2)}`);
   };
 
-  for (const token of ['fg', 'muted', 'primary', 'danger', 'success', 'warning']) {
+  for (const token of ['fg', 'muted', 'primary', 'danger', 'success', 'warning', 'mod-notes']) {
     const c = hex(vars[token]);
     for (const bg of kaca) cek(token, 'polos', ratio(c, bg));
   }

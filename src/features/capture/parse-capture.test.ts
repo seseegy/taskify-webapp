@@ -34,6 +34,26 @@ describe('parseCapture · jurnal vs catatan (dua fitur berbeda)', () => {
     });
   });
 
+  it('rawText = ketikan asli tanpa #tag, utuh walau parser mengenali nominal/tanggal/jam', () => {
+    // Tanpa ini, mengalihkan ke Catatan menyimpan "makan siang" dan nominalnya HILANG.
+    expect(parseCapture('makan siang 25rb', TODAY)).toMatchObject({
+      title: 'makan siang',
+      rawText: 'makan siang 25rb',
+    });
+    expect(parseCapture('besok rapat jam 9 #kerja', TODAY)).toMatchObject({
+      kind: 'task',
+      title: 'rapat',
+      rawText: 'besok rapat jam 9',
+      tags: ['kerja'],
+    });
+    expect(parseCapture('beli 3 buku 45rb', TODAY).rawText).toBe('beli 3 buku 45rb');
+  });
+
+  it('rawText jalur eksplisit = isi setelah awalan', () => {
+    expect(parseCapture('c: ide  fitur   #app', TODAY).rawText).toBe('ide fitur');
+    expect(parseCapture('j: capek hari ini', TODAY).rawText).toBe('capek hari ini');
+  });
+
   it('isi yang memuat nominal tetap catatan bila diawali c:', () => {
     expect(parseCapture('c: anggaran 25rb per hari', TODAY)).toMatchObject({
       kind: 'note',

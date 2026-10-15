@@ -160,7 +160,8 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
       section: 'Aksi',
       icon: <ItemIcon icon={NotebookPen} gradient="bg-gradient-journal" />,
       title: 'Tulis jurnal hari ini',
-      keywords: 'jurnal tulis catatan diary',
+      // Tanpa kata "catatan": itu fitur sendiri (lihat aksi 'new-note' di bawah)
+      keywords: 'jurnal tulis diary harian mood',
       run: () => navigate(`/jurnal?tanggal=${today}`),
     },
     {
@@ -211,7 +212,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
 
   const q = text.trim().toLowerCase();
   const captureItem: Item | null =
-    cap && (cap.title || cap.amount)
+    cap && (cap.kind === 'note' ? cap.rawText : cap.title || cap.amount)
       ? {
           key: 'capture',
           section: 'Catat cepat',
@@ -474,7 +475,7 @@ function CaptureTitle({ cap }: { cap: Capture }) {
   }
   return (
     <>
-      {label}: {cap.title}
+      {label}: {cap.kind === 'note' ? cap.rawText : cap.title}
     </>
   );
 }

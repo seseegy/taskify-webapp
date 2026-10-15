@@ -29,7 +29,12 @@ export function useCapture() {
 
   return useCallback(
     async (c: Capture): Promise<boolean> => {
-      if (!c.title.trim() && c.kind !== 'expense' && c.kind !== 'income') return false;
+      if (
+        c.kind === 'note'
+          ? !c.rawText.trim()
+          : !c.title.trim() && c.kind !== 'expense' && c.kind !== 'income'
+      )
+        return false;
       try {
         if (c.kind === 'task') {
           const id = await tasks.create({
@@ -55,8 +60,9 @@ export function useCapture() {
           return true;
         }
         if (c.kind === 'note') {
-          // Isi dari catat cepat masuk ke isi catatan (judul bisa ditambah saat dibuka).
-          const id = await noteActions.create({ content: c.title, note_date: c.date ?? null });
+          // Teks ASLI (`rawText`), bukan `title`: title sudah dibuang nominal/tanggal/jamnya oleh
+          // parser tugas/transaksi, padahal catatan adalah teks bebas. Judul bisa ditambah nanti.
+          const id = await noteActions.create({ content: c.rawText, note_date: c.date ?? null });
           if (c.tags.length) await tagActions.addByName('note', id, c.tags);
           toast('Catatan disimpan', {
             tone: 'success',
