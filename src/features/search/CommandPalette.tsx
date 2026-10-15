@@ -10,6 +10,7 @@ import {
   Plus,
   Search,
   Sparkles,
+  StickyNote,
   Sun,
   Trash2,
   type LucideIcon,
@@ -70,6 +71,7 @@ const KIND_META: Record<CaptureKind, { label: string; icon: LucideIcon; gradient
   },
   income: { label: 'Pemasukan', icon: ArrowDownLeft, gradient: 'bg-gradient-finance' },
   journal: { label: 'Jurnal', icon: NotebookPen, gradient: 'bg-gradient-journal' },
+  note: { label: 'Catatan', icon: StickyNote, gradient: 'bg-gradient-notes' },
 };
 
 /** Pemasangan global: dialog + pintasan keyboard. */
@@ -160,6 +162,14 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
       title: 'Tulis jurnal hari ini',
       keywords: 'jurnal tulis catatan diary',
       run: () => navigate(`/jurnal?tanggal=${today}`),
+    },
+    {
+      key: 'new-note',
+      section: 'Aksi',
+      icon: <ItemIcon icon={StickyNote} gradient="bg-gradient-notes" />,
+      title: 'Tulis catatan baru',
+      keywords: 'catatan baru tulis note ide memo',
+      run: () => navigate('/catatan?baru'),
     },
     {
       key: 'config-list',
@@ -424,8 +434,8 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
 
       <p className="mt-3 hidden flex-wrap items-center gap-x-1.5 border-t border-line pt-3 text-xs text-muted sm:flex">
         <Sparkles className="size-3.5 text-primary" />
-        Ada nominal = transaksi · ada waktu = tugas · awali <b>j:</b> = jurnal · <b>#tag</b> · ↑↓
-        lalu Enter
+        Ada nominal = transaksi · ada waktu = tugas · awali <b>j:</b> = jurnal · <b>c:</b> = catatan
+        · <b>#tag</b> · ↑↓ lalu Enter
         {!fts && ' · (pencarian dasar)'}
       </p>
     </div>
@@ -437,14 +447,16 @@ function isExplicitCapture(c: Capture): boolean {
 }
 
 function availableKinds(c: Capture): CaptureKind[] {
-  return c.amount ? ['expense', 'income', 'task', 'journal'] : ['task', 'journal'];
+  return c.amount ? ['expense', 'income', 'task', 'journal', 'note'] : ['task', 'journal', 'note'];
 }
 
 function applyKind(c: Capture, kind: CaptureKind, today: string): Capture {
   if (kind === c.kind) return c;
   if (kind === 'expense' || kind === 'income') return { ...c, kind, date: c.date ?? today };
   if (kind === 'journal') return { ...c, kind, date: today };
-  return { ...c, kind, date: c.kind === 'journal' ? undefined : c.date };
+  // Catatan: bebas (tanpa tanggal) — tanggal dari teks ("besok…") tidak dibawa
+  if (kind === 'note') return { ...c, kind, date: undefined };
+  return { ...c, kind, date: c.kind === 'journal' || c.kind === 'note' ? undefined : c.date };
 }
 
 function CaptureTitle({ cap }: { cap: Capture }) {

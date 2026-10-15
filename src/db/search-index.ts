@@ -12,7 +12,7 @@
  */
 import type { PowerSyncDatabase } from '@powersync/web';
 
-const INDEX_VERSION = 1;
+const INDEX_VERSION = 2; // 2: + notes
 
 interface Source {
   table: string;
@@ -32,6 +32,7 @@ const SOURCES: Source[] = [
     title: `COALESCE(json_extract(d, '$.title'), json_extract(d, '$.entry_date'), '')`,
     body: j('content'),
   },
+  { table: 'notes', type: 'note', title: j('title'), body: j('content') },
   {
     table: 'transactions',
     type: 'transaction',

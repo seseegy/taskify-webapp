@@ -8,6 +8,7 @@ export const EXPORT_TABLES = [
   'task_lists',
   'tasks',
   'journal_entries',
+  'notes',
   'wallets',
   'categories',
   'debts',

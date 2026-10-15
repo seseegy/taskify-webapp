@@ -11,6 +11,8 @@ export function entitySubtitle(row: Pick<EntityRow, 'type' | 'subtitle'>): strin
       return `Tugas · ${relativeDayLabel(s, todayLocal())}`;
     case 'journal_entry':
       return `Jurnal · ${formatLocalDate(s, 'd MMM yyyy')}`;
+    case 'note':
+      return `Catatan · ${formatLocalDate(s, 'd MMM yyyy')}`;
     case 'transaction': {
       const [date = '', kind, amount] = s.split('|');
       const sign = kind === 'income' ? '+' : kind === 'expense' ? '−' : '';

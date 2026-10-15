@@ -1,5 +1,6 @@
 /**
- * Metadata & navigasi lintas modul untuk "entitas" (tugas, jurnal, transaksi, snippet, project).
+ * Metadata & navigasi lintas modul untuk "entitas" (tugas, jurnal, catatan, transaksi, snippet,
+ * project).
  * Dipakai pencarian global, tag, dan tautan silang.
  */
 import {
@@ -7,6 +8,7 @@ import {
   FolderGit2,
   ListChecks,
   NotebookPen,
+  StickyNote,
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
@@ -26,6 +28,12 @@ export const ENTITY_META: Record<
     icon: NotebookPen,
     gradient: 'bg-gradient-journal',
     text: 'text-mod-journal',
+  },
+  note: {
+    label: 'Catatan',
+    icon: StickyNote,
+    gradient: 'bg-gradient-notes',
+    text: 'text-mod-notes',
   },
   transaction: {
     label: 'Transaksi',
@@ -67,6 +75,8 @@ export function useOpenEntity() {
           return editTx(id);
         case 'journal_entry':
           return navigate(`/jurnal?entri=${id}`);
+        case 'note':
+          return navigate(`/catatan?catatan=${id}`);
         case 'snippet':
         case 'code_project':
           return navigate(`/vault?${type === 'snippet' ? 'snippet' : 'project'}=${id}`);
@@ -85,6 +95,9 @@ export const ENTITY_UNION = `
   UNION ALL
   SELECT 'journal_entry', id, COALESCE(NULLIF(title, ''), substr(content, 1, 80), 'Jurnal'), entry_date, deleted_at, updated_at
     FROM journal_entries
+  UNION ALL
+  SELECT 'note', id, COALESCE(NULLIF(title, ''), NULLIF(substr(content, 1, 80), ''), 'Catatan'), note_date, deleted_at, updated_at
+    FROM notes
   UNION ALL
   SELECT 'transaction', t.id,
          COALESCE(NULLIF(t.title, ''), c.name, CASE t.kind WHEN 'income' THEN 'Pemasukan' WHEN 'expense' THEN 'Pengeluaran' ELSE 'Transfer' END),

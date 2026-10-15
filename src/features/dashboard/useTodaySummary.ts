@@ -10,6 +10,7 @@ export interface TodaySummary {
   income_month: number;
   balance: number;
   journal_today: number;
+  notes_total: number;
   snippets_total: number;
 }
 
@@ -44,6 +45,7 @@ const SQL = `
            FROM transactions WHERE deleted_at IS NULL)                      AS balance,
     (SELECT COUNT(*) FROM journal_entries
       WHERE deleted_at IS NULL AND entry_date = ?1)                         AS journal_today,
+    (SELECT COUNT(*) FROM notes WHERE deleted_at IS NULL)                   AS notes_total,
     (SELECT COUNT(*) FROM snippets WHERE deleted_at IS NULL)                AS snippets_total
 `;
 

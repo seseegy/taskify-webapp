@@ -3,12 +3,14 @@ import { useMemo } from 'react';
 import { SQLITE_TZ_MODIFIER, type LocalDate } from '@/lib/date';
 
 /** Jenis aktivitas yang tampil di kalender. */
-export type ActivityKind = 'journal' | 'expense' | 'income' | 'vault';
+export type ActivityKind = 'journal' | 'notes' | 'expense' | 'income' | 'vault';
 
 export interface DayActivity {
   tasks: number;
   tasksDone: number;
   journal: number;
+  /** Catatan yang ditempel ke hari itu (catatan bebas tanpa tanggal tidak dihitung) */
+  notes: number;
   /** Rata-rata mood jurnal hari itu (1–5), null jika tidak ada */
   mood: number | null;
   expense: number; // total rupiah
@@ -21,6 +23,7 @@ export const EMPTY_DAY: DayActivity = {
   tasks: 0,
   tasksDone: 0,
   journal: 0,
+  notes: 0,
   mood: null,
   expense: 0,
   income: 0,
@@ -42,7 +45,8 @@ interface Row {
  * Reaktif: otomatis berjalan ulang saat salah satu tabel berubah (lokal maupun dari sync).
  *
  * Catatan:
- *  - Data yang punya tanggal lokal (entry_date, occurred_on) dipakai apa adanya.
+ *  - Data yang punya tanggal lokal (entry_date, note_date, occurred_on) dipakai apa adanya.
+ *  - Catatan hanya dihitung bila ditempel ke tanggal; catatan bebas tidak punya hari.
  *  - Vault (snippet, project, file) tidak punya tanggal lokal → created_at UTC dikonversi ke WIB.
  */
 const SQL = `
@@ -50,6 +54,11 @@ const SQL = `
     FROM journal_entries
    WHERE deleted_at IS NULL AND entry_date BETWEEN ?1 AND ?2
    GROUP BY entry_date
+  UNION ALL
+  SELECT note_date, 'notes', COUNT(*), 0, 0
+    FROM notes
+   WHERE deleted_at IS NULL AND note_date IS NOT NULL AND note_date BETWEEN ?1 AND ?2
+   GROUP BY note_date
   UNION ALL
   SELECT occurred_on, kind, COUNT(*), 0, SUM(amount)
     FROM transactions
@@ -79,6 +88,9 @@ export function useCalendarActivity(from: LocalDate, to: LocalDate) {
         case 'journal':
           entry.journal += row.count;
           entry.mood = row.amount === null ? null : Math.round(row.amount);
+          break;
+        case 'notes':
+          entry.notes += row.count;
           break;
         case 'expense':
           entry.expense += row.amount ?? 0;

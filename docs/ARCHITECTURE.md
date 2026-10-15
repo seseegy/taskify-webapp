@@ -83,7 +83,7 @@ PUT berurutan pada tabel yang sama digabung menjadi satu `upsert` massal.
 
 ## Kalender sebagai pusat
 
-`features/calendar/useCalendarActivity.ts` menjalankan satu query `UNION ALL` atas jurnal, transaksi, dan vault untuk rentang tanggal, lalu mengelompokkannya per hari. **Tugas tidak ada di query itu**: `useDayActivity` menggabungkannya terpisah karena kejadian berulang bersifat virtual (dihitung dari rrule). Query ini reaktif: modul baru cukup menambahkan cabang `UNION ALL` (dan jenisnya di `ActivityKind`/`DayActivity`) agar otomatis muncul di Kalender.
+`features/calendar/useCalendarActivity.ts` menjalankan satu query `UNION ALL` atas jurnal, catatan bertanggal, transaksi, dan vault untuk rentang tanggal, lalu mengelompokkannya per hari. **Tugas tidak ada di query itu**: `useDayActivity` menggabungkannya terpisah karena kejadian berulang bersifat virtual (dihitung dari rrule). Query ini reaktif: modul baru cukup menambahkan cabang `UNION ALL` (dan jenisnya di `ActivityKind`/`DayActivity`) agar otomatis muncul di Kalender.
 
 Aturan hitung aktivitas harus SAMA antar layar (Kalender, Review, heatmap): hanya tugas induk, dan vault = snippet + project + versi file baru. `HEATMAP_SQL` diuji terhadap SQLite.
 
@@ -133,17 +133,32 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 - "Hari ini di masa lalu" = tanggal & bulan yang sama di tahun sebelumnya, plus tepat 1 bulan lalu. Streak tidak putus sebelum kamu sempat menulis hari ini.
 - Ekspor: satu file Markdown berisi semua catatan.
 
+## Catatan
+
+Fitur sendiri, **beda dengan Jurnal**: tidak ada mood, dan tanggalnya opsional. Tabel `notes` (`note_date` nullable, `title`, `content` Markdown, `is_pinned`, soft delete).
+
+- **Dua jenis dalam satu tabel**: `note_date` NULL = catatan **bebas** (tidak terikat hari); terisi = **ditempel ke tanggal** dan muncul di Kalender. Editor punya tombol "Tempel ke tanggal" / "Lepas dari tanggal". Satu hari boleh punya **banyak** catatan (tidak ada UNIQUE pada tanggal).
+- UI mengikuti Jurnal: dua kolom (daftar + editor; di HP bergantian), simpan otomatis 0,7 dtk dengan pola yang sama (draf baru baru dibuat di DB saat ada judul/isi pertama; rantai simpan tidak boleh reject; flush saat tab di-background). Daftar: Disematkan → per bulan → "Tanpa tanggal"; filter Semua/Bertanggal/Bebas; pencarian judul + isi.
+- URL: `?catatan=<id>`, `?baru` (draf bebas), `?baru=<tanggal>` (draf ditempel ke tanggal). Kunci editor draf diturunkan dari `location.key`, jadi menekan "Catatan baru" lagi selalu memulai editor baru.
+- Pencarian daftar meng-escape `%`, `_`, `\` (`escapeLike` + `LIKE … ESCAPE '\'`), supaya mengetik `%` tidak cocok dengan semua catatan.
+- Tag, tautan, pin, pencarian global (FTS5), dan Sampah (30 hari) memakai mekanisme yang sama dengan modul lain. **Lampiran belum didukung**, jadi constraint `attachments.entity_type` tidak diubah. Migrasi `…_notes.sql` memperluas constraint `entity_type` di `taggings` dan `entity_links` ke `'note'`; tanpa itu, tag/tautan pada catatan ditolak server saat upload.
+- Kalender: titik/legenda "Catatan" dan panel hari (`DayNotes`) hanya menghitung catatan **bertanggal**. Heatmap & Beranda memakai aturan yang sama.
+- Navigasi: item `mobile: false` di `NAV_ITEMS` (bottom nav HP sudah 5 item dan header HP kehabisan lebar). Di HP dijangkau lewat kartu Beranda, panel hari Kalender, dan palet perintah.
+- Catat cepat: awalan `c:` / `catatan:` / `note:` → catatan bebas. **Perubahan perilaku**: `catatan:` dulu menyimpan ke Jurnal; kini ke Catatan (`j:` / `jurnal:` tetap ke Jurnal).
+- `MarkdownEditor`, `SaveIndicator`, dan helper `lib/markdown.ts` (`plainExcerpt`, `wordCount`, `toggleChecklistLine`) dipakai bersama Jurnal dan Catatan.
+- Warna modul: lime → green (`bg-gradient-notes`, `--color-mod-notes` `#65a30d`).
+
 ## Pencarian, catat cepat, tag & tautan
 
 - **Pencarian global** memakai SQLite **FTS5** lokal (`db/search-index.ts`). Trigger pada tabel internal PowerSync `ps_data__<tabel>` memperbarui `search_index` untuk setiap perubahan, baik lokal maupun hasil sync. Item di Sampah dikeluarkan dari indeks. Naikkan `INDEX_VERSION` untuk membangun ulang. Tanpa FTS5, otomatis memakai LIKE.
 - **Command palette** (Ctrl/⌘+K, `/`, atau tombol cari) menggabungkan hasil pencarian, tag, perintah, dan **catat cepat** (`features/capture/parse-capture.ts`):
   - Ada nominal (`25rb`, `Rp 50.000`, `+5jt`) → transaksi. Masuk jika diawali `+` atau ada kata seperti gaji/bonus. Kategori ditebak dari kata kunci; `kemarin` mengatur tanggal.
-  - Awalan `j:` → jurnal. Selain itu → tugas (memakai parser input cepat tugas).
+  - Awalan `j:` → jurnal, `c:`/`catatan:` → catatan bebas. Selain itu → tugas (memakai parser input cepat tugas).
   - `#tag` dikenali di semua jenis. Tab mengganti jenis simpan.
   - Catat cepat didahulukan hanya jika ada sinyal jelas (nominal, waktu, prioritas, tag, `j:`). Teks biasa menampilkan hasil pencarian dulu.
 - **Tag** (`tags`/`taggings`): nama dinormalisasi (huruf kecil, `-`); keunikan dijaga di aplikasi, bukan constraint DB. Halaman `/tag/:id` menampilkan item lintas modul.
 - **Tautan** (`entity_links`) ditampilkan dua arah. "Catat sebagai transaksi" dari tugas membuat transaksi yang tertaut (dan mengisi `task_id`).
-- **Sampah** (`/sampah`) menggabungkan tugas, jurnal, transaksi, snippet, dan project. Item lebih dari 30 hari dihapus permanen otomatis setelah sync awal. Hapus permanen juga membersihkan tag & tautan (`db/refs.ts`), karena keduanya tidak punya foreign key. Baris pendukung yang ter-soft-delete (anggaran, hutang, transaksi berulang, daftar tugas, tag) ikut dibersihkan setelah 30 hari (`purgeExpiredSupportRows`). **Dompet dan kategori sengaja tidak**: `transactions.wallet_id` ber-`RESTRICT` dan `budgets.category_id` ber-`CASCADE`, jadi menghapusnya bisa menolak sync atau menghapus anggaran yang masih aktif.
+- **Sampah** (`/sampah`) menggabungkan tugas, jurnal, catatan, transaksi, snippet, dan project. Item lebih dari 30 hari dihapus permanen otomatis setelah sync awal. Hapus permanen juga membersihkan tag & tautan (`db/refs.ts`), karena keduanya tidak punya foreign key. Baris pendukung yang ter-soft-delete (anggaran, hutang, transaksi berulang, daftar tugas, tag) ikut dibersihkan setelah 30 hari (`purgeExpiredSupportRows`). **Dompet dan kategori sengaja tidak**: `transactions.wallet_id` ber-`RESTRICT` dan `budgets.category_id` ber-`CASCADE`, jadi menghapusnya bisa menolak sync atau menghapus anggaran yang masih aktif.
 - `Sheet` memfokuskan elemen ber-`data-autofocus` setelah `showModal()` (yang jika tidak akan memfokuskan tombol Tutup).
 
 ## Vault & lampiran (R2)
@@ -171,7 +186,7 @@ Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──syn
 - `/review?periode=minggu|bulan&tanggal=<tanggal>` (desktop: menu samping; HP: tautan dari Beranda). Minggu = Senin–Minggu WIB.
 - Statistik (`features/review/review-queries.ts`) dihitung langsung dengan SQL dari SQLite lokal, jadi tidak perlu tabel ringkasan: tugas selesai/terlambat, hari menulis jurnal & rata-rata mood, pemasukan/pengeluaran + kategori terbesar, item vault baru. Setiap angka dibandingkan dengan periode sebelumnya.
 - **Tulis refleksi** membuka draf jurnal (`?baru=…&templat=review-minggu|bulan`) berisi ringkasan angka + pertanyaan. Draf baru tersimpan setelah diedit, mengikuti aturan simpan otomatis jurnal.
-- Heatmap = jumlah per hari dari tugas selesai + catatan jurnal + transaksi + snippet/project baru. Level 0–4 relatif terhadap hari tersibuk dalam rentang. Beranda menampilkan 16 minggu terakhir.
+- Heatmap = jumlah per hari dari tugas selesai + catatan jurnal + catatan bertanggal + transaksi + snippet/project baru. Level 0–4 relatif terhadap hari tersibuk dalam rentang. Beranda menampilkan 16 minggu terakhir.
 
 ## Bagikan ke Taskify (Share Target)
 
@@ -344,3 +359,4 @@ Sengaja tidak diubah (trade-off atau terlalu jarang untuk sebanding dengan risik
 | 7     | Dashboard review, heatmap, GitHub Action keep-alive + backup `pg_dump` ke R2, Share Target | ✅     |
 | 8     | Sandi (password manager E2EE)                                                              | ✅     |
 | 9     | Pemutar musik (opsional, Worker terpisah — tanpa basis data)                               | ✅     |
+| 10    | Catatan (bebas atau ditempel ke tanggal, banyak per hari, tag/tautan/pin/pencarian)        | ✅     |

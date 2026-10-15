@@ -9,6 +9,7 @@ function makeDb() {
   db.exec(`
     CREATE TABLE tasks (id TEXT, parent_id TEXT, status TEXT, completed_at TEXT, deleted_at TEXT);
     CREATE TABLE journal_entries (id TEXT, entry_date TEXT, deleted_at TEXT);
+    CREATE TABLE notes (id TEXT, note_date TEXT, deleted_at TEXT);
     CREATE TABLE transactions (id TEXT, occurred_on TEXT, deleted_at TEXT);
     CREATE TABLE snippets (id TEXT, created_at TEXT, deleted_at TEXT);
     CREATE TABLE code_projects (id TEXT, created_at TEXT, deleted_at TEXT);
@@ -46,6 +47,18 @@ describe('HEATMAP_SQL', () => {
       INSERT INTO attachments VALUES ('d', 'transaction', '2026-10-07T05:00:00Z', NULL);
     `);
     expect(run(db)).toEqual({ '2026-10-07:vault': 3 });
+  });
+
+  it('catatan: hanya yang ditempel ke tanggal; catatan bebas & yang di Sampah tidak dihitung', () => {
+    const db = makeDb();
+    db.exec(`
+      INSERT INTO notes VALUES ('a', '2026-10-07', NULL);
+      INSERT INTO notes VALUES ('b', '2026-10-07', NULL);
+      INSERT INTO notes VALUES ('bebas', NULL, NULL);
+      INSERT INTO notes VALUES ('sampah', '2026-10-07', '2026-10-08T00:00:00Z');
+      INSERT INTO notes VALUES ('luar-rentang', '2026-11-02', NULL);
+    `);
+    expect(run(db)).toEqual({ '2026-10-07:notes': 2 });
   });
 
   it('yang di Sampah tidak dihitung', () => {

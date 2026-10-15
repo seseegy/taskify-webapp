@@ -12,14 +12,18 @@ import {
   Quote,
 } from 'lucide-react';
 import { useRef, useState, type KeyboardEvent } from 'react';
-import { Markdown } from '@/components/ui/Markdown';
+import { toggleChecklistLine } from '@/lib/markdown';
 import { cn } from '@/lib/utils';
-import { toggleChecklistLine } from '../journal-utils';
+import { Markdown } from './Markdown';
 
 interface Props {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  /** Gradasi modul untuk tab aktif (Tulis/Pratinjau), mis. 'bg-gradient-journal' */
+  gradient?: string;
+  /** Label pembaca layar untuk area ketik, mis. "Isi jurnal" */
+  ariaLabel?: string;
 }
 
 type Action =
@@ -58,7 +62,13 @@ const TOOLS: { label: string; icon: typeof Bold; action: Action; key?: string }[
 ];
 
 /** Editor Markdown: textarea + toolbar + pratinjau. Enter melanjutkan daftar otomatis. */
-export function MarkdownEditor({ value, onChange, placeholder }: Props) {
+export function MarkdownEditor({
+  value,
+  onChange,
+  placeholder,
+  gradient = 'bg-gradient-brand',
+  ariaLabel = 'Isi catatan',
+}: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [mode, setMode] = useState<'write' | 'preview'>('write');
 
@@ -157,7 +167,7 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
               onClick={() => setMode(m)}
               className={cn(
                 'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition',
-                mode === m ? 'bg-gradient-journal text-white shadow' : 'text-muted hover:text-fg',
+                mode === m ? cn(gradient, 'text-white shadow') : 'text-muted hover:text-fg',
               )}
             >
               {m === 'write' ? <Pencil className="size-3.5" /> : <Eye className="size-3.5" />}
@@ -173,7 +183,7 @@ export function MarkdownEditor({ value, onChange, placeholder }: Props) {
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder={placeholder}
-          aria-label="Isi jurnal"
+          aria-label={ariaLabel}
           spellCheck
           className="block field-sizing-content min-h-72 w-full resize-none bg-transparent px-4 py-3 text-[15px] leading-relaxed outline-none placeholder:text-muted/60"
         />

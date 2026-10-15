@@ -3,6 +3,49 @@ import { parseCapture } from './parse-capture';
 
 const TODAY = '2026-10-07'; // Rabu
 
+describe('parseCapture · jurnal vs catatan (dua fitur berbeda)', () => {
+  it('j:/jurnal: → jurnal bertanggal hari ini', () => {
+    expect(parseCapture('j: hari ini capek tapi puas', TODAY)).toMatchObject({
+      kind: 'journal',
+      title: 'hari ini capek tapi puas',
+      date: TODAY,
+    });
+    expect(parseCapture('jurnal: halo', TODAY).kind).toBe('journal');
+  });
+
+  it('c:/catatan:/note: → catatan BEBAS (tanpa tanggal)', () => {
+    for (const input of ['c: ide fitur', 'catatan: ide fitur', 'note: ide fitur']) {
+      const c = parseCapture(input, TODAY);
+      expect(c.kind, input).toBe('note');
+      expect(c.title, input).toBe('ide fitur');
+      expect(c.date, input).toBeUndefined();
+    }
+  });
+
+  it('"catatan:" TIDAK lagi menyimpan ke jurnal (dulu iya)', () => {
+    expect(parseCapture('catatan: beli susu', TODAY).kind).not.toBe('journal');
+  });
+
+  it('#tag ikut terambil pada catatan', () => {
+    expect(parseCapture('c: ide export #app #Fitur', TODAY)).toMatchObject({
+      kind: 'note',
+      title: 'ide export',
+      tags: ['app', 'fitur'],
+    });
+  });
+
+  it('isi yang memuat nominal tetap catatan bila diawali c:', () => {
+    expect(parseCapture('c: anggaran 25rb per hari', TODAY)).toMatchObject({
+      kind: 'note',
+      title: 'anggaran 25rb per hari',
+    });
+  });
+
+  it('kata "catatan" di tengah kalimat bukan awalan', () => {
+    expect(parseCapture('baca catatan rapat besok', TODAY).kind).toBe('task');
+  });
+});
+
 describe('parseCapture · transaksi yang valid', () => {
   it('pengeluaran dengan sufiks, kategori ditebak, tanggal "kemarin"', () => {
     expect(parseCapture('makan siang 25rb kemarin', TODAY)).toMatchObject({

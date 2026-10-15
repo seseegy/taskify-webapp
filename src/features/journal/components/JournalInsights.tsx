@@ -4,7 +4,8 @@ import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Ca
 import { diffLocalDays, formatLocalDate, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
 import { useJournalDays, useMoodSeries, useOnThisDay } from '../journal-queries';
-import { journalStreak, plainExcerpt } from '../journal-utils';
+import { plainExcerpt } from '@/lib/markdown';
+import { journalStreak } from '../journal-utils';
 import { MOODS } from '../mood';
 import { MoodChart } from './MoodChart';
 import { MoodIcon } from './MoodIcon';

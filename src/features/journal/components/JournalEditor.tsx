@@ -1,26 +1,17 @@
-import {
-  ArrowLeft,
-  Check,
-  CircleAlert,
-  Loader2,
-  Pin,
-  PinOff,
-  RotateCcw,
-  Trash2,
-} from 'lucide-react';
+import { ArrowLeft, Pin, PinOff, RotateCcw, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { MarkdownEditor } from '@/components/ui/MarkdownEditor';
+import { SaveIndicator, type SaveState } from '@/components/ui/SaveIndicator';
 import { toast } from '@/components/ui/toast-store';
 import type { JournalEntry } from '@/db/schema';
 import { formatLocalDate, type LocalDate } from '@/lib/date';
-import { cn } from '@/lib/utils';
+import { wordCount } from '@/lib/markdown';
 import { AttachmentList } from '@/features/attachments/AttachmentList';
 import { LinksPanel } from '@/features/links/LinksPanel';
 import { TagPicker } from '@/features/tags/TagPicker';
 import { useJournalActions, type JournalPatch } from '../journal-actions';
-import { wordCount } from '../journal-utils';
-import { MarkdownEditor } from './MarkdownEditor';
 import { MoodPicker } from './MoodPicker';
 
 interface Props {
@@ -34,7 +25,6 @@ interface Props {
   onBack: () => void;
 }
 
-type SaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'error';
 const DEBOUNCE_MS = 700;
 
 const PROMPTS = [
@@ -262,6 +252,8 @@ export function JournalEditor({
       </div>
 
       <MarkdownEditor
+        gradient="bg-gradient-journal"
+        ariaLabel="Isi jurnal"
         value={content}
         placeholder={`${prompt}\n\nMendukung Markdown: **tebal**, _miring_, - daftar, - [ ] checklist`}
         onChange={(v) => {
@@ -292,38 +284,5 @@ export function JournalEditor({
         <p className="text-xs text-muted">Tag & tautan tersedia setelah catatan tersimpan.</p>
       )}
     </div>
-  );
-}
-
-function SaveIndicator({ state, onRetry }: { state: SaveState; onRetry: () => void }) {
-  if (state === 'idle') return <span className="text-xs text-muted">Draf</span>;
-  if (state === 'error') {
-    return (
-      <span className="flex items-center gap-2">
-        <span role="alert" className="flex items-center gap-1 text-xs font-semibold text-danger">
-          <CircleAlert className="size-3.5" />
-          Gagal menyimpan
-        </span>
-        <Button size="sm" variant="secondary" onClick={onRetry}>
-          <RotateCcw /> Coba lagi
-        </Button>
-      </span>
-    );
-  }
-  return (
-    <span
-      className={cn(
-        'flex items-center gap-1 text-xs font-semibold',
-        state === 'saved' ? 'text-success' : 'text-muted',
-      )}
-      role="status"
-    >
-      {state === 'saved' ? (
-        <Check className="size-3.5" />
-      ) : (
-        <Loader2 className="size-3.5 animate-spin" />
-      )}
-      {state === 'saved' ? 'Tersimpan' : 'Menyimpan…'}
-    </span>
   );
 }

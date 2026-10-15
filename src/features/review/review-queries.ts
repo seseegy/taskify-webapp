@@ -141,12 +141,14 @@ export interface HeatDay {
   score: number;
   tasks: number;
   journal: number;
+  notes: number;
   transactions: number;
   vault: number;
 }
 
 /**
- * Skor aktivitas per hari untuk heatmap: tugas selesai + jurnal + transaksi + item vault baru.
+ * Skor aktivitas per hari untuk heatmap: tugas selesai + jurnal + catatan bertanggal +
+ * transaksi + item vault baru.
  */
 /**
  * Aturan hitung SAMA dengan Kalender & Review (supaya angka satu hari tidak berbeda antar layar):
@@ -159,6 +161,10 @@ export const HEATMAP_SQL = `SELECT date(completed_at, ?3) AS day, 'tasks' AS kin
      UNION ALL
      SELECT entry_date, 'journal', COUNT(*) FROM journal_entries
       WHERE deleted_at IS NULL AND entry_date BETWEEN ?1 AND ?2 GROUP BY entry_date
+     UNION ALL
+     SELECT note_date, 'notes', COUNT(*) FROM notes
+      WHERE deleted_at IS NULL AND note_date IS NOT NULL AND note_date BETWEEN ?1 AND ?2
+      GROUP BY note_date
      UNION ALL
      SELECT occurred_on, 'transactions', COUNT(*) FROM transactions
       WHERE deleted_at IS NULL AND occurred_on BETWEEN ?1 AND ?2 GROUP BY occurred_on
@@ -184,10 +190,11 @@ export function useActivityHeatmap(from: LocalDate, to: LocalDate) {
         score: 0,
         tasks: 0,
         journal: 0,
+        notes: 0,
         transactions: 0,
         vault: 0,
       };
-      d[r.kind as 'tasks' | 'journal' | 'transactions' | 'vault'] += r.n;
+      d[r.kind as 'tasks' | 'journal' | 'notes' | 'transactions' | 'vault'] += r.n;
       d.score += r.n;
       map.set(r.day, d);
     }

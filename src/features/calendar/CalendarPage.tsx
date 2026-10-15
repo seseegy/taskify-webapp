@@ -6,6 +6,7 @@ import {
   CodeXml,
   List,
   NotebookPen,
+  StickyNote,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { useSearchParams } from 'react-router';
@@ -17,6 +18,7 @@ import type { TaskList } from '@/db/schema';
 import { DayTransactions } from '@/features/finance/components/DayTransactions';
 import { DayJournal } from '@/features/journal/components/DayJournal';
 import { MoodIcon } from '@/features/journal/components/MoodIcon';
+import { DayNotes } from '@/features/notes/components/DayNotes';
 import { QuickAdd } from '@/features/tasks/components/QuickAdd';
 import { useTaskLists } from '@/features/tasks/task-queries';
 import { dayGroupLabel } from '@/features/tasks/task-utils';
@@ -451,7 +453,7 @@ function AgendaView({
 }) {
   const days = Array.from({ length: AGENDA_DAYS }, (_, i) => addLocalDays(from, i)).filter((d) => {
     const a = byDay.get(d);
-    return d === today || (a && (a.tasks || a.journal || a.transactions || a.vault));
+    return d === today || (a && (a.tasks || a.journal || a.notes || a.transactions || a.vault));
   });
 
   if (days.length === 0) {
@@ -494,6 +496,11 @@ function ModuleChips({ activity: a }: { activity: DayActivity }) {
       {a.journal > 0 && (
         <span className="inline-flex items-center gap-1 text-mod-journal">
           <NotebookPen className="size-3" /> Jurnal
+        </span>
+      )}
+      {a.notes > 0 && (
+        <span className="inline-flex items-center gap-1 text-mod-notes">
+          <StickyNote className="size-3" /> {a.notes} catatan
         </span>
       )}
       {a.expense > 0 && <span className="text-danger">−{formatIDRCompact(a.expense)}</span>}
@@ -557,6 +564,10 @@ function DayPanel({
 
       <div className="mt-5">
         <DayJournal date={date} />
+      </div>
+
+      <div className="mt-5">
+        <DayNotes date={date} />
       </div>
 
       <div className="mt-5">

@@ -5,6 +5,7 @@ import { useFinanceActions } from '@/features/finance/finance-actions';
 import { useCategories, useWallets } from '@/features/finance/finance-queries';
 import { useTxSheet } from '@/features/finance/tx-sheet-store';
 import { useJournalActions } from '@/features/journal/journal-actions';
+import { useNoteActions } from '@/features/notes/note-actions';
 import { useTagActions } from '@/features/tags/tag-actions';
 import { useTaskActions } from '@/features/tasks/task-actions';
 import { useTaskSheet } from '@/features/tasks/task-sheet-store';
@@ -18,6 +19,7 @@ export function useCapture() {
   const tasks = useTaskActions();
   const finance = useFinanceActions();
   const journal = useJournalActions();
+  const noteActions = useNoteActions();
   const tagActions = useTagActions();
   const { wallets } = useWallets(false);
   const categories = useCategories();
@@ -52,6 +54,16 @@ export function useCapture() {
           });
           return true;
         }
+        if (c.kind === 'note') {
+          // Isi dari catat cepat masuk ke isi catatan (judul bisa ditambah saat dibuka).
+          const id = await noteActions.create({ content: c.title, note_date: c.date ?? null });
+          if (c.tags.length) await tagActions.addByName('note', id, c.tags);
+          toast('Catatan disimpan', {
+            tone: 'success',
+            action: { label: 'Buka', onClick: () => navigate(`/catatan?catatan=${id}`) },
+          });
+          return true;
+        }
         // Transaksi
         const last = localStorage.getItem(LAST_WALLET_KEY);
         const wallet = wallets.find((w) => w.id === last) ?? wallets[0];
@@ -79,6 +91,17 @@ export function useCapture() {
         return false;
       }
     },
-    [tasks, finance, journal, tagActions, wallets, categories, openTask, editTx, navigate],
+    [
+      tasks,
+      finance,
+      journal,
+      noteActions,
+      tagActions,
+      wallets,
+      categories,
+      openTask,
+      editTx,
+      navigate,
+    ],
   );
 }

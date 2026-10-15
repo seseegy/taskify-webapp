@@ -2,7 +2,7 @@ import { NotebookPen, Plus } from 'lucide-react';
 import { Link } from 'react-router';
 import type { LocalDate } from '@/lib/date';
 import { useEntriesOnDate } from '../journal-queries';
-import { plainExcerpt } from '../journal-utils';
+import { plainExcerpt } from '@/lib/markdown';
 import { MoodIcon } from './MoodIcon';
 
 /** Jurnal pada satu tanggal + tombol tulis (panel hari di Kalender). */
