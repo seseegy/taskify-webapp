@@ -1,6 +1,13 @@
 import { Menu, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigation, useSearchParams } from 'react-router';
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useNavigation,
+  useSearchParams,
+} from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { useRouteA11y } from '@/app/useRouteA11y';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -29,6 +36,7 @@ import { UpdatePrompt } from './UpdatePrompt';
  */
 export function AppShell() {
   useTaskDeepLink();
+  useServiceWorkerNavigation();
   useRecurringProcessor();
   useAttachmentOutbox();
   useSandiAutoLock();
@@ -113,6 +121,29 @@ function useTaskDeepLink() {
       { replace: true },
     );
   }, [taskId, open, setParams]);
+}
+
+/**
+ * Klik notifikasi saat aplikasi sudah terbuka: service worker (public/sw-extra.js) meminta router
+ * pindah halaman lewat postMessage, alih-alih memuat ulang aplikasi. Jawaban lewat port memberi
+ * tahu service worker bahwa permintaan sudah ditangani (tanpa jawaban → ia memuat ulang).
+ */
+function useServiceWorkerNavigation() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    const onMessage = (e: MessageEvent) => {
+      const data = e.data as { type?: string; url?: string } | null;
+      if (data?.type !== 'taskify:navigate' || typeof data.url !== 'string') return;
+      const url = new URL(data.url, location.origin);
+      if (url.origin !== location.origin) return;
+      navigate(url.pathname + url.search + url.hash);
+      e.ports[0]?.postMessage('ok');
+    };
+    sw.addEventListener('message', onMessage);
+    return () => sw.removeEventListener('message', onMessage);
+  }, [navigate]);
 }
 
 function Sidebar() {

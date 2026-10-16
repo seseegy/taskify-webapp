@@ -107,7 +107,16 @@ function takeBatch(ops: CrudEntry[], start: number): CrudEntry[] {
   return batch;
 }
 
-async function applyBatch(batch: CrudEntry[]): Promise<PostgrestLikeError | null> {
+/** Satu operasi CRUD, bentuk minimal yang dibutuhkan applyBatch. */
+export type CrudOp = Pick<CrudEntry, 'op' | 'table' | 'id' | 'opData'>;
+
+/**
+ * Terapkan satu operasi langsung ke Supabase (tanpa antrean PowerSync) dengan aturan yang sama
+ * seperti upload biasa. Dipakai "Coba lagi" di daftar perubahan yang ditolak (upload_errors).
+ */
+export const applyOp = (op: CrudOp) => applyBatch([op]);
+
+async function applyBatch(batch: CrudOp[]): Promise<PostgrestLikeError | null> {
   const first = batch[0]!;
   const table = supabase.from(first.table);
 

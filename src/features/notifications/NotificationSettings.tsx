@@ -1,8 +1,10 @@
 import { BellOff, BellRing, Send } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { toast } from '@/components/ui/toast-store';
+import { readNotificationPrefs, writeNotificationPrefs } from './notification-prefs';
 import { disablePush, enablePush, sendTestPush, type PushState } from './push';
 import { usePushStatus } from './usePushStatus';
 
@@ -108,6 +110,48 @@ export function NotificationSettings() {
           </>
         )}
       </div>
+      {state === 'on' && <HideContentOption />}
     </div>
+  );
+}
+
+/** Sembunyikan judul tugas di notifikasi (berlaku untuk perangkat ini saja). */
+function HideContentOption() {
+  const [hide, setHide] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void readNotificationPrefs().then((p) => alive && setHide(p.hideContent));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const change = async (next: boolean) => {
+    setHide(next);
+    try {
+      await writeNotificationPrefs({ hideContent: next });
+    } catch (e) {
+      setHide(!next);
+      toast(e instanceof Error ? e.message : String(e), { tone: 'danger' });
+    }
+  };
+
+  return (
+    <label className="flex cursor-pointer items-start gap-3 rounded-2xl p-3 glass">
+      <Checkbox
+        checked={hide ?? false}
+        disabled={hide === null}
+        onChange={(v) => void change(v)}
+        className="mt-0.5"
+      />
+      <span className="text-sm">
+        <span className="font-semibold">Sembunyikan isi notifikasi</span>
+        <span className="block text-muted">
+          Notifikasi hanya bertuliskan “Ada pengingat tugas”, tanpa judul tugas — berguna karena
+          notifikasi tampil di layar kunci walau PIN aplikasi aktif. Hanya untuk perangkat ini.
+        </span>
+      </span>
+    </label>
   );
 }

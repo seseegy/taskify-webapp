@@ -37,8 +37,10 @@ function AuthGate() {
   if (state.status === 'loading') return <SplashScreen message="Memuat sesi…" />;
   if (state.status === 'signed_out') return <LoginPage />;
 
+  // key = user: akun berganti tanpa melewati layar login (mis. dari tab lain) tetap memasang ulang
+  // provider, sehingga pemeriksaan pemilik database lokal berjalan lagi.
   return (
-    <PowerSyncProvider>
+    <PowerSyncProvider key={state.user.id}>
       <LockGate>
         <RouterProvider router={router} />
       </LockGate>

@@ -34,6 +34,7 @@ import { useTheme, type ThemePreference } from '@/features/theme/theme-context';
 import { cn } from '@/lib/utils';
 import { toast } from '@/components/ui/toast-store';
 import { clearDeviceData } from './clear-device-data';
+import { wipeLocalDatabase } from '@/db/local-reset';
 import { DisplayNameSettings } from './DisplayNameSettings';
 import { exportAllData } from './export-data';
 import { PinSettings } from './PinSettings';
@@ -208,10 +209,12 @@ function AccountSection() {
 
     setLoading(true);
     try {
-      await powerSync.disconnectAndClear();
+      await wipeLocalDatabase(powerSync);
       await clearDeviceData();
       await signOut();
       location.assign('/');
+    } catch (e) {
+      toast(`Gagal keluar: ${e instanceof Error ? e.message : String(e)}`, { tone: 'danger' });
     } finally {
       setLoading(false);
     }

@@ -84,6 +84,9 @@ export function Sheet({
     }
   };
 
+  const panelRef = useRef<HTMLDivElement>(null);
+  const drag = useSheetDrag(panelRef, variant === 'side', () => void requestClose());
+
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
@@ -121,6 +124,7 @@ export function Sheet({
     >
       {open && (
         <div
+          ref={panelRef}
           className={cn(
             'flex animate-fade-up flex-col glass-strong',
             variant === 'side'
@@ -129,7 +133,16 @@ export function Sheet({
             className,
           )}
         >
-          <div className="flex items-center justify-between gap-3 px-5 pt-4 pb-2">
+          <div
+            onPointerDown={drag.onPointerDown}
+            onPointerMove={drag.onPointerMove}
+            onPointerUp={drag.onPointerUp}
+            onPointerCancel={drag.onPointerCancel}
+            className={cn(
+              'flex items-center justify-between gap-3 px-5 pt-4 pb-2',
+              variant === 'side' && 'max-sm:touch-none',
+            )}
+          >
             {variant === 'side' && (
               <span className="absolute top-2 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-line sm:hidden" />
             )}
@@ -157,4 +170,59 @@ export function Sheet({
       )}
     </dialog>
   );
+}
+
+/** Jarak geser (px) yang dianggap "tutup". */
+const DRAG_CLOSE_PX = 90;
+
+/**
+ * Geser ke bawah untuk menutup — hanya bottom sheet di HP (`variant="side"`, < 640px), tempat
+ * pegangan kecil di atas panel memang menjanjikan gestur itu. Area geser = baris judul (bukan
+ * isi, supaya tidak bertabrakan dengan scroll). Tombol di baris judul tetap bisa diketuk.
+ * Penutupan lewat `onRequestClose` sehingga konfirmasi "Buang perubahan?" tetap berlaku; bila
+ * dibatalkan, panel kembali ke posisinya.
+ */
+function useSheetDrag(
+  panelRef: React.RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+  onRequestClose: () => void,
+) {
+  const start = useRef<{ y: number; id: number } | null>(null);
+
+  const setOffset = (dy: number, animate: boolean) => {
+    const el = panelRef.current;
+    if (!el) return;
+    el.style.transition = animate ? 'transform 180ms ease-out' : 'none';
+    el.style.transform = dy > 0 ? `translateY(${dy}px)` : '';
+  };
+
+  const end = (e: React.PointerEvent) => {
+    const s = start.current;
+    if (!s || s.id !== e.pointerId) return;
+    start.current = null;
+    const dy = e.clientY - s.y;
+    setOffset(0, true);
+    if (dy > DRAG_CLOSE_PX) onRequestClose();
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!enabled || window.matchMedia('(min-width: 640px)').matches) return;
+    if ((e.target as HTMLElement).closest('button, a, input, textarea, select')) return;
+    start.current = { y: e.clientY, id: e.pointerId };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    // Animasi masuk (`animate-fade-up`, fill-mode both) menahan `transform` dan menang atas
+    // style inline — tanpa ini panel tidak ikut bergerak saat digeser.
+    if (panelRef.current) panelRef.current.style.animation = 'none';
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const s = start.current;
+    if (s && s.id === e.pointerId) setOffset(Math.max(0, e.clientY - s.y), false);
+  };
+  const onPointerCancel = (e: React.PointerEvent) => {
+    if (start.current?.id !== e.pointerId) return;
+    start.current = null;
+    setOffset(0, true);
+  };
+
+  return { onPointerDown, onPointerMove, onPointerUp: end, onPointerCancel };
 }
