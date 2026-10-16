@@ -3,7 +3,7 @@
  * SQL yang penting. Menggantikan klaim lama di docs ("diuji di PGlite") yang tidak ada di repo.
  *
  * Stub minimal untuk objek bawaan Supabase: role anon/authenticated/service_role, tabel
- * auth.users, dan auth.uid().
+ * auth.users & auth.mfa_factors, auth.uid(), dan auth.jwt() (claim dari setting `app.jwt`).
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -49,6 +49,13 @@ beforeAll(async () => {
     CREATE SCHEMA auth;
     CREATE TABLE auth.users (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('app.uid', true), '')::uuid $$;
+    CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT coalesce(nullif(current_setting('app.jwt', true), ''), '{}')::jsonb $$;
+    CREATE TYPE auth.factor_status AS ENUM ('unverified', 'verified');
+    CREATE TABLE auth.mfa_factors (
+      id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+      status auth.factor_status NOT NULL DEFAULT 'unverified'
+    );
   `);
   // Migrasi sebelum perbaikan pengingat dulu, supaya jalur upgrade (data lama) ikut teruji
   for (const f of FILES.filter((f) => f < RETRY_MIGRATION))
@@ -1131,6 +1138,91 @@ describe('rujukan lintas akun · tabel inti', () => {
   it('fungsi pemeriksa tidak bisa dipanggil langsung oleh klien', async () => {
     const [{ ok }] = await rows<{ ok: boolean }>(
       `SELECT has_function_privilege('authenticated', 'public.check_ref_owner()', 'execute') AS ok`,
+    );
+    expect(ok).toBe(false);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// MFA: akun dengan authenticator terverifikasi wajib token aal2 (policy restrictive mfa_aal2)
+// -----------------------------------------------------------------------------------------
+describe('MFA · policy restrictive mfa_aal2', () => {
+  let withMfa: string;
+  let withoutMfa: string;
+
+  async function as<T>(uid: string, aal: 'aal1' | 'aal2', fn: () => Promise<T>): Promise<T> {
+    await pg.exec('SET ROLE authenticated');
+    await pg.query(`SELECT set_config('app.uid', $1, false)`, [uid]);
+    await pg.query(`SELECT set_config('app.jwt', $1, false)`, [JSON.stringify({ sub: uid, aal })]);
+    try {
+      return await fn();
+    } finally {
+      await pg.exec('RESET ROLE');
+      await pg.query(`SELECT set_config('app.uid', '', false)`);
+      await pg.query(`SELECT set_config('app.jwt', '', false)`);
+    }
+  }
+  const myTasks = () => rows(`SELECT id FROM public.tasks`);
+  const addTask = (title: string) =>
+    pg.query(`INSERT INTO public.tasks (id, title) VALUES (gen_random_uuid(), $1)`, [title]);
+
+  beforeAll(async () => {
+    const make = async () =>
+      (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!.id;
+    withMfa = await make();
+    withoutMfa = await make();
+    await as(withMfa, 'aal1', () => addTask('dibuat sebelum MFA aktif'));
+    await pg.query(`INSERT INTO auth.mfa_factors (user_id, status) VALUES ($1, 'verified')`, [
+      withMfa,
+    ]);
+    // Faktor yang belum diverifikasi tidak mengaktifkan penegakan
+    await pg.query(`INSERT INTO auth.mfa_factors (user_id, status) VALUES ($1, 'unverified')`, [
+      withoutMfa,
+    ]);
+  });
+
+  it('punya MFA + token aal1 (password saja): tidak bisa membaca maupun menulis', async () => {
+    expect(await as(withMfa, 'aal1', myTasks)).toEqual([]);
+    await expect(as(withMfa, 'aal1', () => addTask('penyusup'))).rejects.toThrow(
+      /row-level security/,
+    );
+    await as(withMfa, 'aal1', () => pg.query(`DELETE FROM public.tasks`));
+    expect(await as(withMfa, 'aal2', myTasks)).toHaveLength(1); // DELETE tadi tidak mengenai apa pun
+  });
+
+  it('punya MFA + token aal2: akses normal', async () => {
+    await expect(as(withMfa, 'aal2', () => addTask('sah'))).resolves.toBeDefined();
+    expect(await as(withMfa, 'aal2', myTasks)).toHaveLength(2);
+  });
+
+  it('belum punya MFA terverifikasi: aal1 tetap boleh (agar bisa mendaftarkan authenticator)', async () => {
+    await expect(as(withoutMfa, 'aal1', () => addTask('x'))).resolves.toBeDefined();
+    expect(await as(withoutMfa, 'aal1', myTasks)).toHaveLength(1);
+  });
+
+  it('SETIAP tabel yang dibuka untuk klien punya policy restrictive mfa_aal2', async () => {
+    const owner = await rows<{ tablename: string }>(
+      `SELECT tablename FROM pg_policies WHERE schemaname = 'public' AND policyname = 'owner_select'`,
+    );
+    const granted = await rows<{ table_name: string }>(
+      `SELECT DISTINCT table_name FROM information_schema.role_table_grants
+        WHERE table_schema = 'public' AND grantee = 'authenticated'`,
+    );
+    const mfa = await rows<{ tablename: string; permissive: string }>(
+      `SELECT tablename, permissive FROM pg_policies
+        WHERE schemaname = 'public' AND policyname = 'mfa_aal2'`,
+    );
+    const names = (r: { tablename?: string; table_name?: string }[]) =>
+      r.map((x) => x.tablename ?? x.table_name).sort();
+    expect(names(granted)).toEqual(names(owner));
+    expect(names(mfa)).toEqual(names(owner));
+    expect(mfa.every((m) => m.permissive === 'RESTRICTIVE')).toBe(true);
+    expect(names(mfa)).toContain('push_subscriptions');
+  });
+
+  it('fungsi mfa_satisfied tidak bisa dipanggil anon', async () => {
+    const [{ ok }] = await rows<{ ok: boolean }>(
+      `SELECT has_function_privilege('anon', 'public.mfa_satisfied()', 'execute') AS ok`,
     );
     expect(ok).toBe(false);
   });
