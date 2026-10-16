@@ -5,6 +5,7 @@ import { CodeBlock } from '@/components/ui/CodeBlock';
 import { Listbox } from '@/components/ui/Listbox';
 import { Input, Label } from '@/components/ui/Input';
 import { Sheet } from '@/components/ui/Sheet';
+import { useSheetDirty } from '@/components/ui/sheet-dirty';
 import { toast } from '@/components/ui/toast-store';
 import type { Snippet } from '@/db/schema';
 import { LinksPanel } from '@/features/links/LinksPanel';
@@ -65,6 +66,9 @@ function SnippetForm({
     language !== snippet.language ||
     code !== snippet.code ||
     (description || null) !== (snippet.description || null);
+  // Snippet baru selalu "dirty" untuk tombol Simpan, tetapi hanya perlu konfirmasi tutup bila
+  // sudah ada yang diketik.
+  useSheetDirty(snippet ? dirty : !!(title.trim() || code.trim() || description.trim()));
 
   const save = async () => {
     if (!title.trim()) return toast('Isi judul snippet', { tone: 'danger' });

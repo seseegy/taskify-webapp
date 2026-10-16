@@ -1,9 +1,10 @@
-import { CodeXml, KeyRound, Search, Settings, Trophy } from 'lucide-react';
-import { useEffect, useRef } from 'react';
-import { NavLink, Outlet, useNavigation, useSearchParams } from 'react-router';
+import { Menu, Search } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigation, useSearchParams } from 'react-router';
 import { NAV_ITEMS } from '@/app/navigation';
 import { useRouteA11y } from '@/app/useRouteA11y';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Sheet } from '@/components/ui/Sheet';
 import { Toaster } from '@/components/ui/Toaster';
 import { useAttachmentOutbox } from '@/features/attachments/attachment-actions';
 import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
@@ -175,14 +176,12 @@ function MobileHeader() {
     <header className="sticky top-0 z-30 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-2 lg:hidden">
       <div className="flex items-center justify-between rounded-2xl px-3 py-2 glass">
         {/*
-          Lebar header ini sudah penuh. Hitungan: ikon logo 36 + pencarian 36 + status sync 36
-          + N tombol modul 36 + gap 6, dikurangi px-4 halaman dan px-3 kartu (56px).
-          Karena itu dua ambang di bawah, bukan angka asal:
-            - ikon Review muncul dari 360px (di 320px tidak muat, lebih 18px)
-            - teks logo muncul dari 430px (dengan 4 tombol, teks butuh viewport >= 416px)
-          Di bawah 360px, Review tetap terjangkau lewat tombol pencarian (command palette).
+          Header HP hanya memuat 3 tombol (pencarian, status sync, Menu). Modul yang tidak muat di
+          bottom nav (Catatan, Review, Vault, Sandi, Pengaturan) ada di dalam Menu, lengkap dengan
+          label — dulu berupa deretan ikon tanpa teks, Catatan tidak ada sama sekali, dan Review
+          hilang di bawah 360px. Teks logo muncul dari 360px.
         */}
-        <Logo size="sm" withText textClassName="hidden min-[430px]:inline" />
+        <Logo size="sm" withText textClassName="hidden min-[360px]:inline" />
         <div className="flex items-center gap-1.5">
           <button
             type="button"
@@ -193,46 +192,65 @@ function MobileHeader() {
             <Search className="size-4" />
           </button>
           <SyncStatus compact />
-          <HeaderLink
-            to="/review"
-            label="Review"
-            icon={Trophy}
-            className="hidden min-[360px]:flex"
-          />
-          <HeaderLink to="/vault" label="Vault Kode" icon={CodeXml} />
-          <HeaderLink to="/sandi" label="Sandi" icon={KeyRound} />
-          <HeaderLink to="/pengaturan" label="Pengaturan" icon={Settings} />
+          <MobileMenu />
         </div>
       </div>
     </header>
   );
 }
 
-function HeaderLink({
-  to,
-  label,
-  icon: Icon,
-  className,
-}: {
-  to: string;
-  label: string;
-  icon: typeof Settings;
-  className?: string;
-}) {
+/** Modul yang tidak tampil di bottom nav HP — dijangkau lewat tombol Menu di header. */
+const MENU_ITEMS = NAV_ITEMS.filter((i) => !i.mobile);
+
+function MobileMenu() {
+  const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  // Tombol Menu ikut "aktif" saat halaman yang terbuka berasal dari Menu, supaya pengguna
+  // tetap tahu posisinya walau tidak ada tab bottom nav yang menyala.
+  const current = MENU_ITEMS.find((i) => pathname === i.to || pathname.startsWith(`${i.to}/`));
   return (
-    <NavLink
-      to={to}
-      aria-label={label}
-      className={({ isActive }) =>
-        cn(
-          'flex size-9 items-center justify-center rounded-full transition',
-          isActive ? 'bg-gradient-brand text-white' : 'text-muted glass hover:text-fg',
-          className,
-        )
-      }
-    >
-      <Icon className="size-4" />
-    </NavLink>
+    <>
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-label={current ? `Menu (sedang di ${current.label})` : 'Menu'}
+        onClick={() => setOpen(true)}
+        className={cn(
+          'flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition',
+          current ? 'bg-gradient-brand text-white' : 'text-muted glass hover:text-fg',
+        )}
+      >
+        <Menu className="size-4" />
+        <span className="hidden min-[340px]:inline">Menu</span>
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title="Menu">
+        <nav aria-label="Modul lainnya" className="grid grid-cols-2 gap-2 pt-1">
+          {MENU_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              onClick={() => setOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  'flex min-h-14 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition',
+                  isActive ? 'text-fg glass-strong' : 'text-muted glass hover:text-fg',
+                )
+              }
+            >
+              <span
+                className={cn(
+                  'shine flex size-9 shrink-0 items-center justify-center rounded-xl text-white shadow-md',
+                  item.gradient,
+                )}
+              >
+                <item.icon className="size-[18px]" />
+              </span>
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+      </Sheet>
+    </>
   );
 }
 

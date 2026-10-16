@@ -5,6 +5,7 @@ import { FieldError } from '@/components/ui/FieldError';
 import { Textarea } from '@/components/ui/Field';
 import { Input, Label } from '@/components/ui/Input';
 import { Sheet } from '@/components/ui/Sheet';
+import { useSheetDirty } from '@/components/ui/sheet-dirty';
 import { toast } from '@/components/ui/toast-store';
 import { isoToLocal, relativeDayLabel } from '@/lib/date';
 import { focusField } from '@/lib/focus';
@@ -310,6 +311,7 @@ function ItemForm({
   const [failure, setFailure] = useState<string | null>(null);
   const set = <K extends keyof ItemPayload>(k: K, v: ItemPayload[K]) =>
     setP((s) => ({ ...s, [k]: v }));
+  useSheetDirty(JSON.stringify(p) !== JSON.stringify(initial));
 
   const strength = p.password ? estimatePasswordStrength(p.password) : null;
 

@@ -1,6 +1,8 @@
 import { X } from 'lucide-react';
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import { askConfirm } from './confirm-store';
+import { SheetDirtyContext } from './sheet-dirty';
 
 interface Props {
   open: boolean;
@@ -34,6 +36,11 @@ interface Props {
  *
  * Jadi: untuk beberapa panel yang saling eksklusif, pakai **satu** `Sheet` lalu ganti
  * isinya — jangan beberapa `Sheet` yang dikendalikan satu keadaan.
+ *
+ * ## Isian belum disimpan
+ *
+ * Form di dalamnya memanggil `useSheetDirty(dirty)` (./sheet-dirty.ts). Selama dirty, Esc,
+ * klik backdrop, atau tombol Tutup menanyakan "Buang perubahan?" dulu, baru memanggil `onClose`.
  */
 export function Sheet({
   open,
@@ -49,6 +56,33 @@ export function Sheet({
   // Judul dipakai sebagai nama aksesibel dialog (dibacakan pembaca layar saat dibuka)
   const titleId = useId();
   const hasTitle = title !== undefined && title !== null && title !== '';
+
+  // Ref, bukan state: perubahan dirty tidak perlu merender ulang panel.
+  const dirtyRef = useRef(false);
+  const setDirty = useCallback((dirty: boolean) => {
+    dirtyRef.current = dirty;
+  }, []);
+  const asking = useRef(false);
+  /** Penutupan oleh pengguna — ditanya dulu bila ada isian yang belum disimpan. */
+  const requestClose = async () => {
+    if (!dirtyRef.current) return onClose();
+    if (asking.current) return;
+    asking.current = true;
+    try {
+      const discard = await askConfirm({
+        title: 'Buang perubahan?',
+        description: 'Isian yang belum disimpan akan hilang.',
+        confirmLabel: 'Buang',
+        cancelLabel: 'Lanjut mengisi',
+      });
+      if (discard) {
+        dirtyRef.current = false;
+        onClose();
+      }
+    } finally {
+      asking.current = false;
+    }
+  };
 
   useEffect(() => {
     const dialog = ref.current;
@@ -68,10 +102,10 @@ export function Sheet({
       onClose={onClose}
       onCancel={(e) => {
         e.preventDefault();
-        onClose();
+        void requestClose();
       }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) void requestClose();
       }}
       className={cn(
         'm-0 max-h-none max-w-none bg-transparent p-0 text-fg backdrop:bg-indigo-950/40 backdrop:backdrop-blur-sm',
@@ -104,19 +138,21 @@ export function Sheet({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => void requestClose()}
               aria-label="Tutup"
               className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted transition hover:bg-surface hover:text-fg"
             >
               <X className="size-5" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>
-          {footer && (
-            <div className="border-t border-line px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
-              {footer}
-            </div>
-          )}
+          <SheetDirtyContext.Provider value={setDirty}>
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>
+            {footer && (
+              <div className="border-t border-line px-5 py-3 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+                {footer}
+              </div>
+            )}
+          </SheetDirtyContext.Provider>
         </div>
       )}
     </dialog>
