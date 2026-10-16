@@ -477,7 +477,9 @@ Supabase tidak menyediakan kode cadangan untuk TOTP. Pilihan:
 
 ### 13.3 Catatan
 
-- Sesi yang sudah terverifikasi tetap bisa membuka aplikasi **offline**. Memasukkan kode (login baru) butuh internet.
+- **Ingat perangkat ini selama 30 hari** (centang di layar kode, bawaan aktif): aplikasi dibuka tanpa kode di perangkat itu selama 30 hari, lalu kode diminta sekali lagi. Tanpa centang, kode diminta setiap aplikasi dibuka. Status & tombol **Lupakan perangkat ini** ada di Pengaturan → Verifikasi dua langkah; Keluar juga melupakannya.
+- "Ingat perangkat" **tidak** berlaku untuk login baru dengan password (setelah Keluar, sesi berakhir, atau "Lupa PIN"): server selalu mewajibkan kode di situ. Kalau tidak, password saja kembali cukup di perangkat itu.
+- Sesi yang sudah terverifikasi tetap bisa membuka aplikasi **offline**. Konfirmasi ulang perangkat (setelah 30 hari / tanpa centang) bisa dilewati saat offline karena server sudah menerima sesi itu; ini kunci di aplikasi, setara PIN. Login baru tetap butuh internet + kode.
 - "Lupa PIN" memeriksa password ke server; sesi baru itu diminta kode authenticator lagi.
 - Authenticator terakhir tidak bisa dihapus dari aplikasi (MFA wajib).
 

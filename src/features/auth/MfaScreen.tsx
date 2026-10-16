@@ -2,6 +2,7 @@ import { Copy, KeyRound, LogOut, ShieldCheck, Smartphone } from 'lucide-react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Logo } from '@/components/layout/Logo';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { Card } from '@/components/ui/Card';
 import { Disclosure } from '@/components/ui/Disclosure';
 import { Input, Label } from '@/components/ui/Input';
@@ -9,13 +10,29 @@ import { toast } from '@/components/ui/toast-store';
 import { copySecret } from '@/features/sandi/clipboard';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './auth-context';
-import { isTotpCode, normalizeTotpCode, translateMfaError, type MfaStatus } from './mfa';
+import { isNetworkError, isTotpCode, normalizeTotpCode, translateMfaError } from './mfa';
+import { setRememberChoice, TRUST_DAYS, type GateStatus } from './mfa-trust';
 
 /**
  * Layar penuh pengganti aplikasi selama sesi belum aal2 (lihat mfa.ts). Database lokal & sync
  * BELUM dibuka di sini, jadi tidak ada data yang tampil atau tersinkron dengan token aal1.
  */
-export function MfaScreen({ status }: { status: Exclude<MfaStatus, 'ok'> }) {
+const HEADINGS: Record<Exclude<GateStatus, 'ok'>, { title: string; text: string }> = {
+  challenge: {
+    title: 'Verifikasi dua langkah',
+    text: 'Masukkan kode 6 digit dari aplikasi authenticator di HP-mu.',
+  },
+  reverify: {
+    title: 'Konfirmasi perangkat ini',
+    text: `Perangkat ini tidak sedang diingat (lewat ${TRUST_DAYS} hari, atau kamu memilih untuk tidak mengingatnya). Masukkan kode 6 digit dari aplikasi authenticator.`,
+  },
+  enroll: {
+    title: 'Aktifkan verifikasi dua langkah',
+    text: 'Taskify menyimpan jurnal, keuangan, dan brankas sandi. Agar password yang bocor saja tidak cukup untuk membukanya, setiap login wajib memakai kode dari aplikasi authenticator.',
+  },
+};
+
+export function MfaScreen({ status }: { status: Exclude<GateStatus, 'ok'> }) {
   const { signOut } = useAuth();
   const [leaving, setLeaving] = useState(false);
 
@@ -24,17 +41,17 @@ export function MfaScreen({ status }: { status: Exclude<MfaStatus, 'ok'> }) {
       <div className="w-full max-w-md animate-fade-up">
         <div className="mb-6 flex flex-col items-center text-center">
           <Logo size="lg" />
-          <h1 className="mt-5 text-2xl font-extrabold tracking-tight">
-            {status === 'challenge' ? 'Verifikasi dua langkah' : 'Aktifkan verifikasi dua langkah'}
-          </h1>
-          <p className="mt-2 text-sm text-muted">
-            {status === 'challenge'
-              ? 'Masukkan kode 6 digit dari aplikasi authenticator di HP-mu.'
-              : 'Taskify menyimpan jurnal, keuangan, dan brankas sandi. Agar password yang bocor saja tidak cukup untuk membukanya, setiap login wajib memakai kode dari aplikasi authenticator.'}
-          </p>
+          <h1 className="mt-5 text-2xl font-extrabold tracking-tight">{HEADINGS[status].title}</h1>
+          <p className="mt-2 text-sm text-muted">{HEADINGS[status].text}</p>
         </div>
 
-        <Card className="p-6">{status === 'challenge' ? <MfaChallenge /> : <MfaEnrollGate />}</Card>
+        <Card className="p-6">
+          {status === 'enroll' ? (
+            <MfaEnrollGate />
+          ) : (
+            <MfaChallenge reverify={status === 'reverify'} />
+          )}
+        </Card>
 
         <div className="mt-5 flex justify-center">
           <Button
@@ -61,8 +78,8 @@ export function MfaScreen({ status }: { status: Exclude<MfaStatus, 'ok'> }) {
 }
 
 // ============================================================================ kode masuk
-function MfaChallenge() {
-  const { state, verifyMfa } = useAuth();
+function MfaChallenge({ reverify }: { reverify: boolean }) {
+  const { state, verifyMfa, skipReverify } = useAuth();
   // Faktor dibaca dari sesi tersimpan → layar ini tampil walau offline (verifikasinya tetap online)
   const factors =
     state.status === 'signed_in'
@@ -91,7 +108,14 @@ function MfaChallenge() {
           </select>
         </div>
       )}
-      <CodeForm submitLabel="Verifikasi" onSubmit={(code) => verifyMfa(factorId, code)} />
+      <CodeForm
+        submitLabel="Verifikasi"
+        rememberOption
+        // Sesi ini sudah aal2 di server; konfirmasi ulang hanya kunci di aplikasi, jadi tanpa
+        // internet pengguna boleh lanjut (lihat mfa-trust.ts). Login baru TIDAK punya jalan ini.
+        offlineEscape={reverify ? skipReverify : undefined}
+        onSubmit={(code) => verifyMfa(factorId, code)}
+      />
       <LostDeviceHelp />
     </div>
   );
@@ -143,7 +167,7 @@ function MfaEnrollGate() {
   }, []);
 
   if (checking) return <p className="text-sm text-muted">Memeriksa status akun…</p>;
-  return <TotpEnroll defaultName="HP utama" />;
+  return <TotpEnroll defaultName="HP utama" rememberOption />;
 }
 
 /**
@@ -152,9 +176,12 @@ function MfaEnrollGate() {
  */
 export function TotpEnroll({
   defaultName,
+  rememberOption,
   onDone,
 }: {
   defaultName: string;
+  /** Tampilkan "Ingat perangkat ini" (hanya di layar masuk, bukan di Pengaturan). */
+  rememberOption?: boolean;
   /** Dipanggil setelah terverifikasi. Untuk pendaftaran pertama, sesi berubah aal2 sendiri. */
   onDone?: () => void;
 }) {
@@ -273,7 +300,7 @@ export function TotpEnroll({
           </Button>
         </div>
       </Disclosure>
-      <CodeForm submitLabel="Aktifkan" onSubmit={verify} />
+      <CodeForm submitLabel="Aktifkan" rememberOption={rememberOption} onSubmit={verify} />
     </div>
   );
 }
@@ -281,14 +308,22 @@ export function TotpEnroll({
 // ============================================================================ bersama
 function CodeForm({
   submitLabel,
+  rememberOption,
+  offlineEscape,
   onSubmit,
 }: {
   submitLabel: string;
+  /** Tampilkan centang "Ingat perangkat ini selama 30 hari" (bawaan tercentang). */
+  rememberOption?: boolean;
+  /** Bila ada & verifikasi gagal karena offline: tombol untuk lanjut tanpa kode. */
+  offlineEscape?: () => void;
   onSubmit: (code: string) => Promise<void>;
 }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [remember, setRemember] = useState(true);
   const clean = normalizeTotpCode(code);
 
   const submit = async (e: FormEvent) => {
@@ -298,11 +333,17 @@ function CodeForm({
       return;
     }
     setError(null);
+    setOffline(false);
     setBusy(true);
+    // Disetel SEBELUM verifikasi: AuthProvider mencatatnya saat event MFA_CHALLENGE_VERIFIED
+    if (rememberOption) setRememberChoice(remember);
     try {
       await onSubmit(clean);
     } catch (e2) {
+      // Pilihan yang tidak terpakai tidak boleh menempel ke verifikasi lain (mis. di Pengaturan)
+      if (rememberOption) setRememberChoice(null);
       setError(translateMfaError(e2));
+      setOffline(isNetworkError(e2));
       setCode('');
     } finally {
       setBusy(false);
@@ -328,10 +369,26 @@ function CodeForm({
           className="text-center font-mono text-lg tracking-[0.4em]"
         />
       </div>
+      {rememberOption && (
+        <label className="flex cursor-pointer items-start gap-3 text-sm">
+          <Checkbox checked={remember} onChange={setRemember} className="mt-0.5" />
+          <span>
+            <span className="font-semibold">Ingat perangkat ini selama {TRUST_DAYS} hari</span>
+            <span className="block text-xs text-muted">
+              Aplikasi dibuka tanpa kode di perangkat ini. Jangan centang di perangkat bersama.
+            </span>
+          </span>
+        </label>
+      )}
       {error && <ErrorText>{error}</ErrorText>}
       <Button type="submit" size="lg" className="w-full" loading={busy} disabled={clean.length < 6}>
         <KeyRound /> {submitLabel}
       </Button>
+      {offline && offlineEscape && (
+        <Button variant="ghost" className="w-full" onClick={offlineEscape}>
+          Lanjutkan tanpa kode (sedang offline)
+        </Button>
+      )}
     </form>
   );
 }

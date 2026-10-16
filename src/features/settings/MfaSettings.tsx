@@ -8,6 +8,7 @@ import { Sheet } from '@/components/ui/Sheet';
 import { toast } from '@/components/ui/toast-store';
 import { useUser } from '@/features/auth/auth-context';
 import { translateMfaError } from '@/features/auth/mfa';
+import { clearTrust, readTrust, trustValid, TRUST_DAYS } from '@/features/auth/mfa-trust';
 import { TotpEnroll } from '@/features/auth/MfaScreen';
 import { APP_TIMEZONE } from '@/lib/date';
 import { supabase } from '@/lib/supabase';
@@ -103,8 +104,10 @@ export function MfaSettings() {
       </Button>
       <p className="text-xs text-muted">
         Verifikasi dua langkah wajib untuk akun ini. Daftarkan authenticator kedua (mis. di
-        perangkat lain atau password manager) supaya tetap bisa masuk bila HP hilang.
+        perangkat lain atau password manager) supaya tetap bisa masuk bila HP hilang. Perangkat yang
+        diingat ({TRUST_DAYS} hari) tetap diminta kode setelah Keluar lalu masuk lagi.
       </p>
+      <DeviceTrustRow userId={user.id} />
       <Sheet open={adding} onClose={() => setAdding(false)} title="Tambah authenticator">
         {adding && (
           <TotpEnroll
@@ -116,6 +119,48 @@ export function MfaSettings() {
           />
         )}
       </Sheet>
+    </div>
+  );
+}
+
+/** Status "Ingat perangkat ini" untuk perangkat ini + tombol untuk melupakannya. */
+function DeviceTrustRow({ userId }: { userId: string }) {
+  // Dibaca sekali saat tampil: null = tidak diingat (atau sudah lewat masanya)
+  const [trust, setTrust] = useState(() => {
+    const t = readTrust();
+    return trustValid(t, userId, Date.now()) ? t : null;
+  });
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl p-3 text-sm glass">
+      <span className="min-w-0">
+        <span className="block font-semibold">Perangkat ini</span>
+        <span className="block text-xs text-muted">
+          {trust
+            ? `Diingat sampai ${new Date(trust.until).toLocaleDateString('id-ID', {
+                timeZone: APP_TIMEZONE,
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })} — aplikasi dibuka tanpa kode.`
+            : 'Tidak diingat — kode diminta setiap aplikasi dibuka. Centang “Ingat perangkat ini” di layar kode untuk mengubahnya.'}
+        </span>
+      </span>
+      {trust && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            clearTrust();
+            setTrust(null);
+            toast(`Perangkat ini dilupakan. Kode diminta lagi saat aplikasi dibuka berikutnya.`, {
+              tone: 'success',
+            });
+          }}
+        >
+          Lupakan perangkat ini
+        </Button>
+      )}
     </div>
   );
 }

@@ -51,7 +51,7 @@ Aturan: kode khusus modul tinggal di `features/<modul>`. Yang dipakai ≥2 modul
 
 `ThemeProvider → env lengkap? → AuthProvider → login? → MFA (aal2)? → PowerSyncProvider → LockGate → Router`
 
-- DB lokal baru dibuka setelah login **dan** verifikasi dua langkah (sesi aal2). MFA wajib dan ditegakkan di aplikasi, RLS (`mfa_aal2`), Sync Streams (`auth.parameter('aal')`), dan Edge Function — lihat `src/features/auth/mfa.ts` dan docs/SETUP.md §13.
+- DB lokal baru dibuka setelah login **dan** verifikasi dua langkah (sesi aal2). MFA wajib dan ditegakkan di aplikasi, RLS (`mfa_aal2`), Sync Streams (`auth.parameter('aal')`), dan Edge Function — lihat `src/features/auth/mfa.ts` dan docs/SETUP.md §13. "Ingat perangkat ini selama 30 hari" (`mfa-trust.ts`) hanya menentukan apakah sesi aal2 yang sudah ada diminta konfirmasi ulang saat aplikasi dibuka; login baru selalu butuh kode.
 - Sesi Supabase disimpan di localStorage, jadi aplikasi tetap terbuka saat offline.
 - Logout memanggil `wipeLocalDatabase()` (`disconnectAndClear()` + indeks FTS lokal) dan memperingatkan jika masih ada perubahan yang belum terunggah. Bila keluar global gagal (offline), sesi tetap dikeluarkan di perangkat ini (`signOut({ scope: 'local' })`).
 - Pemilik database lokal dicatat (`taskify-db-owner`, `src/db/local-reset.ts`). Sesi bisa berakhir tanpa tombol Keluar (token dicabut, logout dari tab lain); bila kemudian akun LAIN masuk, database dikosongkan sebelum ditampilkan/disinkron. Akun yang sama masuk lagi → tidak dikosongkan, jadi perubahan offline tetap terkirim.

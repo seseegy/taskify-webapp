@@ -2,10 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { forgetDevice } from '@/features/sandi/device-trust';
 import { shouldLockOnAuthChange, useSandiStore } from '@/features/sandi/sandi-store';
 import { supabase } from '@/lib/supabase';
+import type { Session } from '@supabase/supabase-js';
 import { AuthContext, type AuthState } from './auth-context';
 import { mfaStatus } from './mfa';
+import { recordVerification, resolveGate, skipReverifyOffline } from './mfa-trust';
 
 const SIGNED_OUT: AuthState = { status: 'signed_out', session: null, user: null };
+
+const signedIn = (session: Session): AuthState => ({
+  status: 'signed_in',
+  session,
+  user: session.user,
+  mfa: resolveGate(mfaStatus(session), session.user.id),
+});
 
 /**
  * Sumber kebenaran status login.
@@ -16,10 +25,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>({ status: 'loading', session: null, user: null });
 
   const lastUserId = useRef<string | null>(null);
+  const lastSession = useRef<Session | null>(null);
 
   useEffect(() => {
     // onAuthStateChange langsung memicu INITIAL_SESSION dengan sesi tersimpan
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
       // Provider ini tidak pernah di-unmount, jadi di sinilah DEK brankas Sandi dibuang saat akun
       // berubah (keluar dengan cara apa pun, atau akun lain masuk).
       const nextUserId = session?.user.id ?? null;
@@ -29,11 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void forgetDevice();
       }
       lastUserId.current = nextUserId;
-      setState(
-        session
-          ? { status: 'signed_in', session, user: session.user, mfa: mfaStatus(session) }
-          : SIGNED_OUT,
-      );
+      lastSession.current = session;
+      // Kode baru saja benar (masuk, daftar authenticator, atau konfirmasi ulang perangkat):
+      // catat SEBELUM gerbang dihitung, berikut pilihan "Ingat perangkat ini" (mfa-trust.ts).
+      if (session && event === 'MFA_CHALLENGE_VERIFIED') recordVerification(session.user.id);
+      setState(session ? signedIn(session) : SIGNED_OUT);
     });
     return () => data.subscription.unsubscribe();
   }, []);
@@ -60,9 +70,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
   }, []);
 
+  const skipReverify = useCallback(() => {
+    const session = lastSession.current;
+    if (!session) return;
+    skipReverifyOffline(session.user.id);
+    setState(signedIn(session));
+  }, []);
+
   const value = useMemo(
-    () => ({ state, signIn, signOut, verifyMfa }),
-    [state, signIn, signOut, verifyMfa],
+    () => ({ state, signIn, signOut, verifyMfa, skipReverify }),
+    [state, signIn, signOut, verifyMfa, skipReverify],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
