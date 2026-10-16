@@ -25,6 +25,10 @@ describe('plainExcerpt', () => {
 
   it('teks pendek utuh, kosong tetap kosong', () => {
     expect(plainExcerpt('halo')).toBe('halo');
+    // Isi sangat panjang: hanya awalnya yang diproses, hasil tetap cuplikan yang benar
+    expect(plainExcerpt('**Awal** cerita. ' + 'isi '.repeat(50_000), 14)).toBe('Awal cerita.…');
+    // Panggilan berulang (cache) mengembalikan hasil yang sama
+    expect(plainExcerpt('## A\nb', 50)).toBe(plainExcerpt('## A\nb', 50));
     expect(plainExcerpt('   ')).toBe('');
   });
 });

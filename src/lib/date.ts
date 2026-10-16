@@ -60,9 +60,24 @@ export function addLocalDays(value: LocalDate, amount: number): LocalDate {
   return toLocalDate(addDays(parseLocalDate(value), amount));
 }
 
+/**
+ * Hasil `format` date-fns di-cache: fungsi itu mahal (mengurai pola + locale setiap panggilan)
+ * dan dipanggil berkali-kali per baris daftar. Daftar Jurnal 365 entri menghabiskan ±220 ms
+ * hanya untuk format tanggal (CPU 4× lebih lambat), terulang di setiap render. Kunci = tanggal +
+ * pola, jadi hasilnya pasti sama; dibatasi agar memori tidak tumbuh tanpa batas.
+ */
+const formatCache = new Map<string, string>();
+const FORMAT_CACHE_MAX = 5000;
+
 /** Format tampilan berbahasa Indonesia, mis. formatLocalDate('2026-10-05', 'EEEE, d MMMM') */
 export function formatLocalDate(value: LocalDate, pattern = 'd MMMM yyyy'): string {
-  return format(parseLocalDate(value), pattern, { locale: localeId });
+  const key = `${pattern}|${value}`;
+  const hit = formatCache.get(key);
+  if (hit !== undefined) return hit;
+  const out = format(parseLocalDate(value), pattern, { locale: localeId });
+  if (formatCache.size >= FORMAT_CACHE_MAX) formatCache.clear();
+  formatCache.set(key, out);
+  return out;
 }
 
 /** Sapaan berdasarkan jam WIB. */
