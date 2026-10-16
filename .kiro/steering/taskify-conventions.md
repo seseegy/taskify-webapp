@@ -2,7 +2,7 @@
 
 - Bahasa UI, komentar, dan dokumentasi: **Bahasa Indonesia**. Rute juga berbahasa Indonesia (`/tugas`, `/keuangan`).
 - Zona waktu WIB, minggu dimulai Senin, mata uang IDR (integer rupiah, tanpa float).
-- Ikuti konvensi data di `docs/ARCHITECTURE.md`. Menambah kolom/tabel = ubah migrasi Supabase **dan** `powersync/sync-config.yaml` **dan** `src/db/schema.ts`.
+- Ikuti konvensi data di `docs/ARCHITECTURE.md`. Menambah kolom/tabel = ubah migrasi Supabase **dan** `powersync/sync-config.yaml` **dan** `src/db/schema.ts`. Tabel baru untuk klien juga wajib mendapat policy restrictive `mfa_aal2` (pola di migrasi `…_mfa_enforce.sql`), dan query Sync Streams-nya wajib memuat `AND auth.parameter('aal') = 'aal2'`.
 - Semua baca/tulis lewat DB lokal (Drizzle/`useQuery`), bukan langsung ke Supabase. Setiap query wajib memfilter `deleted_at IS NULL`.
 - Pakai helper `withMeta` / `touch` / `softDeleted` dari `src/db/mutations.ts` untuk menulis.
 - Tanggal lokal pakai `todayLocal()`, `parseLocalDate()`, `toLocalDate()` dari `src/lib/date.ts`, jangan `new Date('YYYY-MM-DD')`.
