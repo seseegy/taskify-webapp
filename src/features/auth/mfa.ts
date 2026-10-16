@@ -53,16 +53,22 @@ export function mfaStatus(session: Pick<Session, 'access_token' | 'user'>): MfaS
 export const normalizeTotpCode = (raw: string) => raw.replace(/\s+/g, '');
 export const isTotpCode = (code: string) => /^\d{6}$/.test(code);
 
+/** Gagal karena tidak ada koneksi (bukan karena kodenya salah). */
+export function isNetworkError(e: unknown): boolean {
+  const err = (e ?? {}) as { message?: string; name?: string; status?: number };
+  const msg = err.message ?? String(e);
+  return (
+    err.name === 'AuthRetryableFetchError' ||
+    err.status === 0 ||
+    /failed to fetch|network/i.test(msg)
+  );
+}
+
 /** Pesan error MFA yang bisa dimengerti. */
 export function translateMfaError(e: unknown): string {
   const err = (e ?? {}) as { code?: string; message?: string; name?: string; status?: number };
   const msg = err.message ?? String(e);
-  if (
-    err.name === 'AuthRetryableFetchError' ||
-    err.status === 0 ||
-    /failed to fetch|network/i.test(msg)
-  )
-    return 'Butuh koneksi internet untuk verifikasi dua langkah.';
+  if (isNetworkError(e)) return 'Butuh koneksi internet untuk verifikasi dua langkah.';
   if (err.code === 'mfa_verification_failed' || /invalid totp|invalid code/i.test(msg))
     return 'Kode salah atau sudah kedaluwarsa. Pakai kode terbaru dari aplikasi authenticator.';
   if (err.status === 429 || err.code === 'over_request_rate_limit')

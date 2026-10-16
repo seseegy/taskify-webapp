@@ -1,3 +1,4 @@
+import { clearTrust } from '@/features/auth/mfa-trust';
 import { forgetDevice } from '@/features/sandi/device-trust';
 import { clearShareInbox } from '@/features/share/share-inbox';
 import { FILE_CACHE_NAME } from '@/lib/files';
@@ -18,6 +19,8 @@ import { FILE_CACHE_NAME } from '@/lib/files';
  * Dipanggil saat logout; kegagalan satu langkah tidak boleh menghalangi logout.
  */
 export async function clearDeviceData(): Promise<void> {
+  // "Ingat perangkat ini" (verifikasi dua langkah) ikut dilupakan saat Keluar
+  clearTrust();
   const tasks: Promise<unknown>[] = [clearShareInbox(), forgetDevice()];
   if (typeof caches !== 'undefined') tasks.push(caches.delete(FILE_CACHE_NAME));
   await Promise.allSettled(tasks);
