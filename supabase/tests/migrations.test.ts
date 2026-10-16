@@ -983,3 +983,155 @@ describe('Catatan · notes', () => {
     expect(p?.relreplident).toBe('f');
   });
 });
+
+// -----------------------------------------------------------------------------------------
+// Rujukan antar tabel inti harus milik user yang sama (check_ref_owner)
+// -----------------------------------------------------------------------------------------
+describe('rujukan lintas akun · tabel inti', () => {
+  let alice: string;
+  let bob: string;
+
+  async function asUser<T>(uid: string, fn: () => Promise<T>): Promise<T> {
+    await pg.exec('SET ROLE authenticated');
+    await pg.query(`SELECT set_config('app.uid', $1, false)`, [uid]);
+    try {
+      return await fn();
+    } finally {
+      await pg.exec('RESET ROLE');
+      await pg.query(`SELECT set_config('app.uid', '', false)`);
+    }
+  }
+  const uuid = () => rows<{ id: string }>(`SELECT gen_random_uuid() AS id`).then((r) => r[0]!.id);
+  /** Dompet default akun (dibuat trigger seed) — dibaca sebagai superuser. */
+  const walletOf = async (uid: string) =>
+    (
+      await rows<{ id: string }>(`SELECT id FROM public.wallets WHERE user_id = $1 LIMIT 1`, [uid])
+    )[0]!.id;
+  const expense = (walletId: string, extra = '') =>
+    pg.query(
+      `INSERT INTO public.transactions (id, kind, amount, wallet_id, occurred_on${extra ? ', task_id' : ''})
+       VALUES (gen_random_uuid(), 'expense', 1000, $1, current_date${extra ? ', $2' : ''})`,
+      extra ? [walletId, extra] : [walletId],
+    );
+
+  beforeAll(async () => {
+    const make = async () =>
+      (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!.id;
+    alice = await make();
+    bob = await make();
+  });
+
+  it('transaksi ke dompet / tugas orang lain ditolak dengan pesan yang sama seperti UUID tak dikenal', async () => {
+    const aliceWallet = await walletOf(alice);
+    const bobWallet = await walletOf(bob);
+    await expect(asUser(bob, () => expense(aliceWallet))).rejects.toThrow(/milik user yang sama/);
+
+    const aliceTask = await uuid();
+    await asUser(alice, () =>
+      pg.query(`INSERT INTO public.tasks (id, title) VALUES ($1, 'rahasia')`, [aliceTask]),
+    );
+    await expect(asUser(bob, () => expense(bobWallet, aliceTask))).rejects.toThrow(
+      /milik user yang sama/,
+    );
+    await expect(asUser(bob, () => expense(bobWallet))).resolves.toBeDefined();
+  });
+
+  it('UPDATE tidak bisa memindahkan rujukan ke milik orang lain', async () => {
+    const aliceList = await uuid();
+    await asUser(alice, () =>
+      pg.query(`INSERT INTO public.task_lists (id, name) VALUES ($1, 'Kerja')`, [aliceList]),
+    );
+    const bobTask = await uuid();
+    await asUser(bob, () =>
+      pg.query(`INSERT INTO public.tasks (id, title) VALUES ($1, 'punya bob')`, [bobTask]),
+    );
+    await expect(
+      asUser(bob, () =>
+        pg.query(`UPDATE public.tasks SET list_id = $1 WHERE id = $2`, [aliceList, bobTask]),
+      ),
+    ).rejects.toThrow(/milik user yang sama/);
+    // UPDATE kolom lain pada baris yang rujukannya sah tetap jalan
+    await expect(
+      asUser(bob, () =>
+        pg.query(`UPDATE public.tasks SET title = 'ganti' WHERE id = $1`, [bobTask]),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it('tag orang lain dan kategori orang lain (anggaran, sub-kategori) ditolak', async () => {
+    const aliceTag = await uuid();
+    await asUser(alice, () =>
+      pg.query(`INSERT INTO public.tags (id, name) VALUES ($1, 'privat')`, [aliceTag]),
+    );
+    await expect(
+      asUser(bob, () =>
+        pg.query(
+          `INSERT INTO public.taggings (id, tag_id, entity_type, entity_id)
+           VALUES (gen_random_uuid(), $1, 'task', gen_random_uuid())`,
+          [aliceTag],
+        ),
+      ),
+    ).rejects.toThrow(/milik user yang sama/);
+
+    const [{ id: aliceCat }] = await rows<{ id: string }>(
+      `SELECT id FROM public.categories WHERE user_id = $1 LIMIT 1`,
+      [alice],
+    );
+    await expect(
+      asUser(bob, () =>
+        pg.query(
+          `INSERT INTO public.budgets (id, category_id, amount, start_month)
+           VALUES (gen_random_uuid(), $1, 100, date_trunc('month', now())::date)`,
+          [aliceCat],
+        ),
+      ),
+    ).rejects.toThrow(/milik user yang sama/);
+    await expect(
+      asUser(bob, () =>
+        pg.query(
+          `INSERT INTO public.categories (id, name, kind, parent_id)
+           VALUES (gen_random_uuid(), 'Anak', 'expense', $1)`,
+          [aliceCat],
+        ),
+      ),
+    ).rejects.toThrow(/milik user yang sama/);
+  });
+
+  it('upsert massal dengan subtugas SEBELUM induknya tetap diterima (seperti FK)', async () => {
+    const parent = await uuid();
+    const child = await uuid();
+    await expect(
+      asUser(alice, () =>
+        pg.query(
+          `INSERT INTO public.tasks (id, title, parent_id) VALUES ($1, 'anak', $2), ($2, 'induk', NULL)`,
+          [child, parent],
+        ),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it('menghapus permanen daftar milik sendiri tetap mengosongkan list_id tugasnya', async () => {
+    const list = await uuid();
+    const task = await uuid();
+    await asUser(alice, async () => {
+      await pg.query(`INSERT INTO public.task_lists (id, name) VALUES ($1, 'Sementara')`, [list]);
+      await pg.query(`INSERT INTO public.tasks (id, title, list_id) VALUES ($1, 'x', $2)`, [
+        task,
+        list,
+      ]);
+      await pg.query(`DELETE FROM public.task_lists WHERE id = $1`, [list]);
+    });
+    const [r] = await rows<{ list_id: string | null }>(
+      `SELECT list_id FROM public.tasks WHERE id = $1`,
+      [task],
+    );
+    expect(r!.list_id).toBeNull();
+  });
+
+  it('fungsi pemeriksa tidak bisa dipanggil langsung oleh klien', async () => {
+    const [{ ok }] = await rows<{ ok: boolean }>(
+      `SELECT has_function_privilege('authenticated', 'public.check_ref_owner()', 'execute') AS ok`,
+    );
+    expect(ok).toBe(false);
+  });
+});
