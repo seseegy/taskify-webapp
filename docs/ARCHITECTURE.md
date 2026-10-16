@@ -74,10 +74,13 @@ Menambah kolom/tabel = ubah **tiga tempat**: migrasi Supabase, `sync-config.yaml
 
 ## Penanganan error upload
 
-`connector.ts` membedakan:
+`connector.ts` membedakan (aturannya di `src/db/upload-policy.ts`):
 
-- **Sementara** (jaringan, 5xx): dilempar ulang → PowerSync retry dengan backoff.
-- **Permanen** (`22xxx`, `23xxx`, `42501`): sisa operasi disimpan ke tabel lokal `upload_errors` (tidak disinkron), lalu antrean dilanjutkan supaya tidak macet. Jumlahnya tampil di Pengaturan.
+- **Sementara** (jaringan, 5xx, JWT kedaluwarsa): dilempar ulang → PowerSync retry dengan backoff.
+- **Permanen** (`22xxx`, `23xxx`, `42501`, dan `TASKIFY_ROW_MISSING`): sisa operasi disimpan ke tabel lokal `upload_errors` (tidak disinkron), lalu antrean dilanjutkan supaya tidak macet. Jumlahnya tampil di Pengaturan.
+- **Skema** (PostgREST `PGRST1xx`/`PGRST2xx`, mis. kolom/tabel belum ada karena aplikasi ter-deploy sebelum migrasinya): dicoba ulang selama ±10 menit (minimal 5 percobaan), lalu diperlakukan permanen. Tanpa batas ini, satu transaksi yang macet menahan SELURUH antrean upload.
+
+`PATCH` dikirim dengan `.select('id')`. Jika tidak ada baris yang terkena (baris tidak ada di server — INSERT-nya dulu ditolak, atau sudah dihapus permanen dari perangkat lain), hasilnya `TASKIFY_ROW_MISSING` dan perubahan disimpan ke `upload_errors`, bukan hilang diam-diam.
 
 PUT berurutan pada tabel yang sama digabung menjadi satu `upsert` massal.
 
@@ -143,7 +146,7 @@ Fitur sendiri, **beda dengan Jurnal**: tidak ada mood, dan tanggalnya opsional. 
 - Pencarian daftar meng-escape `%`, `_`, `\` (`escapeLike` + `LIKE … ESCAPE '\'`), supaya mengetik `%` tidak cocok dengan semua catatan.
 - Tag, tautan, pin, pencarian global (FTS5), dan Sampah (30 hari) memakai mekanisme yang sama dengan modul lain. **Lampiran belum didukung**, jadi constraint `attachments.entity_type` tidak diubah. Migrasi `…_notes.sql` memperluas constraint `entity_type` di `taggings` dan `entity_links` ke `'note'`; tanpa itu, tag/tautan pada catatan ditolak server saat upload.
 - Kalender: titik/legenda "Catatan" dan panel hari (`DayNotes`) hanya menghitung catatan **bertanggal**. Heatmap & Beranda memakai aturan yang sama.
-- Navigasi: item `mobile: false` di `NAV_ITEMS` (bottom nav HP sudah 5 item dan header HP kehabisan lebar). Di HP dijangkau lewat kartu Beranda, panel hari Kalender, dan palet perintah.
+- Navigasi: item `mobile: false` di `NAV_ITEMS` (bottom nav HP sudah 5 item). Di HP dijangkau lewat tombol **Menu** di header (sheet berlabel berisi semua item `mobile: false`), selain kartu Beranda, panel hari Kalender, dan palet perintah.
 - Catat cepat: awalan `c:` / `catatan:` / `note:` → catatan bebas. **Perubahan perilaku**: `catatan:` dulu menyimpan ke Jurnal; kini ke Catatan (`j:` / `jurnal:` tetap ke Jurnal).
 - `MarkdownEditor`, `SaveIndicator`, dan helper `lib/markdown.ts` (`plainExcerpt`, `wordCount`, `toggleChecklistLine`) dipakai bersama Jurnal dan Catatan.
 - Warna modul: lime → green (`bg-gradient-notes`, `--color-mod-notes` `#65a30d`).
@@ -347,7 +350,7 @@ Sengaja tidak diubah (trade-off atau terlalu jarang untuk sebanding dengan risik
 
 - **Parser jam**: jam berformat titik tanpa penanda hanya dikenali bila menitnya 00/15/30/45 ("rapat 14.30"). "15.20" tidak dianggap jam karena bentrok dengan harga/nomor versi. Tulis "jam 15.20", "15:20", atau "15.20 WIB".
 - **Catat cepat**: angka polos > 9 digit atau bersatuan hitung ("50000 orang") bukan nominal; tulis "50rb" atau "Rp 50.000". Kalimat dengan nominal + besok/lusa/"<hari> depan" menjadi **tugas** hanya bila ada kata kerja rencana bayar (bayar, cicil, transfer, kirim, setor, …) dan bukan pemasukan; selebihnya tetap transaksi. Jenis bisa diganti di palette (Alt+↑↓).
-- **Sinkronisasi**: `PATCH` ke baris yang sudah dihapus permanen di server mengenai 0 baris tanpa error (edit dari perangkat yang tertinggal hilang diam-diam). Perangkat yang offline > 30 hari bisa menabrak FK (23503) pada baris yang sudah dipurge dan masuk `upload_errors`. Pembersihan 30 hari memakai jam perangkat (pola yang sama untuk semua entitas).
+- **Sinkronisasi**: `PATCH` ke baris yang sudah dihapus permanen di server masuk `upload_errors` (`TASKIFY_ROW_MISSING`), tidak dipulihkan otomatis. Perangkat yang offline > 30 hari bisa menabrak FK (23503) pada baris yang sudah dipurge dan masuk `upload_errors`. Pembersihan 30 hari memakai jam perangkat (pola yang sama untuk semua entitas).
 - **Pengingat**: setelah 5 percobaan (~12 menit) pengingat yang tetap gagal dilepas tanpa jejak selain log Edge Function. Jika satu perangkat berhasil dan perangkat lain gagal sementara, pengingat dianggap selesai.
 - **Pengujian**: klaim cron yang benar-benar bersamaan (dua koneksi) hanya diuji manual di Postgres 16; suite PGlite memakai satu koneksi. Fungsi Edge (Deno) tidak punya tes langsung; logika orkestrasinya diekstrak ke `process.ts` agar teruji.
 

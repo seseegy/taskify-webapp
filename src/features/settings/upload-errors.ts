@@ -1,6 +1,12 @@
-/** Penjelasan singkat untuk kode error Postgres yang dianggap permanen (lihat connector.ts). */
+import { ROW_MISSING_CODE } from '@/db/upload-policy';
+
+/** Penjelasan singkat untuk kode error yang dianggap permanen (lihat db/upload-policy.ts). */
 export function explainErrorCode(code: string | null): string {
   if (!code) return 'Ditolak server';
+  if (code === ROW_MISSING_CODE)
+    return 'Data ini tidak ada di server (mungkin sudah dihapus permanen di perangkat lain)';
+  if (/^PGRST[12]\d\d$/.test(code))
+    return 'Tabel/kolom belum ada di server (migrasi database belum dijalankan?)';
   if (code === '23514')
     return 'Melanggar batas isian (mis. teks terlalu panjang atau nilai tidak valid)';
   if (code === '23503') return 'Mengacu ke data yang sudah tidak ada';

@@ -17,6 +17,7 @@ import { askConfirm } from '@/components/ui/confirm-store';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
+import { useSheetDirty } from '@/components/ui/sheet-dirty';
 import { toast } from '@/components/ui/toast-store';
 import { useUser } from '@/features/auth/auth-context';
 import { UnlockScreen } from '@/features/sandi/components/UnlockScreen';
@@ -153,6 +154,7 @@ function Body({
   const [tab, setTab] = useState<Tab>('isi');
   const [editing, setEditing] = useState(false);
   const [dirty, setDirty] = useState(false);
+  useSheetDirty(editing && dirty);
   const [saving, setSaving] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   /** Versi yang sedang dilihat; null = versi terbaru. */

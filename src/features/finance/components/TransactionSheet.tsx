@@ -7,6 +7,7 @@ import { Listbox } from '@/components/ui/Listbox';
 import { Input, Label } from '@/components/ui/Input';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { Sheet } from '@/components/ui/Sheet';
+import { useSheetDirty } from '@/components/ui/sheet-dirty';
 import { toast } from '@/components/ui/toast-store';
 import type { TransactionKind } from '@/db/schema';
 import { shortTime, todayLocal } from '@/lib/date';
@@ -80,6 +81,30 @@ function TxForm({
   const [note, setNote] = useState(tx?.note ?? '');
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<{ amount?: string; wallet?: string; toWallet?: string }>({});
+
+  // Nilai awal dibekukan saat form dibuka → pembanding untuk "ada isian yang belum disimpan"
+  const [initial] = useState(() => ({
+    kind,
+    amount,
+    categoryId,
+    walletChoice,
+    toWalletId,
+    date,
+    time,
+    title,
+    note,
+  }));
+  useSheetDirty(
+    kind !== initial.kind ||
+      amount !== initial.amount ||
+      categoryId !== initial.categoryId ||
+      walletChoice !== initial.walletChoice ||
+      toWalletId !== initial.toWalletId ||
+      date !== initial.date ||
+      time !== initial.time ||
+      title !== initial.title ||
+      note !== initial.note,
+  );
 
   const categoryList = useCategories(kind === 'income' ? 'income' : 'expense');
   const categories = kind === 'transfer' ? [] : categoryList;

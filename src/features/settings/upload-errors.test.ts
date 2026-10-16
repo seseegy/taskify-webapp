@@ -7,6 +7,8 @@ describe('explainErrorCode', () => {
     expect(explainErrorCode('23503')).toMatch(/sudah tidak ada/);
     expect(explainErrorCode('42501')).toMatch(/izin/);
     expect(explainErrorCode('22P02')).toMatch(/Format data/);
+    expect(explainErrorCode('TASKIFY_ROW_MISSING')).toMatch(/tidak ada di server/);
+    expect(explainErrorCode('PGRST204')).toMatch(/migrasi/);
   });
 
   it('kode kosong/tak dikenal tetap menghasilkan teks yang berguna', () => {

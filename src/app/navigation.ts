@@ -25,7 +25,8 @@ export interface NavItem {
 /**
  * Satu-satunya daftar navigasi. Dipakai sidebar (desktop) & bottom nav (HP).
  * Urutan bottom nav: Kalender sengaja di tengah → "pusat" aplikasi.
- * Hanya item `mobile: true` yang tampil di bottom nav, jadi urutan sidebar bebas.
+ * Hanya item `mobile: true` yang tampil di bottom nav; sisanya tampil di Menu header HP
+ * (urutan sama dengan sidebar).
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Beranda', icon: House, gradient: 'bg-gradient-brand', mobile: true },
@@ -51,8 +52,8 @@ export const NAV_ITEMS: NavItem[] = [
     gradient: 'bg-gradient-finance',
     mobile: true,
   },
-  // Bottom nav HP sudah 5 item (dan header HP kehabisan lebar), jadi Catatan hanya di sidebar.
-  // Di HP: kartu Beranda, panel hari Kalender, dan palet perintah (Ctrl/⌘ K).
+  // Bottom nav HP sudah 5 item. Item `mobile: false` di HP ada di tombol Menu (header, lihat
+  // AppShell → MobileMenu), selain lewat palet perintah (Ctrl/⌘ K).
   {
     to: '/catatan',
     label: 'Catatan',

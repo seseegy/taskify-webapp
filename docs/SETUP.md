@@ -324,7 +324,7 @@ Pakai port **5432** (session), bukan 6543 (transaction), karena `pg_dump` butuh 
 
 ### 9.3 Passphrase enkripsi
 
-Backup berisi jurnal & data keuangan, jadi **selalu isi passphrase**. Buat yang kuat, lalu simpan di password manager. Tanpa passphrase ini, backup tidak bisa dibuka.
+Backup berisi jurnal & data keuangan, jadi passphrase **wajib**: workflow gagal (tanpa men-dump apa pun) bila secret ini kosong. Buat yang kuat, lalu simpan di password manager. Tanpa passphrase ini, backup tidak bisa dibuka.
 
 ```bash
 openssl rand -base64 32

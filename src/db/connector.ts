@@ -8,22 +8,7 @@ import {
 import { env } from '@/lib/env';
 import { newId } from '@/lib/id';
 import { supabase } from '@/lib/supabase';
-
-/**
- * Kode error Postgres yang PERMANEN — mengulang tidak akan berhasil.
- *   22xxx data exception (tipe salah, dll)
- *   23xxx pelanggaran constraint (NOT NULL, FK, CHECK, UNIQUE)
- *   42501 insufficient privilege (RLS / grant)
- */
-const FATAL_CODES = [/^22...$/, /^23...$/, /^42501$/];
-
-interface PostgrestLikeError {
-  code?: string;
-  message?: string;
-}
-
-const isFatal = (error: PostgrestLikeError) =>
-  typeof error.code === 'string' && FATAL_CODES.some((re) => re.test(error.code!));
+import { ROW_MISSING_CODE, UploadFailureTracker, type PostgrestLikeError } from './upload-policy';
 
 /**
  * Jembatan PowerSync ↔ Supabase.
@@ -35,6 +20,9 @@ const isFatal = (error: PostgrestLikeError) =>
  * digabung menjadi satu upsert massal agar hemat request.
  */
 export class SupabaseConnector implements PowerSyncBackendConnector {
+  /** Kapan error skema (PGRST1xx/2xx) dianggap permanen — lihat upload-policy.ts */
+  private readonly failures = new UploadFailureTracker();
+
   async fetchCredentials(): Promise<PowerSyncCredentials | null> {
     const {
       data: { session },
@@ -67,10 +55,13 @@ export class SupabaseConnector implements PowerSyncBackendConnector {
         index += batch.length;
       }
       await transaction.complete();
+      this.failures.reset();
     } catch (ex) {
       const error = ex as PostgrestLikeError;
-      if (!isFatal(error)) {
-        // Error sementara (jaringan, 5xx) → lempar; PowerSync akan mencoba lagi dengan backoff.
+      const key = String(transaction.transactionId ?? ops[0]?.clientId ?? '');
+      if (this.failures.verdict(key, error) === 'retry') {
+        // Error sementara (jaringan, 5xx, atau error skema yang masih dalam masa tenggang)
+        // → lempar; PowerSync akan mencoba lagi dengan backoff.
         throw ex;
       }
 
@@ -128,8 +119,21 @@ async function applyBatch(batch: CrudEntry[]): Promise<PostgrestLikeError | null
       return error;
     }
     case UpdateType.PATCH: {
-      const { error } = await table.update(first.opData ?? {}).eq('id', first.id);
-      return error;
+      // `.select('id')`: tanpa ini, UPDATE yang tidak mengenai baris mana pun (baris tidak ada di
+      // server — mis. INSERT-nya dulu ditolak ke upload_errors, atau sudah dihapus permanen dari
+      // perangkat lain) dianggap SUKSES dan perubahannya hilang tanpa jejak.
+      const { data, error } = await table
+        .update(first.opData ?? {})
+        .eq('id', first.id)
+        .select('id');
+      if (error) return error;
+      if (!data || data.length === 0) {
+        return {
+          code: ROW_MISSING_CODE,
+          message: `Baris ${first.table}/${first.id} tidak ada di server`,
+        };
+      }
+      return null;
     }
     case UpdateType.DELETE: {
       const { error } = await table.delete().eq('id', first.id);
