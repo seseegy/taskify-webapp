@@ -5,6 +5,7 @@ import {
   Hash,
   Trash2,
   CloudAlert,
+  Fingerprint,
   HardDrive,
   LogOut,
   Monitor,
@@ -37,6 +38,7 @@ import { clearDeviceData } from './clear-device-data';
 import { wipeLocalDatabase } from '@/db/local-reset';
 import { DisplayNameSettings } from './DisplayNameSettings';
 import { exportAllData } from './export-data';
+import { MfaSettings } from './MfaSettings';
 import { PinSettings } from './PinSettings';
 import { UploadErrors } from './UploadErrors';
 import { formatBytes, useStorageInfo } from './useStorageInfo';
@@ -54,6 +56,9 @@ export function SettingsPage() {
       <div className="grid gap-5 lg:grid-cols-2">
         <AppearanceSection />
         <SecuritySection />
+        <Section icon={Fingerprint} title="Verifikasi dua langkah" gradient="bg-gradient-sandi">
+          <MfaSettings />
+        </Section>
         <Section icon={BellRing} title="Notifikasi pengingat" gradient="bg-gradient-journal">
           <NotificationSettings />
         </Section>

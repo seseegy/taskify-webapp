@@ -15,6 +15,7 @@
 // =============================================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import * as webpush from 'jsr:@negrel/webpush@0.5.0';
+import { mfaRequirementMet } from '../_shared/mfa.ts';
 import { processReminders } from './process.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -81,6 +82,8 @@ Deno.serve(async (req) => {
     if (token) {
       const { data, error } = await admin.auth.getUser(token);
       if (error || !data.user) return json({ error: 'Unauthorized' }, 401);
+      if (!mfaRequirementMet(data.user, token))
+        return json({ error: 'Verifikasi dua langkah diperlukan' }, 403);
       const body = await req.json().catch(() => ({}));
       if (body?.test === true) return json(await runTest(data.user.id));
       return json({ error: 'Bad request' }, 400);

@@ -3,6 +3,7 @@ import { forgetDevice } from '@/features/sandi/device-trust';
 import { shouldLockOnAuthChange, useSandiStore } from '@/features/sandi/sandi-store';
 import { supabase } from '@/lib/supabase';
 import { AuthContext, type AuthState } from './auth-context';
+import { mfaStatus } from './mfa';
 
 const SIGNED_OUT: AuthState = { status: 'signed_out', session: null, user: null };
 
@@ -28,7 +29,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void forgetDevice();
       }
       lastUserId.current = nextUserId;
-      setState(session ? { status: 'signed_in', session, user: session.user } : SIGNED_OUT);
+      setState(
+        session
+          ? { status: 'signed_in', session, user: session.user, mfa: mfaStatus(session) }
+          : SIGNED_OUT,
+      );
     });
     return () => data.subscription.unsubscribe();
   }, []);
@@ -49,7 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (local.error) throw local.error;
   }, []);
 
-  const value = useMemo(() => ({ state, signIn, signOut }), [state, signIn, signOut]);
+  const verifyMfa = useCallback(async (factorId: string, code: string) => {
+    // Sukses → Supabase memancarkan MFA_CHALLENGE_VERIFIED dengan sesi aal2 → state di atas.
+    const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId, code });
+    if (error) throw error;
+  }, []);
+
+  const value = useMemo(
+    () => ({ state, signIn, signOut, verifyMfa }),
+    [state, signIn, signOut, verifyMfa],
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

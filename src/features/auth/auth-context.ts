@@ -1,15 +1,18 @@
 import type { Session, User } from '@supabase/supabase-js';
 import { createContext, useContext } from 'react';
+import type { MfaStatus } from './mfa';
 
 export type AuthState =
   | { status: 'loading'; session: null; user: null }
   | { status: 'signed_out'; session: null; user: null }
-  | { status: 'signed_in'; session: Session; user: User };
+  | { status: 'signed_in'; session: Session; user: User; mfa: MfaStatus };
 
 export interface AuthContextValue {
   state: AuthState;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Ganti sesi aal1 → aal2 dengan kode TOTP dari authenticator. */
+  verifyMfa: (factorId: string, code: string) => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

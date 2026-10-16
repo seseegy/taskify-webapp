@@ -102,6 +102,8 @@ Cek di **Table Editor → wallets**. Jika kosong (akun dibuat sebelum migrasi), 
 select public.seed_user_defaults('<uuid-user>');
 ```
 
+Saat pertama kali login, aplikasi **mewajibkan** pendaftaran aplikasi authenticator (verifikasi dua langkah). Lihat §13.
+
 ### 2.6 Catat kredensial
 
 **Project Settings → API Keys**: salin **Project URL** dan **Publishable key** (`sb_publishable_…`).
@@ -432,6 +434,53 @@ wajib**:
 
 Bila Validate gagal dengan `permission denied for table config_…`, jalankan blok hak baca di §2.4b.
 
+## 13. Verifikasi dua langkah (MFA)
+
+Login ke Taskify wajib memakai **password + kode 6 digit** dari aplikasi authenticator (TOTP: Google Authenticator, Aegis, 2FAS, 1Password, dll.). Tujuannya: password yang bocor saja tidak cukup untuk membuka jurnal, keuangan, dan brankas.
+
+Penegakannya ada di 4 tempat, karena satu saja bisa dilewati:
+
+| Lapisan        | Tempat                                                 | Yang dicegah                                        |
+| -------------- | ------------------------------------------------------ | --------------------------------------------------- |
+| Aplikasi       | `src/features/auth/mfa.ts`, `MfaScreen.tsx`            | Membuka database lokal/sync sebelum kode dimasukkan |
+| Postgres (RLS) | migrasi `20261017000100_mfa_enforce.sql` (`mfa_aal2`)  | Memanggil Data API langsung dengan password saja    |
+| PowerSync      | `powersync/sync-config.yaml` (`auth.parameter('aal')`) | Menarik data lewat sync (PowerSync tidak lewat RLS) |
+| Edge Function  | `supabase/functions/_shared/mfa.ts`                    | Mengunduh/mengunggah lampiran dengan password saja  |
+
+### 13.1 Mengaktifkan (instalasi yang sudah berjalan)
+
+Urutan ini aman: sebelum authenticator terdaftar, migrasi & Edge Function tidak mengubah apa pun.
+
+1. **Supabase Dashboard → Authentication → Multi-Factor**: pastikan **App Authenticator (TOTP)** aktif (bawaan aktif dan gratis).
+2. Deploy aplikasi versi baru (§5).
+3. `pnpm db:push` (migrasi `…_mfa_enforce.sql`).
+4. `pnpm fn:deploy` dan `pnpm fn:deploy:files`.
+5. Buka aplikasi → layar **Aktifkan verifikasi dua langkah** → pindai QR → masukkan kode. Setelah ini **semua sesi di perangkat lain otomatis keluar**; login lagi di sana dengan password + kode. Perubahan offline yang belum terunggah di perangkat itu tetap terkirim setelah login ulang dengan akun yang sama.
+6. **Pengaturan → Verifikasi dua langkah → Tambah authenticator cadangan** (perangkat lain atau password manager). Sangat disarankan, lihat §13.2.
+7. Terakhir, deploy `powersync/sync-config.yaml` ke PowerSync (Dashboard → Sync Streams → tempel → Deploy). Token tanpa kode (aal1) kini mendapat data kosong lewat sync.
+
+> Pemutar musik (Worker `music-taskify`, repo terpisah) juga menerima JWT Supabase. Worker itu belum memeriksa `aal`; tambahkan pemeriksaan yang sama di sana bila ingin konsisten (dampaknya kecil: hanya pencarian lagu).
+
+### 13.2 HP dengan authenticator hilang
+
+Supabase tidak menyediakan kode cadangan untuk TOTP. Pilihan:
+
+- **Authenticator cadangan** (§13.1 langkah 6): di layar kode, pilih authenticator itu.
+- **Tanpa cadangan**: sebagai pemilik project, hapus faktor MFA akunmu di **SQL Editor**, lalu login dan daftarkan authenticator baru:
+
+  ```sql
+  delete from auth.mfa_factors
+   where user_id = (select id from auth.users where email = 'kamu@email.com');
+  ```
+
+  Siapa pun yang punya akses ke Dashboard Supabase-mu bisa melakukan ini, jadi lindungi akun Supabase (dan GitHub) itu sendiri dengan MFA.
+
+### 13.3 Catatan
+
+- Sesi yang sudah terverifikasi tetap bisa membuka aplikasi **offline**. Memasukkan kode (login baru) butuh internet.
+- "Lupa PIN" memeriksa password ke server; sesi baru itu diminta kode authenticator lagi.
+- Authenticator terakhir tidak bisa dihapus dari aplikasi (MFA wajib).
+
 ## Troubleshooting
 
 | Gejala                                     | Penyebab & solusi                                                                                                  |
@@ -455,6 +504,9 @@ Bila Validate gagal dengan `permission denied for table config_…`, jalankan bl
 | Backup gagal "Network is unreachable"      | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)                                    |
 | Backup gagal "server version mismatch"     | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`                              |
 | "Bagikan" tidak menampilkan Taskify        | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                                              |
+| "MFA TOTP dimatikan di server"             | Aktifkan App Authenticator di Dashboard → Authentication → Multi-Factor (§13.1)                                    |
+| Data kosong di perangkat lama setelah §13  | Aplikasi versi lama (sesi tanpa kode) + sync-config baru; muat ulang/perbarui aplikasi lalu login dengan kode      |
+| Upload/lampiran "Verifikasi dua langkah…"  | Sesi belum aal2 — keluar lalu masuk lagi dengan kode authenticator                                                 |
 
 ## Perawatan rutin
 
