@@ -10,21 +10,21 @@ Prinsip: **tidak ada latar polos.** Semua didefinisikan di [`src/styles/index.cs
 | Blob  | Ungu muda, pink, cyan, kuning | Violet, magenta, teal, indigo   |
 | Teks  | `#1e1b4b`                     | `#ede9fe`                       |
 
-Latar = gradasi dasar + 4 blob radial yang bergerak pelan (22 dtk) + tekstur noise SVG halus. Animasi otomatis mati jika perangkat meminta _reduced motion_.
+Latar = gradasi dasar + 4 blob radial **statis** + tekstur noise SVG halus. Blob sengaja tidak dianimasikan: lapisan latar yang bergerak memaksa seluruh layar digambar ulang setiap frame walau aplikasi diam (diukur ±50% CPU proses GPU saat idle). Lihat komentar `app-backdrop` di `src/styles/index.css`.
 
 Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasangnya sebelum React render, jadi tidak ada kedipan putih.
 
 ## Utility
 
-| Kelas                                                                                       | Pakai untuk                                            |
-| ------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `glass` / `glass-strong`                                                                    | Kartu, panel, input, nav (kaca semi-transparan + blur) |
-| `bg-gradient-brand`                                                                         | Aksi utama, logo (indigo → ungu → pink)                |
-| `bg-gradient-{tasks,journal,notes,finance,vault,calendar,sandi,settings,music}`             | Identitas modul (ikon, header, sel aktif)              |
-| `text-gradient-brand`                                                                       | Angka/judul penting (saldo, logo)                      |
-| `shine`                                                                                     | Kilau tipis di atas elemen bergradasi                  |
-| `text-fg`, `text-muted`, `bg-surface`, `border-line`, `text-primary/danger/success/warning` | Token warna yang otomatis menyesuaikan tema            |
-| `bg-mod-*`                                                                                  | Warna solid modul (titik di kalender)                  |
+| Kelas                                                                                       | Pakai untuk                                                                  |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `glass` / `glass-strong`                                                                    | Kartu, panel, input, nav (kaca semi-transparan; blur latar hanya di desktop) |
+| `bg-gradient-brand`                                                                         | Aksi utama, logo (indigo → ungu → pink)                                      |
+| `bg-gradient-{tasks,journal,notes,finance,vault,calendar,sandi,settings,music}`             | Identitas modul (ikon, header, sel aktif)                                    |
+| `text-gradient-brand`                                                                       | Angka/judul penting (saldo, logo)                                            |
+| `shine`                                                                                     | Kilau tipis di atas elemen bergradasi                                        |
+| `text-fg`, `text-muted`, `bg-surface`, `border-line`, `text-primary/danger/success/warning` | Token warna yang otomatis menyesuaikan tema                                  |
+| `bg-mod-*`                                                                                  | Warna solid modul (titik di kalender)                                        |
 
 ## Warna modul
 
@@ -50,7 +50,7 @@ Tugas berakhir di biru, dan gradasi brand melewati tiga warna.
 ## Kontras warna
 
 Teks normal wajib ≥ **4.5:1** (WCAG 1.4.3) di tema terang **dan** gelap. Pengukuran memakai kasus
-terburuk, bukan satu sampel: setiap stop gradasi dasar dan setiap blob di bawah kaca
+terburuk, bukan satu sampel (tanpa mengandalkan blur, yang tidak ada di HP): setiap stop gradasi dasar dan setiap blob di bawah kaca
 (`--surface` dan `--surface-strong`), serta token status sebagai teks di atas tint `bg-<token>/10`
 dan `/15` (Badge, banner) dan `text-danger/80`.
 

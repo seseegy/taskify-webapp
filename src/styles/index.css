@@ -41,20 +41,8 @@
 
   --radius-card: 1.25rem;
 
-  --animate-blob: blob 22s ease-in-out infinite alternate;
   --animate-fade-up: fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 
-  @keyframes blob {
-    0% {
-      transform: translate3d(0, 0, 0) scale(1);
-    }
-    50% {
-      transform: translate3d(6%, -4%, 0) scale(1.08);
-    }
-    100% {
-      transform: translate3d(-4%, 5%, 0) scale(0.96);
-    }
-  }
   @keyframes fade-up {
     from {
       opacity: 0;
@@ -196,7 +184,13 @@
    Utility kustom
    ----------------------------------------------------------------------------- */
 
-/* Latar aplikasi: mesh gradient + blob bergerak pelan + noise */
+/*
+  Latar aplikasi: mesh gradient + blob + noise — STATIS.
+  Dulu blob dianimasikan tanpa henti (22 dtk, infinite). Lapisan fixed seukuran 140% layar
+  ber-`filter: blur(40px)` yang bergerak memaksa browser menggambar ulang seluruh layar di setiap
+  frame, juga saat aplikasi tidak disentuh: diukur ±48% CPU proses GPU saat diam (Chromium,
+  CPU 4× lebih lambat), turun ke ±12% setelah statis. Jangan animasikan lagi.
+*/
 @utility app-backdrop {
   position: relative;
   isolation: isolate;
@@ -215,7 +209,6 @@
       radial-gradient(30% 30% at 18% 85%, var(--blob-4), transparent 70%);
     opacity: var(--blob-opacity);
     filter: blur(40px);
-    animation: var(--animate-blob);
     pointer-events: none;
   }
 
@@ -231,21 +224,48 @@
   }
 }
 
-/* Permukaan kaca */
+/*
+  Permukaan kaca. Blur latar (`backdrop-filter`) HANYA di desktop (layar lebar + mouse).
+
+  - Di HP, blur menjatuhkan scroll dari 60 ke ±34 fps (diukur, 12 elemen kaca di layar Tugas):
+    setiap frame scroll, browser mengaburkan ulang latar di belakang setiap panel. Tanpa blur,
+    permukaan tetap tembus pandang (`--surface` ber-alpha) dan kontrasnya sudah diperiksa
+    `pnpm check:contrast` terhadap latar terburuk tanpa blur.
+  - Catatan sejarah: dulu `backdrop-filter` ditulis SEBELUM `-webkit-backdrop-filter`, dan
+    minifier CSS produksi hanya menyisakan deklarasi terakhir (yang ber-prefix). Akibatnya Chrome
+    /Android tidak pernah menampilkan blur sama sekali, sementara Safari/iPhone menanggung
+    biayanya. Urutan di bawah (prefix dulu, standar terakhir) disengaja.
+*/
 @utility glass {
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
+
+  @media (min-width: 64rem) and (hover: hover) and (pointer: fine) {
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    backdrop-filter: blur(18px) saturate(160%);
+  }
+  /* Ditulis terpisah: browser yang belum mengenal fitur ini mengabaikan blok ini saja */
+  @media (prefers-reduced-transparency: reduce) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 @utility glass-strong {
   background: var(--surface-strong);
   border: 1px solid var(--line);
   box-shadow: var(--glass-shadow);
-  backdrop-filter: blur(24px) saturate(170%);
-  -webkit-backdrop-filter: blur(24px) saturate(170%);
+
+  @media (min-width: 64rem) and (hover: hover) and (pointer: fine) {
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    backdrop-filter: blur(24px) saturate(170%);
+  }
+  /* Ditulis terpisah: browser yang belum mengenal fitur ini mengabaikan blok ini saja */
+  @media (prefers-reduced-transparency: reduce) {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* Gradasi brand & per modul */
