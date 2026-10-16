@@ -115,6 +115,8 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 - Langganan yang kedaluwarsa (404/410) otomatis dihapus.
 - Service worker (Workbox) memuat `public/sw-extra.js` (push, klik notifikasi, Share Target). Klik notifikasi membuka `/tugas?task=<id>`, dan `AppShell` membuka panel detail tugas itu. Bila aplikasi sudah terbuka, service worker meminta router pindah halaman lewat `postMessage` (tanpa memuat ulang, isian yang belum disimpan tetap ada); memuat ulang hanya bila tab tidak menjawab dalam 1 detik.
 - "Sembunyikan isi notifikasi" (Pengaturan, per perangkat): preferensi disimpan di Cache Storage (`taskify-prefs`) karena service worker tidak bisa membaca localStorage; notifikasi lalu hanya bertuliskan "Ada pengingat tugas". Judul tugas tetap dikirim server (terenkripsi Web Push), hanya tidak ditampilkan.
+- Precache (instal pertama, ±3,8 MB) memuat semua halaman & chunk agar aplikasi jalan offline, KECUALI dua aset besar yang jarang dipakai: `wa-sqlite-async*.wasm` (fallback IndexedDB bila OPFS tidak bisa dipakai) dan `zxcvbn-*.js` (kamus penilai master password Sandi, gagal tertutup bila tidak bisa dimuat). Keduanya disimpan ke cache `taskify-lazy-assets` saat pertama dipakai (CacheFirst), lalu tersedia offline. Lihat `vite.config.ts`.
+- Palet perintah, detail tugas, form transaksi, dan pemutar musik dimuat lazy (`components/layout/LazyPanels.tsx`): dipasang saat store-nya pertama kali meminta dibuka, kodenya diambil saat browser senggang. Pintasan Ctrl/⌘ K ada di `usePaletteShortcut` (AppShell) supaya bekerja sebelum palet dimuat.
 
 ## Keuangan
 
