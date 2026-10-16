@@ -8,6 +8,7 @@
 //   { action: 'download', key, fileName? }         → { url }  (GET, berlaku 10 menit)
 //   { action: 'delete',   key }                    → { ok }
 // Keamanan: setiap key WAJIB berawalan "<user_id>/" → user hanya bisa menyentuh miliknya.
+// Akun ber-MFA wajib token aal2 (../_shared/mfa.ts), sama dengan RLS.
 // Ukuran maksimal 100 MB ditegakkan dengan menandatangani header Content-Length.
 //
 // Mode cron (header x-cron-secret): { action: 'cleanup' } → hapus lampiran kedaluwarsa &
@@ -18,6 +19,7 @@
 // =============================================================================
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AwsClient } from 'npm:aws4fetch@1.0.20';
+import { mfaRequirementMet } from '../_shared/mfa.ts';
 
 const MAX_BYTES = 100 * 1024 * 1024;
 // Batas kerja satu eksekusi cleanup (Edge Function punya batas waktu): 20 halaman × 1000 objek
@@ -75,6 +77,9 @@ Deno.serve(async (req) => {
     if (!token) return json({ error: 'Unauthorized' }, 401);
     const { data, error } = await admin.auth.getUser(token);
     if (error || !data.user) return json({ error: 'Unauthorized' }, 401);
+    // Password saja (aal1) tidak cukup bila akun memakai MFA — sama dengan RLS mfa_aal2
+    if (!mfaRequirementMet(data.user, token))
+      return json({ error: 'Verifikasi dua langkah diperlukan' }, 403);
     const userId = data.user.id;
 
     const key = String(body.key ?? '');

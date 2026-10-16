@@ -13,6 +13,13 @@
 #
 # Kolom `user_id` bertipe uuid di Postgres, dibandingkan dengan `auth.user_id()`
 # (claim `sub` dari JWT Supabase).
+#
+# Verifikasi dua langkah (MFA): setiap query mensyaratkan `auth.parameter('aal') = 'aal2'`.
+# PowerSync membaca lewat replikasi dan TIDAK melewati RLS Postgres, jadi policy `mfa_aal2`
+# (migrasi 20261017000100) tidak melindungi jalur ini — syarat di sini yang melindunginya. Token
+# password-saja (aal1) mendapat data kosong. Aplikasi sendiri tidak pernah membuka sync sebelum
+# sesi aal2 (src/features/auth/mfa.ts). Deploy file ini SETELAH authenticator didaftarkan
+# (docs/SETUP.md §MFA); sebelum itu, perangkat lain yang masih memakai sesi lama tidak tersinkron.
 # =============================================================================
 config:
   edition: 3
@@ -22,32 +29,32 @@ streams:
     auto_subscribe: true
     priority: 1
     queries:
-      - SELECT * FROM user_settings WHERE user_id = auth.user_id()
-      - SELECT * FROM wallets WHERE user_id = auth.user_id()
-      - SELECT * FROM categories WHERE user_id = auth.user_id()
-      - SELECT * FROM task_lists WHERE user_id = auth.user_id()
+      - SELECT * FROM user_settings WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM wallets WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM categories WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM task_lists WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
       # Kunci brankas Sandi (terbungkus) ikut prioritas 1 agar layar Sandi tahu status brankas lebih awal
-      - SELECT * FROM pw_keys WHERE user_id = auth.user_id()
-      - SELECT * FROM tags WHERE user_id = auth.user_id()
+      - SELECT * FROM pw_keys WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM tags WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
 
   user_data:
     auto_subscribe: true
     priority: 2
     queries:
-      - SELECT * FROM taggings WHERE user_id = auth.user_id()
-      - SELECT * FROM entity_links WHERE user_id = auth.user_id()
-      - SELECT * FROM tasks WHERE user_id = auth.user_id()
-      - SELECT * FROM journal_entries WHERE user_id = auth.user_id()
-      - SELECT * FROM notes WHERE user_id = auth.user_id()
-      - SELECT * FROM debts WHERE user_id = auth.user_id()
-      - SELECT * FROM recurring_transactions WHERE user_id = auth.user_id()
-      - SELECT * FROM transactions WHERE user_id = auth.user_id()
-      - SELECT * FROM budgets WHERE user_id = auth.user_id()
-      - SELECT * FROM snippets WHERE user_id = auth.user_id()
-      - SELECT * FROM code_projects WHERE user_id = auth.user_id()
-      - SELECT * FROM attachments WHERE user_id = auth.user_id()
-      - SELECT * FROM pw_items WHERE user_id = auth.user_id()
-      - SELECT * FROM pw_totp_log WHERE user_id = auth.user_id()
+      - SELECT * FROM taggings WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM entity_links WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM tasks WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM journal_entries WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM notes WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM debts WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM recurring_transactions WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM transactions WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM budgets WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM snippets WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM code_projects WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM attachments WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM pw_items WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM pw_totp_log WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
       # Vault · Konfigurasi: metadata teks biasa, isi versi terenkripsi (DEK Sandi)
-      - SELECT * FROM config_files WHERE user_id = auth.user_id()
-      - SELECT * FROM config_versions WHERE user_id = auth.user_id()
+      - SELECT * FROM config_files WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      - SELECT * FROM config_versions WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
