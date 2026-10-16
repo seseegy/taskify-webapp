@@ -39,8 +39,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    // Global (mencabut refresh token di server) butuh internet. Bila gagal — offline, atau
+    // server menolak — tetap keluarkan sesi di perangkat ini; tanpa ini pengguna "tertahan"
+    // login padahal database lokalnya sudah dikosongkan. Refresh token yang tidak sempat dicabut
+    // kedaluwarsa sendiri di server.
     const { error } = await supabase.auth.signOut();
-    if (error) throw error;
+    if (!error) return;
+    const local = await supabase.auth.signOut({ scope: 'local' });
+    if (local.error) throw local.error;
   }, []);
 
   const value = useMemo(() => ({ state, signIn, signOut }), [state, signIn, signOut]);
