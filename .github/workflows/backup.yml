@@ -24,9 +24,10 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
           R2_BACKUP_BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
-          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$R2_BACKUP_BUCKET" ]; then
-            echo "::error::Secret SUPABASE_DB_URL / R2_BACKUP_BUCKET belum diisi (Settings → Secrets and variables → Actions)"
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$R2_BACKUP_BUCKET" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Secret SUPABASE_DB_URL / R2_BACKUP_BUCKET / BACKUP_PASSPHRASE belum diisi (Settings → Secrets and variables → Actions)"
             exit 1
           fi
 

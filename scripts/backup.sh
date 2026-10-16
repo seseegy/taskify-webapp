@@ -6,12 +6,14 @@
 #   public.dump      pg_dump -Fc skema public (struktur + data semua tabel aplikasi)
 #   auth_users.dump  pg_dump -Fc data auth.users (dibutuhkan FK user_id saat restore)
 #   manifest.txt     waktu, versi pg_dump, ukuran
-# Dienkripsi AES-256-CBC + PBKDF2 (openssl, 600 ribu iterasi) jika BACKUP_PASSPHRASE
-# di-set — sangat disarankan, karena berisi jurnal & data keuangan. Dekripsi:
+# Dienkripsi AES-256-CBC + PBKDF2 (openssl, 600 ribu iterasi) dengan BACKUP_PASSPHRASE — WAJIB,
+# karena berisi jurnal & data keuangan. Skrip berhenti sebelum men-dump apa pun bila passphrase
+# kosong. Untuk pengujian lokal saja: BACKUP_ALLOW_PLAINTEXT=1. Dekripsi:
 #   openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in X.tar.gz.enc -out X.tar.gz
 #
 # Env wajib:  SUPABASE_DB_URL  R2_ACCOUNT_ID  R2_ACCESS_KEY_ID  R2_SECRET_ACCESS_KEY  R2_BACKUP_BUCKET
-# Env opsional: BACKUP_PASSPHRASE, BACKUP_KEEP (default 12 arsip terbaru), BACKUP_PREFIX (default backups/)
+#             BACKUP_PASSPHRASE
+# Env opsional: BACKUP_KEEP (default 12 arsip terbaru), BACKUP_PREFIX (default backups/)
 # Bisa diganti untuk pengujian: PG_DUMP, AWS
 # =============================================================================
 set -euo pipefail
@@ -21,6 +23,11 @@ set -euo pipefail
 : "${R2_ACCESS_KEY_ID:?R2_ACCESS_KEY_ID belum di-set}"
 : "${R2_SECRET_ACCESS_KEY:?R2_SECRET_ACCESS_KEY belum di-set}"
 : "${R2_BACKUP_BUCKET:?R2_BACKUP_BUCKET belum di-set}"
+if [ -z "${BACKUP_PASSPHRASE:-}" ] && [ "${BACKUP_ALLOW_PLAINTEXT:-}" != "1" ]; then
+  echo "✖ BACKUP_PASSPHRASE belum di-set — backup berisi jurnal & data keuangan dan tidak boleh" >&2
+  echo "  diunggah tanpa enkripsi. Isi secret-nya (docs/SETUP.md §9.3)." >&2
+  exit 1
+fi
 
 PG_DUMP="${PG_DUMP:-pg_dump}"
 AWS="${AWS:-aws}"
@@ -68,7 +75,7 @@ if [ -n "${BACKUP_PASSPHRASE:-}" ]; then
     -in "$WORK/$NAME" -out "$WORK/$NAME.enc"
   NAME="$NAME.enc"
 else
-  echo "⚠ BACKUP_PASSPHRASE kosong — arsip TIDAK dienkripsi"
+  echo "⚠ BACKUP_ALLOW_PLAINTEXT=1 — arsip TIDAK dienkripsi (hanya untuk pengujian)"
 fi
 
 echo "▶ Unggah s3://$R2_BACKUP_BUCKET/$PREFIX$NAME ($(wc -c < "$WORK/$NAME") byte)"
