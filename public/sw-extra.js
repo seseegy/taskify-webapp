@@ -1,9 +1,23 @@
 // Tambahan service worker Taskify (dimuat Workbox via importScripts, lihat vite.config.ts):
 //   1. Web Push — payload dari Edge Function send-reminders: { title, body, url, tag }
-//   2. Klik notifikasi → buka/fokus aplikasi di URL tujuan
+//      Bila "Sembunyikan isi notifikasi" aktif di perangkat ini, judul tugas tidak ditampilkan.
+//   2. Klik notifikasi → fokus aplikasi & pindah halaman TANPA memuat ulang (postMessage ke
+//      router, lihat useServiceWorkerNavigation); muat ulang hanya bila aplikasi tidak menjawab
 //   3. Share Target — POST /bagikan dari aplikasi lain → simpan ke Cache Storage → /bagikan
 
 const SHARE_CACHE = 'taskify-share';
+// Sama dengan src/features/notifications/notification-prefs.ts
+const PREFS_CACHE = 'taskify-prefs';
+const NOTIFICATION_PREFS_KEY = '/__prefs/notifications';
+
+async function hideNotificationContent() {
+  try {
+    const res = await (await caches.open(PREFS_CACHE)).match(NOTIFICATION_PREFS_KEY);
+    return res ? (await res.json()).hideContent === true : false;
+  } catch {
+    return false;
+  }
+}
 
 self.addEventListener('push', (event) => {
   let data = {};
@@ -13,17 +27,19 @@ self.addEventListener('push', (event) => {
     data = { title: 'Taskify', body: event.data ? event.data.text() : '' };
   }
 
-  const title = data.title || 'Taskify';
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || '',
-      icon: '/pwa-192x192.png',
-      badge: '/pwa-64x64.png',
-      tag: data.tag || undefined,
-      renotify: Boolean(data.tag),
-      lang: 'id',
-      data: { url: data.url || '/' },
-    }),
+    (async () => {
+      const hide = await hideNotificationContent();
+      await self.registration.showNotification(hide ? 'Taskify' : data.title || 'Taskify', {
+        body: hide ? 'Ada pengingat tugas' : data.body || '',
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-64x64.png',
+        tag: data.tag || undefined,
+        renotify: Boolean(data.tag),
+        lang: 'id',
+        data: { url: data.url || '/' },
+      });
+    })(),
   );
 });
 
@@ -37,7 +53,11 @@ self.addEventListener('notificationclick', (event) => {
       for (const client of windows) {
         if (new URL(client.url).origin === self.location.origin) {
           await client.focus();
-          if ('navigate' in client) await client.navigate(target);
+          // client.navigate() memuat ulang seluruh aplikasi → isian yang belum disimpan hilang.
+          // Minta router di aplikasi berpindah halaman; muat ulang hanya bila tidak dijawab
+          // (versi aplikasi lama, atau sedang di layar login).
+          if (!(await askClientToNavigate(client, target)) && 'navigate' in client)
+            await client.navigate(target);
           return;
         }
       }
@@ -45,6 +65,19 @@ self.addEventListener('notificationclick', (event) => {
     })(),
   );
 });
+
+/** Kirim permintaan pindah halaman ke tab aplikasi; true bila dijawab dalam 1 detik. */
+function askClientToNavigate(client, url) {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => resolve(false), 1000);
+    channel.port1.onmessage = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    client.postMessage({ type: 'taskify:navigate', url }, [channel.port2]);
+  });
+}
 
 // ----------------------------------------------------------------------------- Share Target
 // Didaftarkan sebelum handler Workbox, jadi POST /bagikan ditangani di sini.
