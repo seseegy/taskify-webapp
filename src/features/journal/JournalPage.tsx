@@ -1,5 +1,5 @@
 import { Download, NotebookPen, Pin, Plus, Search, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -18,6 +18,8 @@ import { plainExcerpt } from '@/lib/markdown';
 import { journalToMarkdown } from './journal-utils';
 import { MOODS, moodOf } from './mood';
 import { useToday } from '@/lib/useToday';
+import { useIsDesktop } from '@/lib/useMediaQuery';
+import { countGrouped, limitGroups, useProgressiveLimit } from '@/lib/useProgressiveList';
 import { askConfirm } from '@/components/ui/confirm-store';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -92,6 +94,12 @@ export function JournalPage() {
     },
     [editor, setParams],
   );
+  const openEntry = useCallback((id: string) => go({ entri: id }), [go]);
+  // Di HP daftar disembunyikan saat editor terbuka → jangan dirender sama sekali. Setiap simpan
+  // otomatis memicu ulang query daftar; merender ratusan entri yang tidak terlihat membuat
+  // mengetik tersendat.
+  const desktop = useIsDesktop();
+  const showList = !editor || desktop;
 
   return (
     <>
@@ -109,22 +117,24 @@ export function JournalPage() {
       />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
-        <div className={cn('min-w-0 space-y-4', editor && 'hidden lg:block')}>
-          <div className="lg:hidden">
-            <JournalInsights today={today} compact />
+        {showList && (
+          <div className="min-w-0 space-y-4">
+            <div className="lg:hidden">
+              <JournalInsights today={today} compact />
+            </div>
+            <EntryList
+              today={today}
+              activeId={editor?.entry?.id ?? null}
+              search={search}
+              onSearch={setSearch}
+              mood={mood}
+              onMood={setMood}
+              trash={trash}
+              onTrash={setTrash}
+              onOpen={openEntry}
+            />
           </div>
-          <EntryList
-            today={today}
-            activeId={editor?.entry?.id ?? null}
-            search={search}
-            onSearch={setSearch}
-            mood={mood}
-            onMood={setMood}
-            trash={trash}
-            onTrash={setTrash}
-            onOpen={(id) => go({ entri: id })}
-          />
-        </div>
+        )}
 
         <div className={cn('min-w-0', !editor && 'hidden lg:block')}>
           {editor ? (
@@ -148,7 +158,11 @@ export function JournalPage() {
   );
 }
 
-function EntryList({
+/**
+ * Dimemo: halaman induk ikut dirender ulang setiap kali query lain (entri terpilih, insight)
+ * berubah — mis. setiap simpan otomatis di editor. Daftar hanya perlu dirender saat isinya berubah.
+ */
+const EntryList = memo(function EntryList({
   today,
   activeId,
   search,
@@ -169,7 +183,9 @@ function EntryList({
   onTrash: (t: boolean) => void;
   onOpen: (id: string) => void;
 }) {
-  const { entries, isLoading } = useJournalEntries({ search, mood, trash });
+  // Kotak cari tetap responsif: query & render daftar memakai nilai tertunda
+  const deferredSearch = useDeferredValue(search);
+  const { entries, isLoading } = useJournalEntries({ search: deferredSearch, mood, trash });
   const actions = useJournalActions();
 
   const groups = useMemo(() => {
@@ -182,6 +198,13 @@ function EntryList({
     }
     return { pinned, months: [...byMonth.entries()] };
   }, [entries, trash]);
+  // Render bertahap: entri disematkan selalu tampil, sisanya 40 dulu lalu menyusul saat di-scroll
+  const {
+    limit: shown,
+    hasMore,
+    watchEnd,
+  } = useProgressiveLimit(countGrouped(groups.months), `${deferredSearch}|${mood}|${trash}`);
+  const months = useMemo(() => limitGroups(groups.months, shown), [groups.months, shown]);
 
   const exportAll = () => {
     if (entries.length === 0) return toast('Tidak ada catatan untuk diekspor');
@@ -299,7 +322,7 @@ function EntryList({
           ))}
         </Group>
       )}
-      {groups.months.map(([month, items]) => (
+      {months.map(([month, items]) => (
         <Group key={month} label={formatLocalDate(`${month}-01`, 'MMMM yyyy')}>
           {items.map((e) => (
             <EntryItem
@@ -312,9 +335,14 @@ function EntryList({
           ))}
         </Group>
       ))}
+      {hasMore && (
+        <div ref={watchEnd} className="py-3 text-center text-xs text-muted">
+          Memuat entri lainnya…
+        </div>
+      )}
     </Card>
   );
-}
+});
 
 function Group({
   label,
@@ -336,7 +364,8 @@ function Group({
   );
 }
 
-function EntryItem({
+/** Hanya dirender ulang bila entri ini (atau status aktifnya) berubah. */
+const EntryItem = memo(function EntryItem({
   entry,
   today,
   active,
@@ -380,6 +409,22 @@ function EntryItem({
         <span className="line-clamp-2 text-xs text-muted">{excerpt || 'Belum ada isi'}</span>
       </span>
     </button>
+  );
+}, sameEntryItem);
+
+function sameEntryItem(
+  a: { entry: JournalEntry; today: LocalDate; active: boolean; onOpen: (id: string) => void },
+  b: typeof a,
+) {
+  return (
+    a.active === b.active &&
+    a.today === b.today &&
+    a.onOpen === b.onOpen &&
+    a.entry.id === b.entry.id &&
+    a.entry.entry_date === b.entry.entry_date &&
+    a.entry.title === b.entry.title &&
+    a.entry.content === b.entry.content &&
+    a.entry.mood === b.entry.mood
   );
 }
 

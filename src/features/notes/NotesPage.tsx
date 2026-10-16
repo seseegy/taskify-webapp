@@ -1,5 +1,5 @@
 import { Download, Pin, Plus, Search, StickyNote, Trash2 } from 'lucide-react';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { memo, useCallback, useDeferredValue, useMemo, useState, type ReactNode } from 'react';
 import { useLocation, useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +15,8 @@ import { formatLocalDate, type LocalDate } from '@/lib/date';
 import { plainExcerpt } from '@/lib/markdown';
 import { cn } from '@/lib/utils';
 import { useToday } from '@/lib/useToday';
+import { useIsDesktop } from '@/lib/useMediaQuery';
+import { countGrouped, limitGroups, useProgressiveLimit } from '@/lib/useProgressiveList';
 import { NoteEditor } from './components/NoteEditor';
 import { NotesOverview } from './components/NotesOverview';
 import { useNoteActions } from './note-actions';
@@ -83,6 +85,10 @@ export function NotesPage() {
   );
 
   const create = useCallback((date: LocalDate | null) => go({ baru: date ?? '' }), [go]);
+  const openNote = useCallback((id: string) => go({ catatan: id }), [go]);
+  const createFree = useCallback(() => create(null), [create]);
+  // Di HP daftar disembunyikan saat editor terbuka → jangan dirender sama sekali (lihat Jurnal)
+  const desktop = useIsDesktop();
 
   const onCreated = useCallback(
     (id: string) => {
@@ -109,23 +115,25 @@ export function NotesPage() {
       />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
-        <div className={cn('min-w-0 space-y-4', editor && 'hidden lg:block')}>
-          <div className="lg:hidden">
-            <NotesOverview today={today} onCreate={create} compact />
+        {(!editor || desktop) && (
+          <div className="min-w-0 space-y-4">
+            <div className="lg:hidden">
+              <NotesOverview today={today} onCreate={create} compact />
+            </div>
+            <NoteList
+              today={today}
+              activeId={editor?.note?.id ?? null}
+              search={search}
+              onSearch={setSearch}
+              scope={scope}
+              onScope={setScope}
+              trash={trash}
+              onTrash={setTrash}
+              onOpen={openNote}
+              onCreate={createFree}
+            />
           </div>
-          <NoteList
-            today={today}
-            activeId={editor?.note?.id ?? null}
-            search={search}
-            onSearch={setSearch}
-            scope={scope}
-            onScope={setScope}
-            trash={trash}
-            onTrash={setTrash}
-            onOpen={(id) => go({ catatan: id })}
-            onCreate={() => create(null)}
-          />
-        </div>
+        )}
 
         <div className={cn('min-w-0', !editor && 'hidden lg:block')}>
           {editor ? (
@@ -147,7 +155,8 @@ export function NotesPage() {
   );
 }
 
-function NoteList({
+/** Dimemo: lihat EntryList di JournalPage — induk dirender ulang di setiap simpan otomatis. */
+const NoteList = memo(function NoteList({
   today,
   activeId,
   search,
@@ -170,11 +179,19 @@ function NoteList({
   onOpen: (id: string) => void;
   onCreate: () => void;
 }) {
-  const { notes, isLoading } = useNotes({ search, scope, trash });
+  const deferredSearch = useDeferredValue(search);
+  const { notes, isLoading } = useNotes({ search: deferredSearch, scope, trash });
   const tagMap = useTagMap('note');
   const actions = useNoteActions();
 
-  const { pinned, groups } = useMemo(() => groupNotes(notes, trash), [notes, trash]);
+  const { pinned, groups: allGroups } = useMemo(() => groupNotes(notes, trash), [notes, trash]);
+  // Render bertahap (lihat useProgressiveLimit): disematkan selalu tampil
+  const {
+    limit: shown,
+    hasMore,
+    watchEnd,
+  } = useProgressiveLimit(countGrouped(allGroups), `${deferredSearch}|${scope}|${trash}`);
+  const groups = useMemo(() => limitGroups(allGroups, shown), [allGroups, shown]);
   const filtering = search.trim() !== '' || scope !== 'all';
 
   const exportAll = () => {
@@ -197,7 +214,7 @@ function NoteList({
       note={n}
       today={today}
       active={n.id === activeId}
-      tags={tagMap.get(n.id) ?? []}
+      tags={tagMap.get(n.id) ?? NO_TAGS}
       onOpen={onOpen}
     />
   );
@@ -303,9 +320,14 @@ function NoteList({
           {items.map(item)}
         </Group>
       ))}
+      {hasMore && (
+        <div ref={watchEnd} className="py-3 text-center text-xs text-muted">
+          Memuat catatan lainnya…
+        </div>
+      )}
     </Card>
   );
-}
+});
 
 function Group({
   label,
@@ -327,68 +349,85 @@ function Group({
   );
 }
 
-function NoteItem({
-  note,
-  today,
-  active,
-  tags,
-  onOpen,
-}: {
-  note: Note;
-  today: LocalDate;
-  active: boolean;
-  tags: { id: string; name: string; color: string | null }[];
-  onOpen: (id: string) => void;
-}) {
-  const excerpt = plainExcerpt(note.content, 110);
-  const dated = note.note_date !== null;
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(note.id)}
-      aria-current={active ? 'true' : undefined}
-      className={cn(
-        'flex w-full items-start gap-3 rounded-2xl px-2.5 py-2.5 text-left transition',
-        active ? 'ring-2 glass-strong ring-mod-notes/50' : 'hover:bg-surface',
-      )}
-    >
-      <span
+const NO_TAGS: { id: string; name: string; color: string | null }[] = [];
+
+/** Hanya dirender ulang bila catatan ini, tag-nya, atau status aktifnya berubah. */
+const NoteItem = memo(
+  function NoteItem({
+    note,
+    today,
+    active,
+    tags,
+    onOpen,
+  }: {
+    note: Note;
+    today: LocalDate;
+    active: boolean;
+    tags: { id: string; name: string; color: string | null }[];
+    onOpen: (id: string) => void;
+  }) {
+    const excerpt = plainExcerpt(note.content, 110);
+    const dated = note.note_date !== null;
+    return (
+      <button
+        type="button"
+        onClick={() => onOpen(note.id)}
+        aria-current={active ? 'true' : undefined}
         className={cn(
-          'flex size-11 shrink-0 flex-col items-center justify-center rounded-xl leading-none',
-          dated ? 'shine bg-gradient-notes text-white shadow-md' : 'bg-surface text-mod-notes',
+          'flex w-full items-start gap-3 rounded-2xl px-2.5 py-2.5 text-left transition',
+          active ? 'ring-2 glass-strong ring-mod-notes/50' : 'hover:bg-surface',
         )}
       >
-        {dated ? (
-          <>
-            <span className="text-[10px] font-semibold uppercase opacity-80">
-              {formatLocalDate(note.note_date!, 'EEE')}
-            </span>
-            <span className="text-lg font-extrabold">{formatLocalDate(note.note_date!, 'd')}</span>
-          </>
-        ) : (
-          <StickyNote className="size-5" aria-hidden="true" />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-bold">{note.title || 'Tanpa judul'}</span>
-          {note.is_pinned === 1 && (
-            <Pin className="size-3 shrink-0 text-primary" aria-label="Disematkan" />
+        <span
+          className={cn(
+            'flex size-11 shrink-0 flex-col items-center justify-center rounded-xl leading-none',
+            dated ? 'shine bg-gradient-notes text-white shadow-md' : 'bg-surface text-mod-notes',
+          )}
+        >
+          {dated ? (
+            <>
+              <span className="text-[10px] font-semibold uppercase opacity-80">
+                {formatLocalDate(note.note_date!, 'EEE')}
+              </span>
+              <span className="text-lg font-extrabold">
+                {formatLocalDate(note.note_date!, 'd')}
+              </span>
+            </>
+          ) : (
+            <StickyNote className="size-5" aria-hidden="true" />
           )}
         </span>
-        <span className="line-clamp-2 text-xs text-muted">{excerpt || 'Belum ada isi'}</span>
-        <span className="mt-1 flex flex-wrap items-center gap-1">
-          <span className="text-[11px] font-semibold text-muted">
-            {noteDateLabel(note.note_date, today)}
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-bold">{note.title || 'Tanpa judul'}</span>
+            {note.is_pinned === 1 && (
+              <Pin className="size-3 shrink-0 text-primary" aria-label="Disematkan" />
+            )}
           </span>
-          {tags.slice(0, 3).map((t) => (
-            <TagChip key={t.id} tag={t} link={false} size="sm" />
-          ))}
-          {tags.length > 3 && (
-            <span className="text-[10px] font-semibold text-muted">+{tags.length - 3}</span>
-          )}
+          <span className="line-clamp-2 text-xs text-muted">{excerpt || 'Belum ada isi'}</span>
+          <span className="mt-1 flex flex-wrap items-center gap-1">
+            <span className="text-[11px] font-semibold text-muted">
+              {noteDateLabel(note.note_date, today)}
+            </span>
+            {tags.slice(0, 3).map((t) => (
+              <TagChip key={t.id} tag={t} link={false} size="sm" />
+            ))}
+            {tags.length > 3 && (
+              <span className="text-[10px] font-semibold text-muted">+{tags.length - 3}</span>
+            )}
+          </span>
         </span>
-      </span>
-    </button>
-  );
-}
+      </button>
+    );
+  },
+  (a, b) =>
+    a.active === b.active &&
+    a.today === b.today &&
+    a.onOpen === b.onOpen &&
+    a.tags === b.tags &&
+    a.note.id === b.note.id &&
+    a.note.note_date === b.note.note_date &&
+    a.note.title === b.note.title &&
+    a.note.content === b.note.content &&
+    a.note.is_pinned === b.note.is_pinned,
+);
