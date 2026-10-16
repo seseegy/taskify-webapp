@@ -53,7 +53,8 @@ Aturan: kode khusus modul tinggal di `features/<modul>`. Yang dipakai ≥2 modul
 
 - DB lokal baru dibuka setelah login (sync butuh JWT).
 - Sesi Supabase disimpan di localStorage, jadi aplikasi tetap terbuka saat offline.
-- Logout memanggil `disconnectAndClear()` (hapus data lokal) dan memperingatkan jika masih ada perubahan yang belum terunggah.
+- Logout memanggil `wipeLocalDatabase()` (`disconnectAndClear()` + indeks FTS lokal) dan memperingatkan jika masih ada perubahan yang belum terunggah. Bila keluar global gagal (offline), sesi tetap dikeluarkan di perangkat ini (`signOut({ scope: 'local' })`).
+- Pemilik database lokal dicatat (`taskify-db-owner`, `src/db/local-reset.ts`). Sesi bisa berakhir tanpa tombol Keluar (token dicabut, logout dari tab lain); bila kemudian akun LAIN masuk, database dikosongkan sebelum ditampilkan/disinkron. Akun yang sama masuk lagi → tidak dikosongkan, jadi perubahan offline tetap terkirim.
 
 ## Konvensi data
 
@@ -112,7 +113,8 @@ tasks.remind_at (UTC) ──► pg_cron tiap menit ──► Edge Function send-
 - `push_subscriptions` dan `task_reminder_log` **tidak disinkron** PowerSync. Langganan push ditulis langsung lewat supabase-js (mengaktifkan notifikasi memang butuh online), sedangkan log hanya diakses server.
 - Mengubah `remind_at` menghasilkan kunci log baru, jadi pengingat baru tetap terkirim, tanpa ada yang terkirim dobel.
 - Langganan yang kedaluwarsa (404/410) otomatis dihapus.
-- Service worker (Workbox) memuat `public/sw-extra.js` (push, klik notifikasi, Share Target). Klik notifikasi membuka `/tugas?task=<id>`, dan `AppShell` membuka panel detail tugas itu.
+- Service worker (Workbox) memuat `public/sw-extra.js` (push, klik notifikasi, Share Target). Klik notifikasi membuka `/tugas?task=<id>`, dan `AppShell` membuka panel detail tugas itu. Bila aplikasi sudah terbuka, service worker meminta router pindah halaman lewat `postMessage` (tanpa memuat ulang, isian yang belum disimpan tetap ada); memuat ulang hanya bila tab tidak menjawab dalam 1 detik.
+- "Sembunyikan isi notifikasi" (Pengaturan, per perangkat): preferensi disimpan di Cache Storage (`taskify-prefs`) karena service worker tidak bisa membaca localStorage; notifikasi lalu hanya bertuliskan "Ada pengingat tugas". Judul tugas tetap dikirim server (terenkripsi Web Push), hanya tidak ditampilkan.
 
 ## Keuangan
 
@@ -194,7 +196,7 @@ Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──syn
 - Unduh/pratinjau: cache lokal dulu, baru presigned GET. Isi zip dibaca di browser (JSZip) tanpa ekstrak ke disk.
 - Sebelum upload, zip dianalisis (`features/vault/zip.ts`): file rahasia, node_modules, .git, hasil build. Duplikat dideteksi lewat SHA-256.
 - Hapus = soft delete lokal + hapus objek (best effort). Cron harian (`files` mode cleanup) membersihkan sisanya, termasuk objek yatim. Penelusuran bucket berhalaman (maks. 20 × 1000 objek dan 500 penghapusan per eksekusi).
-- **Logout** menghapus database lokal (`disconnectAndClear`) _dan_ Cache Storage lampiran + kotak masuk Bagikan + kepercayaan perangkat Sandi (`clearDeviceData`). Semuanya ditunggu sebelum halaman dimuat ulang.
+- **Logout** menghapus database lokal (`wipeLocalDatabase`) _dan_ Cache Storage lampiran + kotak masuk Bagikan + kepercayaan perangkat Sandi (`clearDeviceData`). Semuanya ditunggu sebelum halaman dimuat ulang.
 - Snippet: syntax highlight (prism-react-renderer + bahasa prismjs tambahan, dimuat lazy), variabel template `{{nama}}` diisi saat disalin.
 - Foto besar (>1,5 MB) diperkecil ke maks. 2000 px JPEG sebelum diunggah.
 
@@ -299,7 +301,9 @@ hampir selalu memuat rahasia, jadi diperlakukan seperti isi brankas. Kode: `src/
   CHECK Postgres berlaku pada ciphertext yang lebih panjang setelah padding + base64 — pesan
   23514 dari server tidak bisa menyebut batas yang dimengerti pengguna.
 - **Rujukan lintas akun ditolak trigger** `config_check_owner`: FK hanya memeriksa baris ADA,
-  bukan pemiliknya. Pesannya sama untuk "milik orang lain" dan "tidak ada", jadi tidak
+  bukan pemiliknya. Tabel inti memakai pemeriksaan yang sama lewat constraint trigger
+  `check_ref_owner` (migrasi `20261016000100`): dompet, kategori, tugas, daftar, tag, hutang,
+  dan transaksi berulang yang dirujuk harus milik user yang sama. Pesannya sama untuk "milik orang lain" dan "tidak ada", jadi tidak
   membocorkan keberadaan UUID.
 - Project dihapus permanen → berkas menjadi "Tanpa project" (`SET NULL`), tidak ikut terhapus.
 - Isi konfigurasi tidak masuk FTS, palette, tag, maupun tautan (sengaja, sama seperti Sandi).
