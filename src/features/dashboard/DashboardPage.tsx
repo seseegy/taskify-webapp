@@ -10,7 +10,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { Button } from '@/components/ui/Button';
 import { TypedText } from '@/components/ui/TypedText';
@@ -24,7 +24,7 @@ import { buildWeek } from '@/features/calendar/calendar-utils';
 import { EMPTY_DAY } from '@/features/calendar/useCalendarActivity';
 import { useDayActivity } from '@/features/calendar/useDayActivity';
 import { FocusCard } from './FocusCard';
-import { formatLocalDate, greeting } from '@/lib/date';
+import { formatLocalDate, greeting, type LocalDate } from '@/lib/date';
 import { formatIDR } from '@/lib/money';
 import { cn } from '@/lib/utils';
 import { useTodaySummary } from './useTodaySummary';
@@ -262,6 +262,7 @@ function WeekStrip({ today }: { today: string }) {
 
 function ActivityCard() {
   const navigate = useNavigate();
+  const openDay = useCallback((d: LocalDate) => navigate(`/kalender?tanggal=${d}`), [navigate]);
   return (
     <Card className="animate-fade-up">
       <CardHeader>
@@ -278,7 +279,7 @@ function ActivityCard() {
           Review <ArrowRight className="size-4" />
         </Link>
       </CardHeader>
-      <ActivityHeatmap weeks={16} onSelect={(d) => navigate(`/kalender?tanggal=${d}`)} />
+      <ActivityHeatmap weeks={16} onSelect={openDay} />
     </Card>
   );
 }

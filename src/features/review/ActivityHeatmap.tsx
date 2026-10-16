@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { memo, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { buildWeek, WEEKDAY_LABELS, WEEKDAY_NAMES } from '@/features/calendar/calendar-utils';
 import { addLocalDays, formatLocalDate, type LocalDate } from '@/lib/date';
 import { cn } from '@/lib/utils';
@@ -24,7 +24,11 @@ const LEVEL_CLASS = [
  * Catatan ukuran target: sel sengaja kecil (visualisasi padat). Fungsi "buka hari" tersedia juga
  * lewat halaman Kalender (kontrol setara, WCAG 2.5.8 pengecualian "Equivalent").
  */
-export function ActivityHeatmap({
+/**
+ * Dimemo: ±180 sel ber-label; halaman induk (Review, Beranda) dirender ulang setiap query lain
+ * mengirim hasil. Pemanggil wajib memberi `onSelect` yang stabil (useCallback).
+ */
+export const ActivityHeatmap = memo(function ActivityHeatmap({
   weeks = 26,
   onSelect,
 }: {
@@ -164,7 +168,7 @@ export function ActivityHeatmap({
       </div>
     </div>
   );
-}
+});
 
 /** Jumlah hari dari a ke b (b ≥ a). Tanggal lokal 'YYYY-MM-DD' aman dibandingkan via UTC. */
 function daysBetween(a: LocalDate, b: LocalDate): number {

@@ -14,7 +14,7 @@ import {
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -51,6 +51,7 @@ export function ReviewPage() {
   const { current, previous } = periodRange(period, anchor);
   const isCurrent = current.from <= today && today <= current.to;
   const navigate = useNavigate();
+  const openDay = useCallback((d: LocalDate) => navigate(`/kalender?tanggal=${d}`), [navigate]);
 
   const update = (p: Record<string, string>) =>
     setParams(
@@ -212,7 +213,7 @@ export function ReviewPage() {
                   </CardDescription>
                 </div>
               </CardHeader>
-              <ActivityHeatmap weeks={26} onSelect={(d) => navigate(`/kalender?tanggal=${d}`)} />
+              <ActivityHeatmap weeks={26} onSelect={openDay} />
             </Card>
           </div>
         </div>
