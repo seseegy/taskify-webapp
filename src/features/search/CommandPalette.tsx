@@ -79,27 +79,12 @@ const KIND_META: Record<CaptureKind, { label: string; icon: LucideIcon; gradient
   note: { label: 'Catatan', icon: StickyNote, gradient: 'bg-gradient-notes' },
 };
 
-/** Pemasangan global: dialog + pintasan keyboard. */
+/**
+ * Dialog palet. Dimuat LAZY oleh AppShell saat pertama kali dibuka; pintasan keyboardnya
+ * (Ctrl/⌘ K, "/") ada di `usePaletteShortcut` supaya tetap bekerja sebelum modul ini dimuat.
+ */
 export function CommandPalette() {
-  const { open, initial, show, hide } = usePalette();
-
-  useEffect(() => {
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      const typing =
-        target && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName));
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        if (usePalette.getState().open) hide();
-        else show();
-      } else if (e.key === '/' && !typing && !document.querySelector('dialog[open]')) {
-        e.preventDefault();
-        show();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [show, hide]);
+  const { open, initial, hide } = usePalette();
 
   return (
     <Sheet open={open} onClose={hide} variant="palette" title="Cari & catat cepat">

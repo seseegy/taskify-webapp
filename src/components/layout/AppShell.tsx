@@ -14,17 +14,13 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Sheet } from '@/components/ui/Sheet';
 import { Toaster } from '@/components/ui/Toaster';
 import { useAttachmentOutbox } from '@/features/attachments/attachment-actions';
-import { TransactionSheet } from '@/features/finance/components/TransactionSheet';
 import { useRecurringProcessor } from '@/features/finance/finance-actions';
-import { isMusicConfigured } from '@/features/music/api-client';
-import { MusicBar } from '@/features/music/MusicBar';
-import { CommandPalette } from '@/features/search/CommandPalette';
 import { useSandiAutoLock } from '@/features/sandi/useSandiAutoLock';
-import { usePalette } from '@/features/search/palette-store';
-import { TaskDetailSheet } from '@/features/tasks/components/TaskDetailSheet';
+import { usePalette, usePaletteShortcut } from '@/features/search/palette-store';
 import { useTrashPurge } from '@/features/trash/trash-actions';
 import { useTaskSheet } from '@/features/tasks/task-sheet-store';
 import { cn } from '@/lib/utils';
+import { LazyPanels } from './LazyPanels';
 import { Logo } from './Logo';
 import { SyncStatus } from './SyncStatus';
 import { UpdatePrompt } from './UpdatePrompt';
@@ -37,6 +33,7 @@ import { UpdatePrompt } from './UpdatePrompt';
 export function AppShell() {
   useTaskDeepLink();
   useServiceWorkerNavigation();
+  usePaletteShortcut();
   useRecurringProcessor();
   useAttachmentOutbox();
   useSandiAutoLock();
@@ -87,17 +84,9 @@ export function AppShell() {
       </div>
 
       <BottomNav />
-      {/*
-        Pemutar musik hanya dipasang bila `VITE_MUSIC_API_URL` diisi. Gerbangnya di sini,
-        bukan di dalam komponennya, supaya aturan "tanpa konfigurasi = tidak ada pintu masuk"
-        terlihat di tempat ia dipasang. Nilainya konstanta build, jadi tidak ada
-        mount/unmount di tengah jalan yang bisa memutus musik.
-      */}
-      {isMusicConfigured && <MusicBar />}
       <UpdatePrompt />
-      <TaskDetailSheet />
-      <TransactionSheet />
-      <CommandPalette />
+      {/* Palet, detail tugas, form transaksi, pemutar musik: dimuat saat pertama dibuka */}
+      <LazyPanels />
       <Toaster />
       <ConfirmDialog />
     </div>
