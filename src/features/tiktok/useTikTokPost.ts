@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from '@/components/ui/toast-store';
 import { saveBlob } from '@/lib/files';
-import { tiktokClient } from './api-client';
-import { assetKey, downloadAsset } from './download-asset';
+import { tiktokClient, type DownloadedFile } from './api-client';
+import { assetKey, createFileCache, downloadAsset, type FileCache } from './download-asset';
 import type { TikTokAsset, TikTokPost } from './types';
 
 export type PostState =
@@ -29,6 +29,35 @@ export function useTikTokPost(input: string | null) {
   const [attempt, setAttempt] = useState(0);
   const current = useRef<{ post: TikTokPost; at: number } | null>(null);
   const abort = useRef<AbortController | null>(null);
+  /** Input yang sedang dipakai — dibaca callback stabil saat link perlu diperbarui. */
+  const inputRef = useRef(input);
+
+  /** Ekstrak ulang (link unduhan kedaluwarsa). Stabil: membaca ref, bukan props. */
+  const refresh = useCallback(async () => {
+    if (!tiktokClient || !inputRef.current) throw new Error('Tidak ada link TikTok.');
+    const post = await tiktokClient.extract(inputRef.current, abort.current?.signal);
+    current.current = { post, at: Date.now() };
+    setState({ status: 'ready', post });
+    return post;
+  }, []);
+
+  /**
+   * Foto yang sudah diambil (untuk pratinjau carousel) dipakai ulang saat diunduh. Dibuat saat
+   * pertama dipakai — hanya dari effect & callback, tidak pernah saat render.
+   */
+  const photoCache = useRef<FileCache<number> | null>(null);
+  const photos = useCallback(
+    () =>
+      (photoCache.current ??= createFileCache<number>(async (index): Promise<DownloadedFile> => {
+        const snapshot = current.current;
+        if (!tiktokClient || !snapshot) throw new Error('Postingan belum siap.');
+        return downloadAsset(
+          { kind: 'photo', index },
+          { client: tiktokClient, current: snapshot, refresh, signal: abort.current?.signal },
+        );
+      })),
+    [refresh],
+  );
 
   // Link lain / "Coba lagi" → mulai dari keadaan memuat (disetel saat render, bukan di effect)
   const requestKey = `${attempt}:${input ?? ''}`;
@@ -47,6 +76,8 @@ export function useTikTokPost(input: string | null) {
     abort.current?.abort();
     abort.current = controller;
     current.current = null;
+    inputRef.current = input;
+    photos().clear();
     tiktokClient
       .extract(input, controller.signal)
       .then((post) => {
@@ -58,16 +89,15 @@ export function useTikTokPost(input: string | null) {
         setState({ status: 'error', message: e instanceof Error ? e.message : String(e) });
       });
     return () => controller.abort();
-  }, [input, attempt]);
+  }, [input, attempt, photos]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
-  const refresh = useCallback(async () => {
-    const post = await tiktokClient!.extract(input!, abort.current?.signal);
-    current.current = { post, at: Date.now() };
-    setState({ status: 'ready', post });
-    return post;
-  }, [input]);
+  /** Gambar satu foto untuk pratinjau (sekaligus mengisi cache untuk unduhan). */
+  const loadPhoto = useCallback(
+    async (index: number) => (await photos().get(index)).blob,
+    [photos],
+  );
 
   /** Unduh lalu simpan ke perangkat. true = tersimpan. */
   const saveOne = useCallback(
@@ -77,13 +107,16 @@ export function useTikTokPost(input: string | null) {
       const key = assetKey(asset);
       setProgress((p) => ({ ...p, [key]: null }));
       try {
-        const file = await downloadAsset(asset, {
-          client: tiktokClient,
-          current: snapshot,
-          refresh,
-          signal: abort.current?.signal,
-          onProgress: (fraction) => setProgress((p) => ({ ...p, [key]: fraction })),
-        });
+        const file =
+          asset.kind === 'photo'
+            ? await photos().get(asset.index)
+            : await downloadAsset(asset, {
+                client: tiktokClient,
+                current: snapshot,
+                refresh,
+                signal: abort.current?.signal,
+                onProgress: (fraction) => setProgress((p) => ({ ...p, [key]: fraction })),
+              });
         saveBlob(file.blob, file.fileName);
         setDone((d) => new Set(d).add(key));
         return true;
@@ -99,7 +132,7 @@ export function useTikTokPost(input: string | null) {
         });
       }
     },
-    [refresh],
+    [refresh, photos],
   );
 
   const download = useCallback(
@@ -131,5 +164,5 @@ export function useTikTokPost(input: string | null) {
     }
   }, [saveOne]);
 
-  return { state, progress, done, bulk, retry, download, downloadAllPhotos };
+  return { state, progress, done, bulk, retry, download, downloadAllPhotos, loadPhoto };
 }

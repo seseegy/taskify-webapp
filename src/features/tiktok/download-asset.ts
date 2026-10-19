@@ -40,6 +40,33 @@ export interface DownloadDeps {
   now?: () => number;
 }
 
+/**
+ * Cache file per kunci: satu permintaan per kunci walau diminta bersamaan (pratinjau carousel dan
+ * tombol unduh), dan gagal = dilupakan supaya bisa dicoba lagi. Dipakai untuk foto: gambar yang
+ * sudah dimuat sebagai pratinjau langsung disimpan saat diunduh, tanpa mengunduh dua kali.
+ */
+export function createFileCache<K>(load: (key: K) => Promise<DownloadedFile>) {
+  const entries = new Map<K, Promise<DownloadedFile>>();
+  return {
+    get(key: K): Promise<DownloadedFile> {
+      let entry = entries.get(key);
+      if (!entry) {
+        entry = load(key);
+        entries.set(key, entry);
+        entry.catch(() => {
+          if (entries.get(key) === entry) entries.delete(key);
+        });
+      }
+      return entry;
+    },
+    clear() {
+      entries.clear();
+    },
+  };
+}
+
+export type FileCache<K> = ReturnType<typeof createFileCache<K>>;
+
 export async function downloadAsset(
   asset: TikTokAsset,
   deps: DownloadDeps,
