@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { TikTokError, type TikTokClient } from './api-client';
-import { assetFallbackName, assetUrl, downloadAsset, LINK_MAX_AGE_MS } from './download-asset';
+import {
+  assetFallbackName,
+  assetUrl,
+  createFileCache,
+  downloadAsset,
+  LINK_MAX_AGE_MS,
+} from './download-asset';
 import type { TikTokPost } from './types';
 
 const post = (gen: string): TikTokPost => ({
@@ -145,5 +151,38 @@ describe('downloadAsset', () => {
         },
       ),
     ).rejects.toThrow(/tidak tersedia/);
+  });
+});
+
+describe('createFileCache', () => {
+  const file = (name: string) => ({ blob: new Blob([name]), fileName: name });
+
+  it('satu permintaan per kunci, juga bila diminta bersamaan', async () => {
+    const loads: number[] = [];
+    const cache = createFileCache<number>(async (i) => (loads.push(i), file(`f${i}`)));
+    const [a, b] = await Promise.all([cache.get(1), cache.get(1)]);
+    expect(a).toBe(b);
+    await cache.get(1);
+    await cache.get(2);
+    expect(loads).toEqual([1, 2]);
+  });
+
+  it('gagal → dilupakan, permintaan berikutnya mencoba lagi', async () => {
+    let n = 0;
+    const cache = createFileCache<number>(async () => {
+      if (n++ === 0) throw new Error('jaringan');
+      return file('ok');
+    });
+    await expect(cache.get(0)).rejects.toThrow('jaringan');
+    expect((await cache.get(0)).fileName).toBe('ok');
+    expect(n).toBe(2);
+  });
+
+  it('clear → dimuat ulang', async () => {
+    let n = 0;
+    const cache = createFileCache<number>(async () => file(String(n++)));
+    await cache.get(0);
+    cache.clear();
+    expect((await cache.get(0)).fileName).toBe('1');
   });
 });

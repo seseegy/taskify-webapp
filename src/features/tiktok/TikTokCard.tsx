@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import { tiktokClient } from './api-client';
+import { PhotoCarousel } from './PhotoCarousel';
 import type { TikTokPost } from './types';
 import { useTikTokPost, type ProgressMap } from './useTikTokPost';
 
@@ -32,7 +33,8 @@ function progressLabel(value: number | null | undefined, idle: string) {
  * Dipakai di /bagikan (otomatis bila teks berisi link TikTok) dan di panel "Unduh TikTok".
  */
 export function TikTokCard({ input, className }: { input: string; className?: string }) {
-  const { state, progress, done, bulk, retry, download, downloadAllPhotos } = useTikTokPost(input);
+  const { state, progress, done, bulk, retry, download, downloadAllPhotos, loadPhoto } =
+    useTikTokPost(input);
 
   return (
     <Card className={cn('animate-fade-up', className)}>
@@ -66,6 +68,7 @@ export function TikTokCard({ input, className }: { input: string; className?: st
           progress={progress}
           done={done}
           bulk={bulk}
+          loadPhoto={loadPhoto}
           onDownload={download}
           onDownloadAllPhotos={downloadAllPhotos}
         />
@@ -98,6 +101,7 @@ function ReadyBody({
   progress,
   done,
   bulk,
+  loadPhoto,
   onDownload,
   onDownloadAllPhotos,
 }: {
@@ -105,6 +109,7 @@ function ReadyBody({
   progress: ProgressMap;
   done: Set<string>;
   bulk: { current: number; total: number } | null;
+  loadPhoto: (index: number) => Promise<Blob>;
   onDownload: ReturnType<typeof useTikTokPost>['download'];
   onDownloadAllPhotos: () => Promise<void>;
 }) {
@@ -114,11 +119,14 @@ function ReadyBody({
   return (
     <>
       <div className="flex gap-4">
-        <Cover
-          key={post.id}
-          url={post.cover}
-          alt={post.description || `Postingan @${post.author.unique_id}`}
-        />
+        {/* Postingan foto: pratinjaunya carousel di bawah, cover tidak perlu diulang */}
+        {post.type === 'video' && (
+          <Cover
+            key={post.id}
+            url={post.cover}
+            alt={post.description || `Postingan @${post.author.unique_id}`}
+          />
+        )}
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1 text-sm font-bold">
             <span className="truncate">{post.author.nickname || post.author.unique_id}</span>
@@ -155,6 +163,19 @@ function ReadyBody({
           )}
         </div>
       </div>
+
+      {post.type === 'photo' && post.downloads.photos.length > 0 && (
+        <div className="mt-4">
+          <PhotoCarousel
+            count={post.downloads.photos.length}
+            loadPhoto={loadPhoto}
+            onDownload={(index) => void onDownload({ kind: 'photo', index })}
+            progress={progress}
+            done={done}
+            busy={busy}
+          />
+        </div>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-2">
         {post.type === 'video' && post.downloads.video && (
@@ -193,32 +214,6 @@ function ReadyBody({
           </Button>
         )}
       </div>
-
-      {post.type === 'photo' && post.downloads.photos.length > 1 && (
-        <div className="mt-3">
-          <p className="mb-2 text-xs text-muted">Atau pilih satu foto:</p>
-          <div className="grid grid-cols-6 gap-1.5 sm:grid-cols-10">
-            {post.downloads.photos.map((_, index) => {
-              const key = `photo:${index}`;
-              return (
-                <Button
-                  key={key}
-                  variant="secondary"
-                  size="sm"
-                  className="px-0"
-                  aria-label={`Unduh foto ${index + 1}`}
-                  loading={progress[key] !== undefined}
-                  disabled={busy && progress[key] === undefined}
-                  onClick={() => void onDownload({ kind: 'photo', index })}
-                >
-                  {progress[key] === undefined &&
-                    (done.has(key) ? <Check className="text-success" /> : index + 1)}
-                </Button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <p aria-live="polite" className="sr-only">
         {busy ? 'Sedang mengunduh' : ''}
