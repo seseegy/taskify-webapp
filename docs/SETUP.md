@@ -483,12 +483,43 @@ Supabase tidak menyediakan kode cadangan untuk TOTP. Pilihan:
 - "Lupa PIN" memeriksa password ke server; sesi baru itu diminta kode authenticator lagi.
 - Authenticator terakhir tidak bisa dihapus dari aplikasi (MFA wajib).
 
+## 14. Pengunduh TikTok (opsional)
+
+Bagikan video/foto dari aplikasi TikTok → **Taskify** → tombol **Unduh video / Unduh N foto /
+Audio** → file masuk folder Download HP. Servernya Worker terpisah, repo privat
+[`seseegy/ttdl-taskify`](https://github.com/seseegy/ttdl-taskify) (deploy & kontrak API di
+README-nya). Yang perlu dilakukan **di sini** hanya satu baris:
+
+```bash
+# .env.local — dan environment variables Cloudflare Workers (§5)
+VITE_TIKTOK_API_URL=https://ttdl-taskify.<subdomain>.workers.dev
+```
+
+Tanpa garis miring di akhir. **Opsional**: kosong = kartu TikTok di `/bagikan` dan item palet
+"Unduh video TikTok" disembunyikan. Bukan rahasia — Worker hanya melayani origin yang terdaftar
+di `ALLOWED_ORIGINS` di `wrangler.jsonc` repo itu, jadi **alamat Taskify (dan
+`http://localhost:5173` untuk dev) harus ada di sana**, kalau tidak setiap permintaan ditolak 403.
+
+Pintu masuknya:
+
+- **HP:** di TikTok, Bagikan → Taskify. Halaman `/bagikan` mendeteksi link TikTok dan langsung
+  menampilkan pratinjau + tombol unduh. Opsi simpan teks ke Tugas/Jurnal tetap ada di bawahnya.
+- **Desktop:** Ctrl/⌘ K → tempel link (item **Unduh dari TikTok** muncul paling atas), atau pilih
+  **Unduh video TikTok** lalu tempel di panelnya.
+
+File diunduh lewat `fetch` lalu disimpan sebagai Blob (bukan membuka link Worker), jadi progres
+tampil di tombol dan link yang kedaluwarsa (10 menit) diperbarui otomatis. Tidak ada yang disimpan
+ke database maupun R2. CSP tidak perlu diubah: `connect-src https:` sudah mencakup Worker, dan
+cover ditampilkan sebagai `blob:`.
+
 ## Troubleshooting
 
 | Gejala                                     | Penyebab & solusi                                                                                                  |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | Layar "Konfigurasi belum lengkap"          | `.env.local` belum diisi / server dev belum di-restart                                                             |
 | Pintu masuk musik tidak ada di palette     | `VITE_MUSIC_API_URL` kosong (§11), atau server dev belum di-restart                                                |
+| TikTok: "menolak alamat aplikasi ini"      | Origin Taskify belum ada di `ALLOWED_ORIGINS` Worker ttdl-taskify (§14), lalu `pnpm deploy` di repo itu            |
+| Kartu TikTok tidak muncul di `/bagikan`    | `VITE_TIKTOK_API_URL` kosong (§14), atau teks yang dibagikan tidak berisi link video/foto TikTok                   |
 | Musik "jalan tapi bisu"                    | `media-src` di `public/_headers` — periksa Console untuk pesan _"Refused to load media"_                           |
 | Sandi tidak muncul di perangkat lain       | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan |
 | Konfigurasi tidak muncul di perangkat lain | `sync-config.yaml` belum di-deploy ulang (§12), atau migrasi `…_config_files.sql` belum diterapkan                 |

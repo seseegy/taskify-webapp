@@ -20,7 +20,7 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `glass` / `glass-strong`                                                                    | Kartu, panel, input, nav (kaca semi-transparan; blur latar hanya di desktop) |
 | `bg-gradient-brand`                                                                         | Aksi utama, logo (indigo → ungu → pink)                                      |
-| `bg-gradient-{tasks,journal,notes,finance,vault,calendar,sandi,settings,music}`             | Identitas modul (ikon, header, sel aktif)                                    |
+| `bg-gradient-{tasks,journal,notes,finance,vault,calendar,sandi,settings,music,tiktok}`      | Identitas modul (ikon, header, sel aktif)                                    |
 | `text-gradient-brand`                                                                       | Angka/judul penting (saldo, logo)                                            |
 | `shine`                                                                                     | Kilau tipis di atas elemen bergradasi                                        |
 | `text-fg`, `text-muted`, `bg-surface`, `border-line`, `text-primary/danger/success/warning` | Token warna yang otomatis menyesuaikan tema                                  |
@@ -38,8 +38,9 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | Kalender | indigo → sky    | `#6366f1`      |
 | Sandi    | rose → violet   | `#f43f5e`      |
 | Musik    | fuchsia → ungu  | —              |
+| TikTok   | cyan → rose     | —              |
 
-Musik **tidak punya** `--color-mod-music`. Token `bg-mod-*` ada khusus untuk titik aktivitas di
+Musik dan TikTok **tidak punya** `--color-mod-*`. Token `bg-mod-*` ada khusus untuk titik aktivitas di
 kalender dan legenda Review, dan musik tidak pernah muncul di sana — tidak ada "aktivitas musik"
 yang tersimpan per tanggal, karena pemutar tidak menyentuh basis data sama sekali. Menambahkan
 tokennya berarti menambah warna yang tidak dipakai siapa pun.

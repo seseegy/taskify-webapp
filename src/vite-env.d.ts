@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_POWERSYNC_URL?: string;
   readonly VITE_VAPID_PUBLIC_KEY?: string;
   readonly VITE_MUSIC_API_URL?: string;
+  readonly VITE_TIKTOK_API_URL?: string;
 }
 
 interface ImportMeta {
