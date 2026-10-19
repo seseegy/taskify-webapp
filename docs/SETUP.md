@@ -560,6 +560,7 @@ kunci di §15.1:
 ```bash
 cd android
 keytool -list -v -keystore android.keystore -alias android | grep SHA256
+# keluaran: "SHA256: AB:CD:…" — salin bagian AB:CD:… saja (32 pasang heksadesimal)
 bubblewrap fingerprint add <SHA256 di atas> --name=apk \
   --output=../public/.well-known/assetlinks.json
 ```
@@ -589,6 +590,12 @@ bubblewrap fingerprint add <SHA-256 dari Play Console> --name=play \
   tidak ada dua "Taskify" di launcher dan di menu Bagikan.
 - Android 13+: izin notifikasi diminta saat Pengaturan → Notifikasi diaktifkan, seperti di Chrome.
 - Worker TikTok (§14) tidak perlu diubah: origin aplikasi tetap alamat web Taskify.
+- `twa-manifest.json` dan `assetlinks.json` ditulis ulang oleh Bubblewrap dengan formatnya sendiri,
+  jadi keduanya dikecualikan dari Prettier (`.prettierignore`). Jangan diformat manual.
+- Warna divider bilah navigasi sengaja sama dengan warna bilah navigasi, bukan transparan:
+  Bubblewrap membuang kanal alfa (`#00000000` menjadi `#000000`, garis hitam).
+- Tanpa Chrome di HP, aplikasi jatuh ke Custom Tab browser lain (`fallbackType: customtabs`) —
+  notifikasi dan Bagikan → Taskify bisa tidak tersedia di sana.
 - `shareTarget` di `twa-manifest.json` sengaja hanya berisi **tipe MIME**. Daftar `accept` di manifest
   web memuat ekstensi (`.zip`, `.md`, …) yang tidak sah sebagai `android:mimeType` — jangan menimpanya
   dengan `bubblewrap merge` tanpa membersihkan ekstensi itu.
