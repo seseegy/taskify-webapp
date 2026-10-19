@@ -512,34 +512,125 @@ tampil di tombol dan link yang kedaluwarsa (10 menit) diperbarui otomatis. Tidak
 ke database maupun R2. CSP tidak perlu diubah: `connect-src https:` sudah mencakup Worker, dan
 cover ditampilkan sebagai `blob:`.
 
+## 15. Aplikasi Android (TWA)
+
+Taskify bisa dibungkus jadi APK/AAB sebagai **Trusted Web Activity** (TWA): aplikasi Android yang
+membuka Taskify di **Chrome** layar penuh, tanpa bilah alamat. Karena mesinnya Chrome sungguhan
+(bukan WebView), semua fitur PWA tetap jalan: notifikasi pengingat, Bagikan → Taskify (termasuk dari
+TikTok), unduhan, pilih file/kamera, kontrol musik di layar kunci, dan mode offline. Isi aplikasi
+tetap web yang sudah di-deploy (§5), jadi update Taskify **tidak** perlu membuat APK baru.
+
+Konfigurasinya `android/twa-manifest.json` (format [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap)).
+Proyek Android-nya **tidak** disimpan di git — dibuat ulang dari file itu.
+
+### 15.1 Sekali saja: alat & kunci
+
+```bash
+npm i -g @bubblewrap/cli@1.27.0
+bubblewrap doctor            # menawarkan mengunduh JDK 17 & Android SDK bila belum ada
+
+cd android
+keytool -genkeypair -v -keystore android.keystore -alias android \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+> **`android/android.keystore` adalah identitas aplikasi.** Hilang = tidak bisa merilis update
+> untuk aplikasi yang sudah terpasang / di Play Store. Simpan cadangannya (beserta password-nya) di
+> luar repo; file ini sudah di-ignore git.
+
+`packageId` (`com.seseegy.taskify`) juga **permanen** setelah rilis pertama di Play Store — ubah di
+`twa-manifest.json` sekarang bila ingin nama lain.
+
+### 15.2 Build
+
+```bash
+cd android
+bubblewrap update --skipVersionUpgrade   # buat/perbarui proyek Android dari twa-manifest.json
+bubblewrap build                          # → app-release-signed.apk & app-release-bundle.aab
+```
+
+Untuk rilis berikutnya cukup `bubblewrap update` (menaikkan `appVersionCode`) lalu `bubblewrap build`.
+
+### 15.3 Digital Asset Links (WAJIB)
+
+Chrome hanya menyembunyikan bilah alamat bila domain Taskify mengakui kunci APK-nya, lewat
+`/.well-known/assetlinks.json`. `bubblewrap build` **tidak** membuat file itu; buat dari sidik jari
+kunci di §15.1:
+
+```bash
+cd android
+keytool -list -v -keystore android.keystore -alias android | grep SHA256
+# keluaran: "SHA256: AB:CD:…" — salin bagian AB:CD:… saja (32 pasang heksadesimal)
+bubblewrap fingerprint add <SHA256 di atas> --name=apk \
+  --output=../public/.well-known/assetlinks.json
+```
+
+Perintah itu juga mencatat sidik jarinya di `twa-manifest.json` (`fingerprints`). Commit keduanya —
+bukan rahasia, hanya nama paket + sidik jari publik — lalu deploy Taskify (§5). Cek setelah deploy
+(harus JSON, bukan halaman HTML):
+
+```bash
+curl https://taskify-webapp.rosdiyttaa.workers.dev/.well-known/assetlinks.json
+```
+
+**Rilis lewat Play Store:** Play App Signing menandatangani ulang aplikasi dengan kunci Google. Ambil
+sidik jari SHA-256-nya di Play Console → _Test and release → App integrity_, lalu tambahkan juga
+(file dibuat ulang berisi kedua sidik jari):
+
+```bash
+cd android
+bubblewrap fingerprint add <SHA-256 dari Play Console> --name=play \
+  --output=../public/.well-known/assetlinks.json
+```
+
+### 15.4 Pasang & catatan
+
+- Pasang langsung: `adb install android/app-release-signed.apk` (atau kirim file APK ke HP).
+- Kalau Taskify sudah pernah di-_install_ sebagai PWA dari Chrome, hapus dulu ikon PWA-nya supaya
+  tidak ada dua "Taskify" di launcher dan di menu Bagikan.
+- Android 13+: izin notifikasi diminta saat Pengaturan → Notifikasi diaktifkan, seperti di Chrome.
+- Worker TikTok (§14) tidak perlu diubah: origin aplikasi tetap alamat web Taskify.
+- `twa-manifest.json` dan `assetlinks.json` ditulis ulang oleh Bubblewrap dengan formatnya sendiri,
+  jadi keduanya dikecualikan dari Prettier (`.prettierignore`). Jangan diformat manual.
+- Warna divider bilah navigasi sengaja sama dengan warna bilah navigasi, bukan transparan:
+  Bubblewrap membuang kanal alfa (`#00000000` menjadi `#000000`, garis hitam).
+- Tanpa Chrome di HP, aplikasi jatuh ke Custom Tab browser lain (`fallbackType: customtabs`) —
+  notifikasi dan Bagikan → Taskify bisa tidak tersedia di sana.
+- `shareTarget` di `twa-manifest.json` sengaja hanya berisi **tipe MIME**. Daftar `accept` di manifest
+  web memuat ekstensi (`.zip`, `.md`, …) yang tidak sah sebagai `android:mimeType` — jangan menimpanya
+  dengan `bubblewrap merge` tanpa membersihkan ekstensi itu.
+- Mengganti domain Taskify = ubah `host`, semua URL di `twa-manifest.json`, lalu build ulang & salin
+  `assetlinks.json` ke domain baru.
+
 ## Troubleshooting
 
-| Gejala                                     | Penyebab & solusi                                                                                                  |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| Layar "Konfigurasi belum lengkap"          | `.env.local` belum diisi / server dev belum di-restart                                                             |
-| Pintu masuk musik tidak ada di palette     | `VITE_MUSIC_API_URL` kosong (§11), atau server dev belum di-restart                                                |
-| TikTok: "menolak alamat aplikasi ini"      | Origin Taskify belum ada di `ALLOWED_ORIGINS` Worker ttdl-taskify (§14), lalu `pnpm deploy` di repo itu            |
-| Kartu TikTok tidak muncul di `/bagikan`    | `VITE_TIKTOK_API_URL` kosong (§14), atau teks yang dibagikan tidak berisi link video/foto TikTok                   |
-| Musik "jalan tapi bisu"                    | `media-src` di `public/_headers` — periksa Console untuk pesan _"Refused to load media"_                           |
-| Sandi tidak muncul di perangkat lain       | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan |
-| Konfigurasi tidak muncul di perangkat lain | `sync-config.yaml` belum di-deploy ulang (§12), atau migrasi `…_config_files.sql` belum diterapkan                 |
-| Status macet di _Menyinkron…_              | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)                               |
-| Error `PSYNC_S2101` di console             | Client Auth PowerSync belum dicentang _Use Supabase Auth_                                                          |
-| Error `PSYNC_S2105` (aud)                  | Tambahkan audience `authenticated` di Client Auth                                                                  |
-| Upload gagal `42501 permission denied`     | Migrasi 2 (grant) belum dijalankan                                                                                 |
-| Pengaturan menampilkan "Ditolak server"    | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`                                      |
-| Login "Tidak bisa terhubung"               | Login pertama butuh internet; setelah itu aplikasi jalan offline                                                   |
-| Notifikasi "Belum tersedia"                | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                                                   |
-| Notifikasi uji "Edge Function gagal"       | Fungsi belum di-deploy, atau Verify JWT masih menyala                                                              |
-| Upload gagal "periksa koneksi atau CORS"   | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)                                           |
-| "Edge Function gagal" saat upload          | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah                                     |
-| Uji berhasil tapi pengingat tidak datang   | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi                             |
-| Backup gagal "Network is unreachable"      | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)                                    |
-| Backup gagal "server version mismatch"     | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`                              |
-| "Bagikan" tidak menampilkan Taskify        | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                                              |
-| "MFA TOTP dimatikan di server"             | Aktifkan App Authenticator di Dashboard → Authentication → Multi-Factor (§13.1)                                    |
-| Data kosong di perangkat lama setelah §13  | Aplikasi versi lama (sesi tanpa kode) + sync-config baru; muat ulang/perbarui aplikasi lalu login dengan kode      |
-| Upload/lampiran "Verifikasi dua langkah…"  | Sesi belum aal2 — keluar lalu masuk lagi dengan kode authenticator                                                 |
+| Gejala                                     | Penyebab & solusi                                                                                                          |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Layar "Konfigurasi belum lengkap"          | `.env.local` belum diisi / server dev belum di-restart                                                                     |
+| Pintu masuk musik tidak ada di palette     | `VITE_MUSIC_API_URL` kosong (§11), atau server dev belum di-restart                                                        |
+| Aplikasi Android menampilkan bilah alamat  | `/.well-known/assetlinks.json` belum ter-deploy atau sidik jarinya tidak cocok dengan kunci APK / Play App Signing (§15.3) |
+| TikTok: "menolak alamat aplikasi ini"      | Origin Taskify belum ada di `ALLOWED_ORIGINS` Worker ttdl-taskify (§14), lalu `pnpm deploy` di repo itu                    |
+| Kartu TikTok tidak muncul di `/bagikan`    | `VITE_TIKTOK_API_URL` kosong (§14), atau teks yang dibagikan tidak berisi link video/foto TikTok                           |
+| Musik "jalan tapi bisu"                    | `media-src` di `public/_headers` — periksa Console untuk pesan _"Refused to load media"_                                   |
+| Sandi tidak muncul di perangkat lain       | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan         |
+| Konfigurasi tidak muncul di perangkat lain | `sync-config.yaml` belum di-deploy ulang (§12), atau migrasi `…_config_files.sql` belum diterapkan                         |
+| Status macet di _Menyinkron…_              | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)                                       |
+| Error `PSYNC_S2101` di console             | Client Auth PowerSync belum dicentang _Use Supabase Auth_                                                                  |
+| Error `PSYNC_S2105` (aud)                  | Tambahkan audience `authenticated` di Client Auth                                                                          |
+| Upload gagal `42501 permission denied`     | Migrasi 2 (grant) belum dijalankan                                                                                         |
+| Pengaturan menampilkan "Ditolak server"    | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`                                              |
+| Login "Tidak bisa terhubung"               | Login pertama butuh internet; setelah itu aplikasi jalan offline                                                           |
+| Notifikasi "Belum tersedia"                | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                                                           |
+| Notifikasi uji "Edge Function gagal"       | Fungsi belum di-deploy, atau Verify JWT masih menyala                                                                      |
+| Upload gagal "periksa koneksi atau CORS"   | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)                                                   |
+| "Edge Function gagal" saat upload          | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah                                             |
+| Uji berhasil tapi pengingat tidak datang   | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi                                     |
+| Backup gagal "Network is unreachable"      | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)                                            |
+| Backup gagal "server version mismatch"     | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`                                      |
+| "Bagikan" tidak menampilkan Taskify        | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                                                      |
+| "MFA TOTP dimatikan di server"             | Aktifkan App Authenticator di Dashboard → Authentication → Multi-Factor (§13.1)                                            |
+| Data kosong di perangkat lama setelah §13  | Aplikasi versi lama (sesi tanpa kode) + sync-config baru; muat ulang/perbarui aplikasi lalu login dengan kode              |
+| Upload/lampiran "Verifikasi dua langkah…"  | Sesi belum aal2 — keluar lalu masuk lagi dengan kode authenticator                                                         |
 
 ## Perawatan rutin
 

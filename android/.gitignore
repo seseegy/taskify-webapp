@@ -1,0 +1,5 @@
+# Proyek Android hasil `bubblewrap update` dibuat ulang dari twa-manifest.json, jadi tidak disimpan.
+# android.keystore JANGAN PERNAH di-commit — simpan cadangannya di tempat aman (lihat docs/SETUP.md §15).
+/*
+!/.gitignore
+!/twa-manifest.json

@@ -5,3 +5,7 @@ pnpm-lock.yaml
 supabase/.temp
 supabase/.branches
 src/lib/supabase.types.ts
+# Ditulis ulang oleh Bubblewrap (`bubblewrap update` / `fingerprint add`) dengan formatnya sendiri;
+# kalau ikut dicek Prettier, `pnpm check` gagal setiap kali file itu diperbarui (docs/SETUP.md §15).
+android/twa-manifest.json
+public/.well-known/assetlinks.json
