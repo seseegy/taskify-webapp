@@ -1,6 +1,7 @@
 import {
   ArrowDownLeft,
   ArrowUpRight,
+  Clapperboard,
   CornerDownLeft,
   FileCog,
   Hash,
@@ -40,6 +41,9 @@ import { useOpenEntity } from '@/features/entities/entities';
 import { isMusicConfigured } from '@/features/music/api-client';
 import { musicCommands } from '@/features/music/music-palette';
 import { useMusicRemote } from '@/features/music/music-store';
+import { isTikTokConfigured } from '@/features/tiktok/api-client';
+import { findTikTokLink } from '@/features/tiktok/tiktok-link';
+import { useTikTokSheet } from '@/features/tiktok/tiktok-sheet-store';
 import { entitySubtitle } from '@/features/entities/entity-format';
 import { EntityIcon } from '@/features/entities/EntityChip';
 import { useTxSheet } from '@/features/finance/tx-sheet-store';
@@ -114,6 +118,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
   const { hits, tags, ready, fts } = useGlobalSearch(text);
   const categories = useCategories();
   const musicRemote = useMusicRemote();
+  const showTikTok = useTikTokSheet((s) => s.show);
 
   const parsed = useMemo(() => (text.trim() ? parseCapture(text, today) : null), [text, today]);
   const cap: Capture | null = parsed && override ? applyKind(parsed, override, today) : parsed;
@@ -191,6 +196,19 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
       penuh, header mobile sudah kehabisan lebar, dan BottomNav sudah 5 item. Jadi tidak ada
       item baru di NAV_ITEMS. Isi daftarnya ikut keadaan pemutar — lihat `music-palette.ts`.
     */
+    // Pengunduh TikTok: kosong bila `VITE_TIKTOK_API_URL` tidak diisi (aturan yang sama dengan musik)
+    ...(isTikTokConfigured
+      ? [
+          {
+            key: 'tiktok',
+            section: 'Aksi',
+            icon: <ItemIcon icon={Clapperboard} gradient="bg-gradient-tiktok" />,
+            title: 'Unduh video TikTok',
+            keywords: 'tiktok unduh download video foto slideshow audio tanpa watermark tt',
+            run: () => showTikTok(),
+          },
+        ]
+      : []),
     ...(isMusicConfigured
       ? musicCommands(musicRemote).map((m) => ({
           key: m.key,
@@ -263,10 +281,24 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
       ]
     : [];
   const commandItems = matchingCommands.map((c) => ({ ...c, run: close(c.run) }));
-  const items: Item[] =
-    captureItem && (explicit || searchItems.length === 0)
+  // Link TikTok ditempel di palet → tawarkan unduhan paling atas (niatnya hampir pasti itu)
+  const tiktokLink = isTikTokConfigured ? findTikTokLink(text) : null;
+  const tiktokItem: Item | null = tiktokLink
+    ? {
+        key: 'tiktok-link',
+        section: 'TikTok',
+        icon: <ItemIcon icon={Clapperboard} gradient="bg-gradient-tiktok" />,
+        title: 'Unduh dari TikTok',
+        subtitle: tiktokLink,
+        run: close(() => showTikTok(text.trim())),
+      }
+    : null;
+  const items: Item[] = [
+    ...(tiktokItem ? [tiktokItem] : []),
+    ...(captureItem && (explicit || searchItems.length === 0)
       ? [captureItem, ...searchItems, ...commandItems]
-      : [...searchItems, ...commandItems, ...(captureItem ? [captureItem] : [])];
+      : [...searchItems, ...commandItems, ...(captureItem ? [captureItem] : [])]),
+  ];
 
   const safeActive = Math.min(active, Math.max(0, items.length - 1));
 

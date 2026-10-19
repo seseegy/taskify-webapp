@@ -30,4 +30,9 @@ export const env = {
    * Sengaja TIDAK masuk REQUIRED: musik fitur tambahan, bukan syarat Taskify bisa dipakai.
    */
   musicApiUrl: import.meta.env.VITE_MUSIC_API_URL ?? '',
+  /**
+   * Opsional: asal Worker ttdl-taskify (pengunduh TikTok). Tanpa ini kartu TikTok di /bagikan dan
+   * item palet "Unduh TikTok" disembunyikan. Bukan rahasia: Worker hanya menerima Origin Taskify.
+   */
+  tiktokApiUrl: import.meta.env.VITE_TIKTOK_API_URL ?? '',
 };

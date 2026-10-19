@@ -3,10 +3,12 @@ import { useTxSheet } from '@/features/finance/tx-sheet-store';
 import { useMusicPanel } from '@/features/music/music-store';
 import { usePalette } from '@/features/search/palette-store';
 import { useTaskSheet } from '@/features/tasks/task-sheet-store';
+import { useTikTokSheet } from '@/features/tiktok/tiktok-sheet-store';
 import { env } from '@/lib/env';
 
 /**
- * Panel global yang dimuat LAZY: palet perintah, detail tugas, form transaksi, dan pemutar musik.
+ * Panel global yang dimuat LAZY: palet perintah, detail tugas, form transaksi, pemutar musik,
+ * dan pengunduh TikTok.
  *
  * Keempatnya dulu ikut bundel awal (±90 KB JS minified) padahal baru dibutuhkan setelah dibuka.
  * Sekarang masing-masing dipasang saat store-nya pertama kali meminta dibuka, lalu TETAP
@@ -27,15 +29,19 @@ const load = {
       default: m.TransactionSheet,
     })),
   music: () => import('@/features/music/MusicBar').then((m) => ({ default: m.MusicBar })),
+  tiktok: () => import('@/features/tiktok/TikTokSheet').then((m) => ({ default: m.TikTokSheet })),
 };
 
 const CommandPalette = lazy(load.palette);
 const TaskDetailSheet = lazy(load.task);
 const TransactionSheet = lazy(load.tx);
 const MusicBar = lazy(load.music);
+const TikTokSheet = lazy(load.tiktok);
 
 /** Sama dengan `isMusicConfigured` di api-client, tanpa memuat modul pemutar. */
 const musicEnabled = Boolean(env.musicApiUrl);
+/** Sama dengan `isTikTokConfigured` di tiktok/api-client. */
+const tiktokEnabled = Boolean(env.tiktokApiUrl);
 
 /** true sejak `wanted` pertama kali true (lalu tidak pernah kembali false). */
 function useOnceTrue(wanted: boolean) {
@@ -58,6 +64,7 @@ export function LazyPanels() {
   const task = useTaskSheet((s) => s.taskId !== null);
   const tx = useTxSheet((s) => s.open);
   const music = useMusicPanel((s) => s.panel !== 'none');
+  const tiktok = useTikTokSheet((s) => s.open);
 
   useEffect(() => prefetchPanels(), []);
 
@@ -67,6 +74,7 @@ export function LazyPanels() {
       <Mount when={task} component={TaskDetailSheet} />
       <Mount when={tx} component={TransactionSheet} />
       <Mount when={palette} component={CommandPalette} />
+      {tiktokEnabled && <Mount when={tiktok} component={TikTokSheet} />}
     </>
   );
 }

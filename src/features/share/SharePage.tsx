@@ -4,6 +4,7 @@ import {
   FileArchive,
   FileText,
   ImageIcon,
+  ChevronDown,
   Inbox,
   ListChecks,
   NotebookPen,
@@ -24,6 +25,9 @@ import { useAttachmentActions } from '@/features/attachments/attachment-actions'
 import { useJournalActions } from '@/features/journal/journal-actions';
 import { usePalette } from '@/features/search/palette-store';
 import { useTaskActions } from '@/features/tasks/task-actions';
+import { isTikTokConfigured } from '@/features/tiktok/api-client';
+import { findTikTokLink } from '@/features/tiktok/tiktok-link';
+import { TikTokCard } from '@/features/tiktok/TikTokCard';
 import { useProjects, useVaultActions } from '@/features/vault/vault-data';
 import { nextVersionLabel } from '@/features/vault/zip';
 import { formatBytes } from '@/lib/bytes';
@@ -44,6 +48,8 @@ import {
 export function SharePage() {
   const [inbox, setInbox] = useState<ShareInbox | null | undefined>(undefined);
   const [done, setDone] = useState<Set<string>>(new Set());
+  /** Dibagikan dari TikTok: opsi simpan teks (Tugas/Jurnal/…) disembunyikan sampai diminta. */
+  const [showTextTargets, setShowTextTargets] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -60,6 +66,9 @@ export function SharePage() {
 
   const text = inbox ? sharedText(inbox) : '';
   const pendingFiles = inbox?.files.filter((f) => !done.has(f.key)) ?? [];
+  // Teks berisi link TikTok → niatnya hampir pasti mengunduh: kartu TikTok tampil paling atas
+  const fromTikTok = isTikTokConfigured && findTikTokLink(text) !== null;
+  const textPending = Boolean(text) && !done.has('text') && (!fromTikTok || showTextTargets);
 
   return (
     <>
@@ -79,7 +88,13 @@ export function SharePage() {
         </Card>
       ) : (
         <div className="space-y-5">
-          {text && !done.has('text') && (
+          {fromTikTok && <TikTokCard input={text} />}
+          {fromTikTok && !showTextTargets && !done.has('text') && (
+            <Button variant="ghost" size="sm" onClick={() => setShowTextTargets(true)}>
+              <ChevronDown /> Simpan teksnya ke Tugas / Jurnal…
+            </Button>
+          )}
+          {textPending && (
             <TextTargets
               text={text}
               title={inbox.title}
@@ -94,11 +109,11 @@ export function SharePage() {
           )}
           <div className="flex justify-end gap-2">
             <Button
-              variant={pendingFiles.length || (text && !done.has('text')) ? 'ghost' : 'primary'}
+              variant={pendingFiles.length || textPending ? 'ghost' : 'primary'}
               onClick={() => void finish()}
             >
-              {pendingFiles.length || (text && !done.has('text')) ? <Trash2 /> : null}
-              {pendingFiles.length || (text && !done.has('text')) ? 'Abaikan sisanya' : 'Selesai'}
+              {pendingFiles.length || textPending ? <Trash2 /> : null}
+              {pendingFiles.length || textPending ? 'Abaikan sisanya' : 'Selesai'}
             </Button>
           </div>
         </div>
