@@ -26,7 +26,7 @@ import {
 } from '../generator';
 import { readPrefs, writePrefs, type GeneratorMode, type GeneratorPrefs } from '../generator-prefs';
 import { StrengthMeter } from './StrengthMeter';
-import { Switch } from './Switch';
+import { Switch } from '@/components/ui/Switch';
 
 const SEPARATOR_LABEL: Record<(typeof SEPARATORS)[number], string> = {
   '-': 'Tanda hubung ( - )',

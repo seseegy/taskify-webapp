@@ -48,6 +48,9 @@ interface Row {
  *  - Data yang punya tanggal lokal (entry_date, note_date, occurred_on) dipakai apa adanya.
  *  - Catatan hanya dihitung bila ditempel ke tanggal; catatan bebas tidak punya hari.
  *  - Vault (snippet, project, file) tidak punya tanggal lokal → created_at UTC dikonversi ke WIB.
+ *  - Transaksi: hanya pemasukan & pengeluaran BIASA. Transfer bukan pemasukan/pengeluaran, dan
+ *    transaksi hutang (debt_id: pinjam, pelunasan) bukan belanja/penghasilan — sama dengan
+ *    Keuangan, Review, dan Beranda (aturan statistik di AGENTS/steering).
  */
 export const CALENDAR_ACTIVITY_SQL = `
   SELECT entry_date AS day, 'journal' AS kind, COUNT(*) AS count, 0 AS done, AVG(mood) AS amount
@@ -62,7 +65,8 @@ export const CALENDAR_ACTIVITY_SQL = `
   UNION ALL
   SELECT occurred_on, kind, COUNT(*), 0, SUM(amount)
     FROM transactions
-   WHERE deleted_at IS NULL AND kind IN ('expense', 'income') AND occurred_on BETWEEN ?1 AND ?2
+   WHERE deleted_at IS NULL AND debt_id IS NULL AND kind IN ('expense', 'income')
+     AND occurred_on BETWEEN ?1 AND ?2
    GROUP BY occurred_on, kind
   UNION ALL
   SELECT day, 'vault', COUNT(*), 0, 0 FROM (

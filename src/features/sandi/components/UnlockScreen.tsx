@@ -6,7 +6,7 @@ import { useLockStore } from '@/features/lock/lock-store';
 import { focusField } from '@/lib/focus';
 import { TRUST_DAYS } from '../device-trust';
 import { PasswordField } from './PasswordField';
-import { Switch } from './Switch';
+import { Switch } from '@/components/ui/Switch';
 
 /**
  * Layar buka brankas. Memeriksa master password butuh ±0,3–1,5 detik (KDF sengaja lambat), jadi

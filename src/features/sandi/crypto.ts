@@ -18,6 +18,8 @@
  * memori bila ada XSS. Lupa master password DAN kunci pemulihan = data tidak bisa dipulihkan siapa pun.
  */
 
+// Relatif (bukan '@/'): berkas ini juga diimpor supabase/tests, yang tidak memakai alias
+import { sha256Hex16 } from '../../lib/hash';
 import { parseTotpConfig, type TotpConfig } from './totp';
 
 export const KEY_RECORD_VERSION = 1;
@@ -104,6 +106,38 @@ const randomBytes = (n: number): Uint8Array<ArrayBuffer> => {
   globalThis.crypto.getRandomValues(b);
   return b;
 };
+
+// ----------------------------------------------------------------------------- label kunci
+/**
+ * Label kunci: 16 hex pertama SHA-256 dari `pw_keys.wrapped_key`. Setiap DEK punya `wrapped_key`
+ * yang berbeda (DEK baru + IV acak tiap rotasi), jadi label ini menandai GENERASI kunci data.
+ *
+ * Ciphertext disimpan sebagai `<label>.<base64>` agar SERVER bisa menolak tulisan yang dienkripsi
+ * dengan kunci yang sudah dirotasi (trigger `vault_enc_guard`, fungsi SQL `vault_key_ref` yang
+ * menghitung label yang sama). Tanpa itu, perangkat yang offline saat master password diganti
+ * di perangkat lain akan mengunggah item dengan DEK lama — dan item itu tidak bisa dibuka lagi.
+ *
+ * Label bukan rahasia (wrapped_key sendiri sudah tersinkron) dan tidak ikut AAD: ia hanya
+ * penunjuk, dan menukarnya tidak membuka apa pun.
+ */
+export async function keyRef(wrappedKey: string): Promise<string> {
+  return sha256Hex16(wrappedKey);
+}
+
+const REF_RE = /^[0-9a-f]{16}$/;
+const FRAMED_RE = /^([0-9a-f]{16})\.(.+)$/s;
+
+/** Pisahkan label dari ciphertext. Baris lama (sebelum label ada) → `ref: null`. */
+export function splitEnc(enc: string): { ref: string | null; body: string } {
+  const m = FRAMED_RE.exec(enc);
+  return m ? { ref: m[1]!, body: m[2]! } : { ref: null, body: enc };
+}
+
+function frame(ref: string, sealed: Uint8Array): string {
+  if (!REF_RE.test(ref))
+    throw new SandiError('invalid', 'Label kunci brankas tidak valid. Buka brankas lagi.');
+  return `${ref}.${toB64(sealed)}`;
+}
 
 // ----------------------------------------------------------------------------- AES-GCM
 async function seal(key: CryptoKey, plaintext: Uint8Array<ArrayBuffer>, aad: string) {
@@ -352,6 +386,12 @@ export async function unlockWithRecoveryKey(
  */
 export interface RewrittenVault extends NewVault {
   previousDek: CryptoKey;
+  /**
+   * `wrapped_key` record yang DIROTASI (asal `previousDek`). Server hanya menerima rotasi bila
+   * kunci di server masih yang ini (compare-and-swap di `apply_vault_rotation`): dua perangkat
+   * yang merotasi bersamaan tidak bisa saling menimpa diam-diam.
+   */
+  previousWrappedKey: string;
 }
 
 /**
@@ -368,7 +408,7 @@ export async function changePassword(
   opts: KdfOptions = {},
 ): Promise<RewrittenVault | null> {
   const raw = await unwrapWithPassword(record, oldPassword, userId);
-  return rewrap(raw, newPassword, userId, opts);
+  return rewrap(raw, record, newPassword, userId, opts);
 }
 
 /** Lupa master password: pulihkan dengan kunci pemulihan, atur master password baru + kunci pemulihan baru. */
@@ -380,7 +420,7 @@ export async function resetPasswordWithRecovery(
   opts: KdfOptions = {},
 ): Promise<RewrittenVault | null> {
   const raw = await unwrapWithRecovery(record, recoveryText, userId);
-  return rewrap(raw, newPassword, userId, opts);
+  return rewrap(raw, record, newPassword, userId, opts);
 }
 
 /** Buat kunci pemulihan baru (yang lama dicabut). Butuh master password. null = password salah. */
@@ -391,12 +431,13 @@ export async function rotateRecoveryKey(
   opts: KdfOptions = {},
 ): Promise<RewrittenVault | null> {
   const raw = await unwrapWithPassword(record, password, userId);
-  return rewrap(raw, password, userId, opts);
+  return rewrap(raw, record, password, userId, opts);
 }
 
 /** Membuka DEK lama dengan `oldRaw`, lalu membungkus DEK BARU (acak) dengan sandi/kunci pemulihan baru. */
 async function rewrap(
   oldRaw: Uint8Array<ArrayBuffer> | null,
+  from: KeyRecord,
   newPassword: string,
   userId: string,
   opts: KdfOptions,
@@ -406,7 +447,13 @@ async function rewrap(
   try {
     const previousDek = await importDek(oldRaw);
     const { record, recoveryKey } = await wrapBoth(newRaw, newPassword, userId, opts);
-    return { record, recoveryKey, dek: await importDek(newRaw), previousDek };
+    return {
+      record,
+      recoveryKey,
+      dek: await importDek(newRaw),
+      previousDek,
+      previousWrappedKey: from.wrapped_key,
+    };
   } finally {
     oldRaw.fill(0);
     newRaw.fill(0);
@@ -448,16 +495,20 @@ export function parsePayload(value: unknown): ItemPayload {
   };
 }
 
-/** Hasil: base64(IV ‖ ciphertext) untuk kolom `pw_items.enc`. */
+/**
+ * Hasil: `<label kunci>.<base64(IV ‖ ciphertext)>` untuk kolom `pw_items.enc`.
+ * `ref` = `keyRef(wrapped_key)` milik record kunci yang membuka `dek` (lihat `keyRef`).
+ */
 export async function encryptItem(
   dek: CryptoKey,
   userId: string,
   itemId: string,
   payload: ItemPayload,
+  ref: string,
 ): Promise<string> {
   const plain = te.encode(JSON.stringify(payload));
   const sealed = await seal(dek, pad(plain), aadItem(userId, itemId));
-  return toB64(sealed);
+  return frame(ref, sealed);
 }
 
 /** Melempar SandiError('corrupt') bila gagal diautentikasi (data diubah, kunci lain, atau ditukar antar baris). */
@@ -469,7 +520,7 @@ export async function decryptItem(
 ): Promise<ItemPayload> {
   let bytes: Uint8Array<ArrayBuffer>;
   try {
-    bytes = fromB64(enc);
+    bytes = fromB64(splitEnc(enc).body);
   } catch {
     throw new SandiError('corrupt', 'Data item rusak.');
   }
@@ -500,11 +551,12 @@ export async function reencryptItems(
   from: CryptoKey,
   to: CryptoKey,
   userId: string,
+  toRef: string,
 ): Promise<{ updated: EncryptedRow[]; skipped: string[] }> {
   return reencryptRows(
     rows,
     (id, enc) => decryptItem(from, userId, id, enc),
-    (id, payload) => encryptItem(to, userId, id, payload),
+    (id, payload) => encryptItem(to, userId, id, payload, toRef),
   );
 }
 
@@ -514,11 +566,12 @@ export async function reencryptTotpLog(
   from: CryptoKey,
   to: CryptoKey,
   userId: string,
+  toRef: string,
 ): Promise<{ updated: EncryptedRow[]; skipped: string[] }> {
   return reencryptRows(
     rows,
     (id, enc) => decryptTotpLog(from, userId, id, enc),
-    (id, entry) => encryptTotpLog(to, userId, id, entry),
+    (id, entry) => encryptTotpLog(to, userId, id, entry, toRef),
   );
 }
 
@@ -571,9 +624,10 @@ export async function encryptTotpLog(
   userId: string,
   rowId: string,
   entry: TotpLogEntry,
+  ref: string,
 ): Promise<string> {
   const plain = te.encode(JSON.stringify(entry));
-  return toB64(await seal(dek, pad(plain), aadTotpLog(userId, rowId)));
+  return frame(ref, await seal(dek, pad(plain), aadTotpLog(userId, rowId)));
 }
 
 /** Melempar SandiError('corrupt') bila dibuat dengan kunci lain atau datanya diubah. */
@@ -585,7 +639,7 @@ export async function decryptTotpLog(
 ): Promise<TotpLogEntry> {
   let bytes: Uint8Array<ArrayBuffer>;
   try {
-    bytes = fromB64(enc);
+    bytes = fromB64(splitEnc(enc).body);
   } catch {
     throw new SandiError('corrupt', 'Data riwayat rusak.');
   }
@@ -618,16 +672,17 @@ export function parseConfigPayload(value: unknown): ConfigPayload {
   return { text: str(o.text), note: str(o.note) };
 }
 
-/** Hasil: base64(IV ‖ ciphertext) untuk kolom `config_versions.enc`. */
+/** Hasil: `<label kunci>.<base64(IV ‖ ciphertext)>` untuk kolom `config_versions.enc`. */
 export async function encryptConfig(
   dek: CryptoKey,
   userId: string,
   fileId: string,
   versionId: string,
   payload: ConfigPayload,
+  ref: string,
 ): Promise<string> {
   const plain = te.encode(JSON.stringify(payload));
-  return toB64(await seal(dek, pad(plain), aadConfig(userId, fileId, versionId)));
+  return frame(ref, await seal(dek, pad(plain), aadConfig(userId, fileId, versionId)));
 }
 
 /** Melempar SandiError('corrupt') bila dibuat dengan kunci lain, diubah, atau dipindah berkas. */
@@ -640,7 +695,7 @@ export async function decryptConfig(
 ): Promise<ConfigPayload> {
   let bytes: Uint8Array<ArrayBuffer>;
   try {
-    bytes = fromB64(enc);
+    bytes = fromB64(splitEnc(enc).body);
   } catch {
     throw new SandiError('corrupt', 'Data konfigurasi rusak.');
   }
@@ -669,12 +724,13 @@ export async function reencryptConfigVersions(
   from: CryptoKey,
   to: CryptoKey,
   userId: string,
+  toRef: string,
 ): Promise<{ updated: EncryptedRow[]; skipped: string[] }> {
   const byId = new Map(rows.map((r) => [r.id, r.file_id]));
   const fileOf = (id: string) => byId.get(id)!;
   return reencryptRows(
     rows,
     (id, enc) => decryptConfig(from, userId, fileOf(id), id, enc),
-    (id, payload) => encryptConfig(to, userId, fileOf(id), id, payload),
+    (id, payload) => encryptConfig(to, userId, fileOf(id), id, payload, toRef),
   );
 }

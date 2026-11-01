@@ -16,13 +16,18 @@ import {
 } from '../device-trust';
 import { masterPasswordProblem, userInputsFromEmail } from '../master-password';
 import { skippedMessage, type RekeyResult } from '../vault-rekey';
+import { RotationRejectedError } from '../vault-rotation';
 import { useMasterStrength } from '../useMasterStrength';
 import { AUTO_LOCK_OPTIONS, useSandiStore, type AutoLockMinutes } from '../sandi-store';
 import { PasswordField } from './PasswordField';
 import { RecoveryKeyPanel } from './RecoveryKeyPanel';
 import { StrengthMeter } from './StrengthMeter';
 
-type ReplaceVault = (id: string, vault: RewrittenVault) => Promise<RekeyResult>;
+type ReplaceVault = (
+  id: string,
+  vault: RewrittenVault,
+  opts?: { onLocalWritten?: () => void },
+) => Promise<{ result: RekeyResult; confirmed: boolean }>;
 
 type View = 'main' | 'password' | 'rotate' | 'newkey';
 
@@ -99,21 +104,37 @@ function Body({
 
   const persist = async () => {
     if (!pending) return;
+    const { vault, what } = pending;
     setSaving(true);
     setFailure(null);
     // Record kunci berubah SENGAJA dari sini; jangan anggap DEK di memori usang selama proses ini.
     setRekeying(true);
     try {
-      const result = await onReplaceVault(keyId, pending.vault);
+      const { result, confirmed } = await onReplaceVault(keyId, vault, {
+        // Isi lokal sudah memakai DEK baru → pasang sekarang (daftar tetap terbaca selama menunggu)
+        onLocalWritten: () => unlock(vault.dek, vault.record.wrapped_key),
+      });
       // DEK dirotasi: kepercayaan perangkat jadi basi, jadi segarkan bila memang dipercaya
-      if (await readTrustMeta())
-        await rememberDevice(pending.vault.dek, pending.vault.record.wrapped_key);
-      unlock(pending.vault.dek, pending.vault.record.wrapped_key);
-      toast(`${pending.what} berhasil`, { tone: 'success' });
+      if (await readTrustMeta()) await rememberDevice(vault.dek, vault.record.wrapped_key);
+      if (confirmed) toast(`${what} berhasil`, { tone: 'success' });
+      else
+        toast(
+          `${what}. Perubahan masih dikirim ke server — biarkan aplikasi terbuka dan online sampai selesai.`,
+          { duration: 12_000 },
+        );
       const skippedNote = skippedMessage(result);
       if (skippedNote) toast(skippedNote);
       onClose();
     } catch (err) {
+      if (err instanceof RotationRejectedError) {
+        // Server tidak berubah; database lokal kembali ke kunci lama setelah sinkron. DEK baru
+        // tidak boleh dipakai lagi.
+        lock();
+        toast(err.message, { tone: 'danger', duration: 20_000 });
+        onClose();
+        return;
+      }
+      // RotationBlockedError & error lain: belum ada yang berubah, brankas tetap terbuka
       setFailure(err instanceof Error ? err.message : 'Gagal menyimpan.');
       setSaving(false);
     } finally {

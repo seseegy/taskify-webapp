@@ -4,8 +4,10 @@
  *
  * Tiga golongan error:
  *   1. PERMANEN langsung  — mengulang pasti gagal lagi:
- *        22xxx data exception, 23xxx pelanggaran constraint, 42501 RLS/grant,
+ *        22xxx data exception, 23xxx pelanggaran constraint (termasuk 23V0n penjaga kunci
+ *        brankas Sandi), 42501 RLS/grant,
  *        ROW_MISSING_CODE (PATCH ke baris yang tidak ada di server, lihat connector.ts).
+ *      (42501 dengan sesi yang BUKAN aal2 tidak sampai ke sini: connector menundanya.)
  *   2. SKEMA (PostgREST PGRST1xx/PGRST2xx, mis. PGRST204 "kolom tidak ada", PGRST205 "tabel tidak
  *      ada") — biasanya karena aplikasi ter-deploy sebelum migrasinya, atau schema cache PostgREST
  *      belum dimuat ulang. Bisa pulih sendiri, jadi dicoba ulang DULU. Tetapi antrean upload
@@ -23,6 +25,11 @@ export interface PostgrestLikeError {
 /** Kode buatan klien: PATCH tidak mengenai baris mana pun di server. */
 export const ROW_MISSING_CODE = 'TASKIFY_ROW_MISSING';
 
+/**
+ * 23V0n = penolakan penjaga kunci brankas Sandi (migrasi …_vault_key_guard.sql) — sudah tercakup
+ * kelas 23 di bawah, sengaja, supaya klien versi lama yang belum diperbarui juga tidak mengulang
+ * penolakan itu selamanya.
+ */
 const FATAL_CODES = [/^22...$/, /^23...$/, /^42501$/, new RegExp(`^${ROW_MISSING_CODE}$`)];
 const SCHEMA_CODES = /^PGRST[12]\d\d$/;
 

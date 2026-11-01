@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { RouterProvider } from 'react-router/dom';
 import { AppErrorBoundary } from '@/components/layout/AppErrorBoundary';
 import { SetupRequired } from '@/components/layout/SetupRequired';
@@ -8,25 +9,38 @@ import { AuthProvider } from '@/features/auth/AuthProvider';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { MfaScreen } from '@/features/auth/MfaScreen';
 import { LockGate } from '@/features/lock/LockGate';
+import { isPublicDownloadPath, shareTokenFromPath } from '@/features/tempfiles/tempfile-limits';
 import { ThemeProvider } from '@/features/theme/ThemeProvider';
 import { isEnvReady } from '@/lib/env';
 import { router } from './router';
 
+const PublicFilePage = lazy(() =>
+  import('@/features/tempfiles/PublicFilePage').then((m) => ({ default: m.PublicFilePage })),
+);
+
 /**
  * Urutan gerbang:
- *   Tema → (env lengkap?) → Auth → (login?) → (verifikasi dua langkah?) → DB lokal + sync
- *   → Kunci PIN → Router
+ *   Tema → (env lengkap?) → [halaman unduh publik] → Auth → (login?) → (verifikasi dua langkah?)
+ *   → DB lokal + sync → Kunci PIN → Router
+ *
+ * Halaman unduh Berkas publik (`/unduh/<token>`) dibuka SIAPA PUN yang memegang tautan, jadi
+ * dirender sebelum gerbang login: tanpa sesi, tanpa database lokal, tanpa kunci PIN.
  */
 export function App() {
+  const path = window.location.pathname;
   return (
     <AppErrorBoundary>
       <ThemeProvider>
-        {isEnvReady ? (
+        {!isEnvReady ? (
+          <SetupRequired />
+        ) : isPublicDownloadPath(path) ? (
+          <Suspense fallback={<SplashScreen message="Memuat…" />}>
+            <PublicFilePage token={shareTokenFromPath(path)} />
+          </Suspense>
+        ) : (
           <AuthProvider>
             <AuthGate />
           </AuthProvider>
-        ) : (
-          <SetupRequired />
         )}
       </ThemeProvider>
     </AppErrorBoundary>

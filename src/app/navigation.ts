@@ -1,5 +1,6 @@
 import {
   CalendarDays,
+  CloudUpload,
   CodeXml,
   House,
   KeyRound,
@@ -80,6 +81,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Sandi',
     icon: KeyRound,
     gradient: 'bg-gradient-sandi',
+    mobile: false,
+  },
+  {
+    to: '/berkas',
+    label: 'Berkas',
+    icon: CloudUpload,
+    gradient: 'bg-gradient-files',
     mobile: false,
   },
   {

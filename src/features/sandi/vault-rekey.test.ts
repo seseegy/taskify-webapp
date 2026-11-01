@@ -11,9 +11,11 @@ import {
   encryptConfig,
   encryptItem,
   encryptTotpLog,
+  keyRef,
   MIN_ITERATIONS,
   resetPasswordWithRecovery,
   rotateRecoveryKey,
+  splitEnc,
   unlockWithRecoveryKey,
   type ItemPayload,
   type RewrittenVault,
@@ -24,6 +26,8 @@ const FAST = { iterations: MIN_ITERATIONS };
 const USER = '0192f3a0-aaaa-7000-8000-000000000001';
 const PASSWORD = 'kuda-biru-minum-kopi-pagi';
 const KEY_ID = 'key-1';
+/** Label untuk data awal skenario; nilainya tidak memengaruhi dekripsi lokal. */
+const REF = '0123456789abcdef';
 
 const item = (title: string): ItemPayload => ({
   title,
@@ -42,7 +46,7 @@ function setup() {
     CREATE TABLE pw_keys (
       id TEXT PRIMARY KEY, user_id TEXT, created_at TEXT, updated_at TEXT,
       version INTEGER, kdf TEXT, iterations INTEGER, salt TEXT, wrapped_key TEXT,
-      recovery_salt TEXT, recovery_wrapped_key TEXT
+      recovery_salt TEXT, recovery_wrapped_key TEXT, rotated_from TEXT, labels_required_at TEXT
     );
     CREATE TABLE pw_items (
       id TEXT PRIMARY KEY, user_id TEXT, created_at TEXT, updated_at TEXT,
@@ -68,7 +72,9 @@ function setup() {
 
   const insertKey = (r: Awaited<ReturnType<typeof createVault>>['record']) =>
     sqlite
-      .prepare(`INSERT INTO pw_keys VALUES (?, ?, '2026-10-01', '2026-10-01', ?, ?, ?, ?, ?, ?, ?)`)
+      .prepare(
+        `INSERT INTO pw_keys VALUES (?, ?, '2026-10-01', '2026-10-01', ?, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
+      )
       .run(
         KEY_ID,
         USER,
@@ -95,6 +101,7 @@ function setup() {
       wrapped_key: string;
       recovery_wrapped_key: string;
       updated_at: string;
+      rotated_from: string | null;
     };
   const insertLog = (id: string, enc: string) =>
     sqlite
@@ -127,9 +134,9 @@ async function scenario() {
   const t = setup();
   const v = await createVault(PASSWORD, USER, FAST);
   t.insertKey(v.record);
-  t.insertItem('a', await encryptItem(v.dek, USER, 'a', item('a')));
-  t.insertItem('b', await encryptItem(v.dek, USER, 'b', item('b')));
-  t.insertItem('trash', await encryptItem(v.dek, USER, 'trash', item('trash')), '2026-10-05');
+  t.insertItem('a', await encryptItem(v.dek, USER, 'a', item('a'), REF));
+  t.insertItem('b', await encryptItem(v.dek, USER, 'b', item('b'), REF));
+  t.insertItem('trash', await encryptItem(v.dek, USER, 'trash', item('trash'), REF), '2026-10-05');
   return { ...t, v };
 }
 
@@ -186,10 +193,10 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
       await expect(decryptItem(stolen!, USER, id, row(id).enc)).rejects.toThrow();
   });
 
-  it('baris yang tidak bisa dibuka dibiarkan persis apa adanya dan tidak menggagalkan penggantian', async () => {
+  it('baris yang tidak bisa dibuka: ISI dibiarkan persis apa adanya, tetapi disentuh agar server tahu baris itu tidak terlewat', async () => {
     const { db, v, row, insertItem } = await scenario();
     const foreign = await createVault('lain-lain-lain-lain', USER, FAST);
-    const foreignEnc = await encryptItem(foreign.dek, USER, 'asing', item('asing'));
+    const foreignEnc = await encryptItem(foreign.dek, USER, 'asing', item('asing'), REF);
     insertItem('asing', foreignEnc);
     insertItem('rusak', 'bukan-base64-valid!!');
 
@@ -204,16 +211,18 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
 
     expect(res).toEqual({ ...EMPTY_COUNTS, reencrypted: 3, skipped: 2 });
     expect(row('asing').enc).toBe(foreignEnc);
-    expect(row('asing').updated_at).toBe('2026-10-01');
     expect(row('rusak').enc).toBe('bukan-base64-valid!!');
+    // `updated_at` saja yang berubah → baris ikut di transaksi rotasi (cek kelengkapan di server)
+    expect(row('asing').updated_at).not.toBe('2026-10-01');
+    expect(row('rusak').updated_at).not.toBe('2026-10-01');
   });
 
   it('riwayat TOTP ikut dienkripsi ulang; yang tak terbaca dibiarkan', async () => {
     const { db, v, insertLog, logRow } = await scenario();
     const entry = { itemId: 'a', name: 'GitHub', code: '123456', usedAt: '2026-10-01T00:00:00Z' };
-    insertLog('log-1', await encryptTotpLog(v.dek, USER, 'log-1', entry));
+    insertLog('log-1', await encryptTotpLog(v.dek, USER, 'log-1', entry, REF));
     const foreign = await createVault('lain-lain-lain-lain', USER, FAST);
-    const foreignEnc = await encryptTotpLog(foreign.dek, USER, 'log-2', entry);
+    const foreignEnc = await encryptTotpLog(foreign.dek, USER, 'log-2', entry, REF);
     insertLog('log-2', foreignEnc);
 
     const next = (await rotateRecoveryKey(v.record, PASSWORD, USER, FAST)) as RewrittenVault;
@@ -241,12 +250,12 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
   it('versi konfigurasi ikut dienkripsi ulang dan terbaca dengan DEK baru saja', async () => {
     const { db, v, insertConfig, configRow } = await scenario();
     const payload = { text: 'API_URL=https://api.example.com\nTOKEN=rahasia', note: 'awal' };
-    const encA = await encryptConfig(v.dek, USER, 'file-1', 'ver-1', payload);
+    const encA = await encryptConfig(v.dek, USER, 'file-1', 'ver-1', payload, REF);
     insertConfig('ver-1', 'file-1', encA);
     insertConfig(
       'ver-2',
       'file-2',
-      await encryptConfig(v.dek, USER, 'file-2', 'ver-2', { text: '{"a":1}', note: '' }),
+      await encryptConfig(v.dek, USER, 'file-2', 'ver-2', { text: '{"a":1}', note: '' }, REF),
     );
 
     const next = (await changePassword(
@@ -279,7 +288,7 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
     insertConfig(
       'ver-1',
       'file-1',
-      await encryptConfig(v.dek, USER, 'file-1', 'ver-1', { text: 'TOKEN=x', note: '' }),
+      await encryptConfig(v.dek, USER, 'file-1', 'ver-1', { text: 'TOKEN=x', note: '' }, REF),
     );
     const next = (await rotateRecoveryKey(v.record, PASSWORD, USER, FAST)) as RewrittenVault;
     await rekeyVaultRows(db, USER, KEY_ID, next);
@@ -293,10 +302,17 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
   it('versi konfigurasi yang tak terbaca dibiarkan apa adanya', async () => {
     const { db, v, insertConfig, configRow } = await scenario();
     const foreign = await createVault('lain-lain-lain-lain', USER, FAST);
-    const foreignEnc = await encryptConfig(foreign.dek, USER, 'file-1', 'ver-asing', {
-      text: 'A=1',
-      note: '',
-    });
+    const foreignEnc = await encryptConfig(
+      foreign.dek,
+      USER,
+      'file-1',
+      'ver-asing',
+      {
+        text: 'A=1',
+        note: '',
+      },
+      REF,
+    );
     insertConfig('ver-asing', 'file-1', foreignEnc);
     insertConfig('ver-rusak', 'file-1', 'bukan-base64-valid!!');
 
@@ -304,7 +320,43 @@ describe('rekeyVaultRows (SQLite sungguhan)', () => {
     const res = await rekeyVaultRows(db, USER, KEY_ID, next);
     expect([res.configReencrypted, res.configSkipped]).toEqual([0, 2]);
     expect(configRow('ver-asing').enc).toBe(foreignEnc);
-    expect(configRow('ver-asing').updated_at).toBe('2026-10-01');
+    expect(configRow('ver-asing').updated_at).not.toBe('2026-10-01'); // disentuh, isi tetap
+  });
+
+  // -------------------------------------------------------------------------------------
+  // Penjaga rotasi di server: label kunci & compare-and-swap (migrasi …_vault_key_guard.sql)
+  // -------------------------------------------------------------------------------------
+  it('semua isi baru berlabel kunci BARU, dan rotated_from = label kunci ASAL', async () => {
+    const { db, v, row, keyRow, insertLog, logRow, insertConfig, configRow } = await scenario();
+    const entry = { itemId: 'a', name: 'X', code: '1', usedAt: '2026-10-01T00:00:00Z' };
+    insertLog('log-1', await encryptTotpLog(v.dek, USER, 'log-1', entry, REF));
+    insertConfig(
+      'ver-1',
+      'file-1',
+      await encryptConfig(v.dek, USER, 'file-1', 'ver-1', { text: 'A=1', note: '' }, REF),
+    );
+    const next = (await rotateRecoveryKey(v.record, PASSWORD, USER, FAST)) as RewrittenVault;
+    await rekeyVaultRows(db, USER, KEY_ID, next);
+
+    const newRef = await keyRef(next.record.wrapped_key);
+    expect(keyRow().rotated_from).toBe(await keyRef(v.record.wrapped_key));
+    for (const enc of [row('a').enc, row('trash').enc, logRow('log-1').enc, configRow('ver-1').enc])
+      expect(splitEnc(enc).ref).toBe(newRef);
+  });
+
+  it('kunci lokal sudah bukan kunci asal rotasi → batal TANPA mengubah apa pun', async () => {
+    const { db, v, row, keyRow } = await scenario();
+    const stale = (await rotateRecoveryKey(v.record, PASSWORD, USER, FAST)) as RewrittenVault;
+    // Perangkat lain sudah merotasi dan hasilnya tiba lewat sinkron sebelum form ini disimpan
+    const fromOtherDevice = (await rotateRecoveryKey(v.record, PASSWORD, USER, FAST))!;
+    await rekeyVaultRows(db, USER, KEY_ID, fromOtherDevice);
+    const before = { key: keyRow().wrapped_key, a: row('a').enc };
+
+    await expect(rekeyVaultRows(db, USER, KEY_ID, stale)).rejects.toMatchObject({
+      name: 'SandiError',
+    });
+    expect(keyRow().wrapped_key).toBe(before.key);
+    expect(row('a').enc).toBe(before.a);
   });
 });
 
