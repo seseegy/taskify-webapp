@@ -59,7 +59,7 @@ export function UnlockScreen({
         <span className="shine mb-4 flex size-16 items-center justify-center rounded-3xl bg-gradient-sandi text-white shadow-xl">
           <LockKeyhole className="size-8" aria-hidden="true" />
         </span>
-        <h2 className="text-xl font-extrabold tracking-tight">Brankas terkunci</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Brankas terkunci</h2>
         <p className="mt-1 text-sm text-muted">
           Masukkan master password untuk membuka sandi{email ? ` ${email}` : ''}.
         </p>

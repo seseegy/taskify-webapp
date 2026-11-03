@@ -169,13 +169,13 @@ export function TransactionsTab({
           );
           return (
             <section key={day}>
-              <h3 className="mb-1 flex items-center justify-between px-3 text-xs font-bold tracking-wide text-muted uppercase">
+              <h3 className="mb-1 flex items-center justify-between px-3 text-xs font-semibold text-muted">
                 <span>
                   {relativeDayLabel(day, today)} · {formatLocalDate(day, 'd MMM')}
                 </span>
                 <span
                   className={cn(
-                    'normal-case tabular-nums',
+                    'tabular-nums',
                     net > 0 ? 'text-success' : net < 0 ? 'text-danger' : '',
                   )}
                 >

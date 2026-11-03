@@ -43,7 +43,7 @@ export function TikTokCard({ input, className }: { input: string; className?: st
           <Clapperboard className="size-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-bold">Dari TikTok</span>
+          <span className="block text-sm font-semibold">Dari TikTok</span>
           <span className="block text-xs text-muted">
             {state.status === 'ready' ? kindLabel(state.post) : 'Video & foto tanpa watermark'}
           </span>
@@ -128,7 +128,7 @@ function ReadyBody({
           />
         )}
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-1 text-sm font-bold">
+          <p className="flex items-center gap-1 text-sm font-semibold">
             <span className="truncate">{post.author.nickname || post.author.unique_id}</span>
             {post.author.verified && (
               <BadgeCheck aria-label="Terverifikasi" className="size-4 shrink-0 text-sky-500" />

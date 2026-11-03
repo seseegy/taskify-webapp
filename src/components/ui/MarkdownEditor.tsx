@@ -166,7 +166,7 @@ export function MarkdownEditor({
               aria-selected={mode === m}
               onClick={() => setMode(m)}
               className={cn(
-                'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold transition',
+                'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition',
                 mode === m ? cn(gradient, 'text-white shadow') : 'text-muted hover:text-fg',
               )}
             >

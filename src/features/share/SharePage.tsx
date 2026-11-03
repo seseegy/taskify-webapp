@@ -301,7 +301,7 @@ function FileTarget({ file, onDone }: { file: SharedFile; onDone: () => void }) 
           <Icon className="size-5" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-bold">{file.name}</span>
+          <span className="block truncate text-sm font-semibold">{file.name}</span>
           <span className="text-xs text-muted">{formatBytes(file.size)}</span>
         </span>
       </div>

@@ -47,7 +47,7 @@ export function TotpCode({
       <div className="flex items-center gap-3">
         <span
           className={cn(
-            'font-mono font-extrabold tabular-nums',
+            'font-mono font-semibold tabular-nums',
             size === 'lg' ? 'text-3xl tracking-wider' : 'text-2xl tracking-wide',
             almostGone ? 'text-warning' : 'text-fg',
           )}
@@ -88,7 +88,7 @@ export function TotpCode({
               )}
             />
           </svg>
-          <span className="text-[11px] font-bold tabular-nums">{seconds}</span>
+          <span className="text-[11px] font-semibold tabular-nums">{seconds}</span>
         </span>
 
         <CopyButton

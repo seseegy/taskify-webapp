@@ -94,7 +94,7 @@ function Section({
         >
           <Icon className="size-4" />
         </span>
-        <h2 className="font-bold">{title}</h2>
+        <h2 className="font-semibold">{title}</h2>
       </div>
       {children}
     </Card>

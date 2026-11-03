@@ -99,7 +99,7 @@ export function ZipWarnings({ info }: { info: Pick<ZipInfo, 'warnings'> }) {
             w.level === 'danger' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning',
           )}
         >
-          <p className="flex items-center gap-1.5 font-bold">
+          <p className="flex items-center gap-1.5 font-semibold">
             <TriangleAlert className="size-3.5" /> {w.title}
           </p>
           <p className="mt-0.5 opacity-90">{w.detail}</p>
@@ -177,7 +177,7 @@ function Tree({
           <Folder className="size-3.5 shrink-0 text-mod-vault" />
         )}
         <span className="truncate">{node.name}</span>
-        <span className="ml-auto shrink-0 text-[10px] font-normal text-muted">
+        <span className="ml-auto shrink-0 text-[11px] font-normal text-muted">
           {formatBytes(node.size)}
         </span>
       </button>

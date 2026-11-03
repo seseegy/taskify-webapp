@@ -1,4 +1,4 @@
-import { Sparkles, X } from 'lucide-react';
+import { CircleCheck, RefreshCw, X } from 'lucide-react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { Button } from '@/components/ui/Button';
 
@@ -31,7 +31,11 @@ export function UpdatePrompt() {
       className="fixed inset-x-4 bottom-[var(--stack-bottom-overlay)] z-40 mx-auto flex max-w-md animate-fade-up items-center gap-3 rounded-2xl p-4 glass-strong"
     >
       <div className="shine flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
-        <Sparkles className="size-5" />
+        {needRefresh ? (
+          <RefreshCw className="size-5" aria-hidden="true" />
+        ) : (
+          <CircleCheck className="size-5" aria-hidden="true" />
+        )}
       </div>
       <p className="flex-1 text-sm font-medium">
         {needRefresh ? 'Versi baru Taskify tersedia.' : 'Taskify siap dipakai offline.'}

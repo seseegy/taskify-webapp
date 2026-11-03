@@ -36,7 +36,7 @@ export function CategoryDonut({
       >
         <div className="absolute inset-5 flex flex-col items-center justify-center rounded-full text-center glass-strong">
           <span className="text-[11px] font-semibold text-muted">{label}</span>
-          <span className="text-base font-extrabold tracking-tight">{formatIDRCompact(total)}</span>
+          <span className="text-base font-semibold tracking-tight">{formatIDRCompact(total)}</span>
         </div>
       </div>
       <ul className="w-full min-w-0 flex-1 space-y-2">
@@ -48,7 +48,7 @@ export function CategoryDonut({
               <span className="min-w-0 flex-1">
                 <span className="flex justify-between gap-2">
                   <span className="truncate font-semibold">{s.name}</span>
-                  <span className="shrink-0 font-bold tabular-nums">{formatIDR(s.total)}</span>
+                  <span className="shrink-0 font-semibold tabular-nums">{formatIDR(s.total)}</span>
                 </span>
                 <span className="mt-1 flex items-center gap-2">
                   <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface">
@@ -145,7 +145,7 @@ export function DailyBars({
   return (
     <div>
       <div
-        className="flex h-32 items-end gap-[3px]"
+        className="flex h-32 items-end gap-1"
         role="group"
         aria-label={`Pengeluaran harian ${formatLocalDate(month, 'MMMM yyyy')}`}
         onKeyDown={onKeyDown}
@@ -185,7 +185,7 @@ export function DailyBars({
         })}
       </div>
       <div
-        className="mt-1.5 flex justify-between text-[10px] font-semibold text-muted"
+        className="mt-1.5 flex justify-between text-[11px] font-semibold text-muted"
         aria-hidden="true"
       >
         <span>1</span>
@@ -212,7 +212,7 @@ export function DailyBars({
             {formatLocalDate(selected, 'EEEE, d MMM')}
             {selected === today && ' · hari ini'}
           </span>
-          <span className="block text-sm font-bold tabular-nums">
+          <span className="block text-sm font-semibold tabular-nums">
             {selectedValue > 0 ? formatIDR(selectedValue) : 'Tidak ada pengeluaran'}
           </span>
         </p>

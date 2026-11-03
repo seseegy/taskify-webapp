@@ -178,7 +178,7 @@ export function LockScreen() {
             <span
               key={i}
               className={cn(
-                'size-3.5 rounded-full border-2 border-primary/60 transition-all',
+                'size-3.5 rounded-full border-2 border-primary/60 transition-[transform,border-color]',
                 i < pin.length && 'scale-110 border-transparent bg-gradient-brand',
               )}
             />

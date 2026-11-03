@@ -243,7 +243,7 @@ export function NoteEditor({ note, draftDate, onCreated, onBack }: Props) {
           setTitle(e.target.value);
           queue({ title: e.target.value });
         }}
-        className="h-12 border-transparent bg-transparent px-1 text-xl font-extrabold shadow-none backdrop-blur-none focus:ring-0"
+        className="h-12 border-transparent bg-transparent px-1 text-xl font-semibold shadow-none backdrop-blur-none focus:ring-0"
       />
 
       <MarkdownEditor
@@ -263,11 +263,11 @@ export function NoteEditor({ note, draftDate, onCreated, onBack }: Props) {
       {savedId ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">Tag</p>
+            <p className="mb-2 text-xs font-semibold text-muted">Tag</p>
             <TagPicker type="note" entityId={savedId} />
           </div>
           <div>
-            <p className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">Tautan</p>
+            <p className="mb-2 text-xs font-semibold text-muted">Tautan</p>
             <LinksPanel type="note" id={savedId} />
           </div>
         </div>

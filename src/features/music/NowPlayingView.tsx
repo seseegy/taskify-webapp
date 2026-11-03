@@ -98,7 +98,7 @@ export function NowPlayingView({ player }: { player: MusicPlayerApi }) {
 
       <div className="text-center">
         {/* Judul dua baris, bukan dipotong: judul lagu yang terpotong di HP tidak berguna. */}
-        <h2 className="line-clamp-2 text-xl leading-tight font-bold">{song.title}</h2>
+        <h2 className="line-clamp-2 text-xl leading-tight font-semibold">{song.title}</h2>
         <p className="mt-1 truncate text-sm text-muted">{song.artist}</p>
         {album && <p className="truncate text-xs text-muted">dari album {album}</p>}
       </div>

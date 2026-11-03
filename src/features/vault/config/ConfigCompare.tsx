@@ -221,14 +221,14 @@ function DiffGroup({
 
   return (
     <section aria-label={`${title} (${rows.length})`} className="space-y-1.5">
-      <h4 className="flex items-center gap-1.5 px-1 text-xs font-bold">
+      <h4 className="flex items-center gap-1.5 px-1 text-xs font-semibold">
         <Icon className="size-3.5" aria-hidden="true" />
         {title} ({rows.length})
       </h4>
       <ul className="space-y-1">
         {rows.map((r) => (
           <li key={r.key} className={cn('rounded-xl px-3 py-2', TONE[tone])}>
-            <span className="block font-mono text-xs font-bold break-all">{r.key}</span>
+            <span className="block font-mono text-xs font-semibold break-all">{r.key}</span>
             <span className="block font-mono text-xs break-all">
               {r.from !== undefined && r.to !== undefined ? (
                 <>

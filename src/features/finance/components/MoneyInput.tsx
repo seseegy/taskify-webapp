@@ -82,7 +82,7 @@ export function MoneyInput({
       >
         <span
           id={unitId}
-          className={cn('font-bold text-muted', size === 'lg' ? 'text-xl' : 'text-sm')}
+          className={cn('font-semibold text-muted', size === 'lg' ? 'text-xl' : 'text-sm')}
         >
           Rp
         </span>
@@ -104,7 +104,7 @@ export function MoneyInput({
             if (parsed) setText(new Intl.NumberFormat('id-ID').format(parsed));
           }}
           className={cn(
-            'min-w-0 flex-1 bg-transparent font-extrabold tracking-tight outline-none placeholder:text-muted',
+            'min-w-0 flex-1 bg-transparent font-semibold tracking-tight outline-none placeholder:text-muted',
             size === 'lg' ? 'text-3xl' : 'text-base',
             TONE[tone],
           )}
@@ -133,7 +133,7 @@ export function MoneyInput({
                   update(`${text.trim()}${c.suffix}`);
                   inputRef.current?.focus();
                 }}
-                className="min-h-8 min-w-10 rounded-lg px-2.5 text-xs font-bold text-primary glass transition hover:bg-surface-strong"
+                className="min-h-8 min-w-10 rounded-lg px-2.5 text-xs font-semibold text-primary glass transition hover:bg-surface-strong"
               >
                 {c.suffix}
               </button>

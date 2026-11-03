@@ -175,7 +175,7 @@ export function RecurringTab() {
                   </span>
                   <span
                     className={cn(
-                      'shrink-0 text-sm font-bold tabular-nums',
+                      'shrink-0 text-sm font-semibold tabular-nums',
                       r.kind === 'income'
                         ? 'text-success'
                         : r.kind === 'expense'
@@ -234,11 +234,11 @@ export function DebtTab() {
       <div className="grid grid-cols-2 gap-3">
         <Card className="animate-fade-up p-4">
           <p className="text-xs font-semibold text-muted">Piutang (orang berutang ke saya)</p>
-          <p className="text-lg font-extrabold text-success tabular-nums">{formatIDR(lent)}</p>
+          <p className="text-lg font-semibold text-success tabular-nums">{formatIDR(lent)}</p>
         </Card>
         <Card className="animate-fade-up p-4">
           <p className="text-xs font-semibold text-muted">Hutang saya</p>
-          <p className="text-lg font-extrabold text-danger tabular-nums">{formatIDR(borrowed)}</p>
+          <p className="text-lg font-semibold text-danger tabular-nums">{formatIDR(borrowed)}</p>
         </Card>
       </div>
       <Card className="animate-fade-up">
@@ -285,7 +285,7 @@ export function DebtTab() {
                   </span>
                   <span
                     className={cn(
-                      'text-sm font-bold tabular-nums',
+                      'text-sm font-semibold tabular-nums',
                       d.direction === 'lent' ? 'text-success' : 'text-danger',
                     )}
                   >
@@ -432,7 +432,7 @@ export function ManageTab() {
                       {WALLET_TYPES.find((t) => t.value === w.type)?.label} · {w.tx_count} transaksi
                     </span>
                   </span>
-                  <span className="text-sm font-bold tabular-nums">{formatIDR(w.balance)}</span>
+                  <span className="text-sm font-semibold tabular-nums">{formatIDR(w.balance)}</span>
                 </button>
               </li>
             );

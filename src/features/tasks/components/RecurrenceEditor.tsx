@@ -100,7 +100,7 @@ export function RecurrenceEditor({
                     aria-pressed={active}
                     onClick={() => toggleDay(day)}
                     className={cn(
-                      'flex h-9 flex-1 items-center justify-center rounded-lg text-xs font-bold transition',
+                      'flex h-9 flex-1 items-center justify-center rounded-lg text-xs font-semibold transition',
                       active
                         ? 'shine bg-gradient-tasks text-white shadow-md'
                         : 'text-muted glass hover:text-fg',

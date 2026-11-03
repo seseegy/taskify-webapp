@@ -180,7 +180,7 @@ export function MusicBar() {
               tombol seluas blok memberi target ≥44px (tingginya ikut tombol putar).
             */}
             <div className="relative flex min-w-0 flex-1 flex-col justify-center self-stretch">
-              <h3 className="truncate text-sm font-bold">{song?.title ?? 'Musik'}</h3>
+              <h3 className="truncate text-sm font-semibold">{song?.title ?? 'Musik'}</h3>
               {statusText && <p className="truncate text-xs text-muted">{statusText}</p>}
               <button
                 type="button"

@@ -92,7 +92,7 @@ export function MonthSwitcher({
         type="button"
         onClick={() => onChange(current)}
         title="Bulan ini"
-        className="min-w-32 px-2 text-center text-sm font-bold capitalize"
+        className="min-w-32 px-2 text-center text-sm font-semibold capitalize"
       >
         {formatLocalDate(month, 'MMMM yyyy')}
       </button>

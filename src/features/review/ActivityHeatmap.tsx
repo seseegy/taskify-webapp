@@ -90,7 +90,7 @@ export const ActivityHeatmap = memo(function ActivityHeatmap({
       <div className="flex gap-2">
         <div
           aria-hidden="true"
-          className="hidden flex-col justify-between py-0.5 text-[10px] text-muted sm:flex"
+          className="hidden flex-col justify-between py-0.5 text-[11px] text-muted sm:flex"
         >
           {WEEKDAY_LABELS.map((d, i) => (
             <span key={d} className={cn('h-3 leading-3', i % 2 === 1 && 'invisible')}>
@@ -106,7 +106,7 @@ export const ActivityHeatmap = memo(function ActivityHeatmap({
             aria-rowcount={7}
             aria-colcount={weeks}
             onKeyDown={onKeyDown}
-            className="grid w-max gap-[3px]"
+            className="grid w-max gap-1"
             style={{ gridTemplateColumns: `repeat(${weeks}, auto)` }}
           >
             {WEEKDAY_NAMES.map((name, r) => (

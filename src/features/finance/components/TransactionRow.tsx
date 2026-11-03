@@ -45,7 +45,7 @@ export function TransactionRow({ tx, compact }: { tx: TxRow; compact?: boolean }
       </span>
       <span
         className={cn(
-          'shrink-0 text-sm font-bold tabular-nums',
+          'shrink-0 text-sm font-semibold tabular-nums',
           tx.kind === 'income' && 'text-success',
           tx.kind === 'expense' && 'text-danger',
           tx.kind === 'transfer' && 'text-muted',

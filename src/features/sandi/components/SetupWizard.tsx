@@ -148,7 +148,7 @@ export function SetupWizard({
             <h2
               ref={headingRef}
               tabIndex={-1}
-              className="text-xl font-extrabold tracking-tight outline-none"
+              className="text-xl font-semibold tracking-tight outline-none"
             >
               Brankas sandi yang hanya bisa kamu buka
             </h2>
@@ -210,7 +210,7 @@ export function SetupWizard({
             <h2
               ref={headingRef}
               tabIndex={-1}
-              className="text-xl font-extrabold tracking-tight outline-none"
+              className="text-xl font-semibold tracking-tight outline-none"
             >
               Buat master password
             </h2>
@@ -238,7 +238,9 @@ export function SetupWizard({
             {suggestion ? (
               <div className="space-y-2.5">
                 <p className="text-xs font-semibold text-muted">Frasa yang disarankan</p>
-                <p className="font-mono text-base font-bold break-words select-all">{suggestion}</p>
+                <p className="font-mono text-base font-semibold break-words select-all">
+                  {suggestion}
+                </p>
                 <p className="text-xs text-muted">
                   Tulis di kertas dulu. Setelah dipakai, frasa ini tidak bisa ditampilkan lagi.
                 </p>
@@ -299,7 +301,7 @@ export function SetupWizard({
             <h2
               ref={headingRef}
               tabIndex={-1}
-              className="text-xl font-extrabold tracking-tight outline-none"
+              className="text-xl font-semibold tracking-tight outline-none"
             >
               Simpan kunci pemulihan
             </h2>

@@ -36,7 +36,7 @@ export function WalletStrip({
               <span className="relative flex items-center gap-2 text-xs font-semibold opacity-90">
                 <Icon className="size-4" /> {w.name}
               </span>
-              <span className="relative mt-2 block text-lg font-extrabold tracking-tight tabular-nums">
+              <span className="relative mt-2 block text-lg font-semibold tracking-tight tabular-nums">
                 {formatIDR(w.balance)}
               </span>
             </button>

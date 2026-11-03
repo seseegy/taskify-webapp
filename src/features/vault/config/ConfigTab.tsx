@@ -122,7 +122,7 @@ export function ConfigTab({
         <div className="space-y-5">
           {grouped.map(([project, rows]) => (
             <section key={project ?? '—'} aria-label={project ?? 'Tanpa project'}>
-              <h3 className="mb-2 px-1 text-xs font-bold tracking-wide text-muted uppercase">
+              <h3 className="mb-2 px-1 text-xs font-semibold text-muted">
                 {project ?? 'Tanpa project'}
               </h3>
               <ul className="space-y-2">
@@ -197,7 +197,7 @@ function FileRow({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-1.5">
-            <span className="truncate font-mono text-sm font-bold">{file.name}</span>
+            <span className="truncate font-mono text-sm font-semibold">{file.name}</span>
             {file.environment && (
               <span className="rounded-lg bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-muted">
                 {file.environment}

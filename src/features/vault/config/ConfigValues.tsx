@@ -97,7 +97,7 @@ export function ConfigValues({
               className="flex min-h-14 items-center gap-2 rounded-2xl px-3 py-2 glass"
             >
               <span className="min-w-0 flex-1">
-                <span className="block font-mono text-xs font-bold break-all text-muted">
+                <span className="block font-mono text-xs font-semibold break-all text-muted">
                   {e.key}
                 </span>
                 <span

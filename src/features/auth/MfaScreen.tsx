@@ -41,7 +41,7 @@ export function MfaScreen({ status }: { status: Exclude<GateStatus, 'ok'> }) {
       <div className="w-full max-w-md animate-fade-up">
         <div className="mb-6 flex flex-col items-center text-center">
           <Logo size="lg" />
-          <h1 className="mt-5 text-2xl font-extrabold tracking-tight">{HEADINGS[status].title}</h1>
+          <h1 className="mt-5 text-2xl font-semibold tracking-tight">{HEADINGS[status].title}</h1>
           <p className="mt-2 text-sm text-muted">{HEADINGS[status].text}</p>
         </div>
 

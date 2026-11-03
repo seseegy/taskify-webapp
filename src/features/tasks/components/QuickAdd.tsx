@@ -65,7 +65,7 @@ export function QuickAdd({ defaultDate = null, listId = null, placeholder, class
         {parsed && (
           <button
             type="submit"
-            className="rounded-lg bg-gradient-tasks px-3 py-1.5 text-xs font-bold text-white shadow-md"
+            className="rounded-lg bg-gradient-tasks px-3 py-1.5 text-xs font-semibold text-white shadow-md"
           >
             Tambah
           </button>

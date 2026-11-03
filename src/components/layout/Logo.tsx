@@ -39,7 +39,7 @@ export function Logo({
       </div>
       {withText && (
         <span
-          className={cn('text-gradient-brand font-extrabold tracking-tight', s.text, textClassName)}
+          className={cn('text-gradient-brand font-semibold tracking-tight', s.text, textClassName)}
         >
           Taskify
         </span>

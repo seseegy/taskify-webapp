@@ -10,11 +10,11 @@ export function DayJournal({ date }: { date: LocalDate }) {
   const entries = useEntriesOnDate(date);
   return (
     <div>
-      <h3 className="mb-2 flex items-center justify-between text-xs font-bold tracking-wide text-muted uppercase">
+      <h3 className="mb-2 flex items-center justify-between text-xs font-semibold text-muted">
         Jurnal
         <Link
           to={`/jurnal?baru=${date}`}
-          className="flex items-center gap-1 rounded-lg px-2 py-1 font-bold text-primary normal-case hover:bg-surface"
+          className="flex items-center gap-1 rounded-lg px-2 py-1 font-semibold text-primary hover:bg-surface"
         >
           <Plus className="size-3.5" /> Tulis
         </Link>

@@ -119,7 +119,7 @@ export function ReviewPage() {
           <button
             type="button"
             onClick={() => update({ tanggal: today })}
-            className="min-w-44 px-2 text-center text-sm font-bold capitalize"
+            className="min-w-44 px-2 text-center text-sm font-semibold capitalize"
             title="Periode ini"
           >
             {label}
@@ -252,7 +252,7 @@ function Summary({
   return (
     <section className="relative animate-fade-up overflow-hidden rounded-3xl p-6 glass">
       <div className="pointer-events-none absolute -top-20 -right-16 size-64 rounded-full bg-gradient-brand opacity-25 blur-3xl" />
-      <p className="relative text-xs font-bold tracking-wide text-muted uppercase">
+      <p className="relative text-xs font-semibold text-muted">
         {isCurrent ? `${unit} ini sejauh ini` : `ringkasan ${unit}`}
       </p>
       <p className="relative mt-2 max-w-3xl text-lg leading-relaxed font-semibold">
@@ -301,11 +301,11 @@ function Stat({
       </span>
       <p className="text-xs font-semibold text-muted">{label}</p>
       <p className="flex items-baseline gap-2">
-        <span className="text-xl font-extrabold tracking-tight">{value}</span>
+        <span className="text-xl font-semibold tracking-tight">{value}</span>
         {delta !== undefined && delta !== null && delta !== 0 && (
           <span
             className={cn(
-              'inline-flex items-center gap-0.5 text-xs font-bold',
+              'inline-flex items-center gap-0.5 text-xs font-semibold',
               good ? 'text-success' : 'text-danger',
             )}
           >
@@ -355,7 +355,7 @@ function DailyChart({
           </CardDescription>
         </div>
       </CardHeader>
-      <div className={cn('flex h-44 items-end', dense ? 'gap-[3px]' : 'gap-2')}>
+      <div className={cn('flex h-44 items-end', dense ? 'gap-1' : 'gap-2')}>
         {points.map((p) => (
           <button
             key={p.day}
@@ -385,7 +385,7 @@ function DailyChart({
             </span>
             <span
               className={cn(
-                'text-[10px] font-semibold',
+                'text-[11px] font-semibold',
                 p.day === today ? 'text-primary' : 'text-muted',
               )}
             >
@@ -425,7 +425,7 @@ function TopCategories({ range, total }: { range: Range; total: number }) {
               <span className="min-w-0 flex-1">
                 <span className="flex justify-between gap-2">
                   <span className="truncate font-semibold">{s.name}</span>
-                  <span className="font-bold tabular-nums">{formatIDR(s.total)}</span>
+                  <span className="font-semibold tabular-nums">{formatIDR(s.total)}</span>
                 </span>
                 <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-surface">
                   <span
@@ -539,7 +539,7 @@ function Highlights({ range, now }: { range: Range; now: PeriodStats }) {
               </span>
               <span className="min-w-0">
                 <span className="block text-xs font-semibold text-muted">{r.label}</span>
-                <span className="block truncate text-sm font-bold">{r.value}</span>
+                <span className="block truncate text-sm font-semibold">{r.value}</span>
               </span>
             </>
           );

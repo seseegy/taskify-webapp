@@ -223,7 +223,7 @@ function SnippetCard({
     <Card className="flex min-w-0 animate-fade-up flex-col gap-3 p-4">
       <div className="flex items-start gap-2">
         <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
-          <span className="block truncate font-bold">{snippet.title}</span>
+          <span className="block truncate font-semibold">{snippet.title}</span>
           {snippet.description && (
             <span className="block truncate text-xs text-muted">{snippet.description}</span>
           )}
@@ -322,7 +322,7 @@ function ProjectsTab({
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-1.5">
-                <span className="truncate text-sm font-bold">{p.name}</span>
+                <span className="truncate text-sm font-semibold">{p.name}</span>
                 {p.is_favorite ? (
                   <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />
                 ) : null}

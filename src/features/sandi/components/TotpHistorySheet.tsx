@@ -69,7 +69,7 @@ export function TotpHistorySheet({
                   </span>
                   <span className="block text-xs text-muted">{when(e)}</span>
                 </span>
-                <span className="font-mono text-sm font-bold text-muted tabular-nums">
+                <span className="font-mono text-sm font-semibold text-muted tabular-nums">
                   {e.entry.code}
                 </span>
                 <button

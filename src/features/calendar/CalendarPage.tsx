@@ -103,7 +103,7 @@ export function CalendarPage() {
       >
         <Card className="min-w-0 animate-fade-up p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <h2 aria-live="polite" className="text-lg font-bold capitalize">
+            <h2 aria-live="polite" className="text-lg font-semibold capitalize">
               {heading}
             </h2>
             <div className="flex items-center gap-1.5">
@@ -337,7 +337,7 @@ function MonthGrid({
                     {open > 0 && (
                       <span
                         aria-hidden="true"
-                        className="hidden pl-1 text-[10px] font-semibold text-mod-tasks sm:block"
+                        className="hidden pl-1 text-[11px] font-semibold text-mod-tasks sm:block"
                       >
                         {open} tugas
                       </span>
@@ -345,7 +345,7 @@ function MonthGrid({
                     {activity.expense > 0 && (
                       <span
                         aria-hidden="true"
-                        className="hidden truncate pl-1 text-[10px] font-semibold text-danger sm:block"
+                        className="hidden truncate pl-1 text-[11px] font-semibold text-danger tabular-nums sm:block"
                       >
                         −{formatIDRCompact(activity.expense)}
                       </span>
@@ -417,10 +417,10 @@ function WeekView({
                   isToday ? 'shine bg-gradient-calendar text-white shadow-md' : 'bg-surface',
                 )}
               >
-                <span className="text-[10px] font-semibold uppercase opacity-80">
+                <span className="text-xs font-medium opacity-80">
                   {formatLocalDate(day, 'EEE')}
                 </span>
-                <span className="text-lg font-extrabold">{formatLocalDate(day, 'd')}</span>
+                <span className="text-lg font-semibold">{formatLocalDate(day, 'd')}</span>
               </span>
               <span className="flex-1 text-sm font-semibold capitalize">
                 {relativeDayLabel(day, today)}
@@ -470,7 +470,7 @@ function AgendaView({
           <section key={day}>
             <h3
               className={cn(
-                'mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 text-xs font-bold tracking-wide uppercase',
+                'mb-1 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 text-xs font-semibold',
                 day === today ? 'text-primary' : 'text-muted',
               )}
             >
@@ -492,7 +492,7 @@ function AgendaView({
 
 function ModuleChips({ activity: a }: { activity: DayActivity }) {
   return (
-    <span className="flex flex-wrap gap-2 font-semibold tracking-normal normal-case">
+    <span className="flex flex-wrap gap-2 font-semibold">
       {a.journal > 0 && (
         <span className="inline-flex items-center gap-1 text-mod-journal">
           <NotebookPen className="size-3" /> Jurnal
@@ -503,8 +503,12 @@ function ModuleChips({ activity: a }: { activity: DayActivity }) {
           <StickyNote className="size-3" /> {a.notes} catatan
         </span>
       )}
-      {a.expense > 0 && <span className="text-danger">−{formatIDRCompact(a.expense)}</span>}
-      {a.income > 0 && <span className="text-success">+{formatIDRCompact(a.income)}</span>}
+      {a.expense > 0 && (
+        <span className="text-danger tabular-nums">−{formatIDRCompact(a.expense)}</span>
+      )}
+      {a.income > 0 && (
+        <span className="text-success tabular-nums">+{formatIDRCompact(a.income)}</span>
+      )}
       {a.vault > 0 && (
         <span className="inline-flex items-center gap-1 text-mod-vault">
           <CodeXml className="size-3" /> {a.vault}
@@ -546,10 +550,10 @@ function DayPanel({
         {formatLocalDate(date, 'EEEE, d MMMM yyyy')}
       </CardDescription>
 
-      <h3 className="mb-2 flex items-center justify-between text-xs font-bold tracking-wide text-muted uppercase">
+      <h3 className="mb-2 flex items-center justify-between text-xs font-semibold text-muted">
         Tugas
         {activity.tasks > 0 && (
-          <span className="normal-case">
+          <span>
             {activity.tasksDone}/{activity.tasks} selesai
           </span>
         )}
@@ -574,7 +578,7 @@ function DayPanel({
         <DayTransactions date={date} />
       </div>
 
-      <h3 className="mt-5 mb-2 text-xs font-bold tracking-wide text-muted uppercase">Modul lain</h3>
+      <h3 className="mt-5 mb-2 text-xs font-semibold text-muted">Modul lain</h3>
       <ul className="space-y-2.5">
         {rows.map((r) => (
           <li key={r.label} className="flex items-center gap-3">

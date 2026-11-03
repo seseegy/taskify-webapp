@@ -278,7 +278,7 @@ const EntryList = memo(function EntryList({
           Catatan di Sampah bisa dipulihkan.
           <button
             type="button"
-            className="font-bold text-danger hover:underline"
+            className="font-semibold text-danger hover:underline"
             onClick={() =>
               void (async () => {
                 const ok = await askConfirm({
@@ -355,7 +355,7 @@ function Group({
 }) {
   return (
     <section className="mb-3 last:mb-0">
-      <h3 className="mb-1 flex items-center gap-1.5 px-2 text-xs font-bold tracking-wide text-muted uppercase">
+      <h3 className="mb-1 flex items-center gap-1.5 px-2 text-xs font-semibold text-muted">
         {icon}
         {label}
       </h3>
@@ -394,14 +394,14 @@ const EntryItem = memo(function EntryItem({
           m ? cn('bg-linear-to-br text-white shadow-md', m.className) : 'bg-surface',
         )}
       >
-        <span className="text-[10px] font-semibold uppercase opacity-80">
+        <span className="text-xs font-medium opacity-80">
           {formatLocalDate(entry.entry_date, 'EEE')}
         </span>
-        <span className="text-lg font-extrabold">{formatLocalDate(entry.entry_date, 'd')}</span>
+        <span className="text-lg font-semibold">{formatLocalDate(entry.entry_date, 'd')}</span>
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-1.5">
-          <span className="truncate text-sm font-bold">
+          <span className="truncate text-sm font-semibold">
             {entry.title || relativeDayLabel(entry.entry_date, today)}
           </span>
           {m && <MoodIcon mood={entry.mood} />}
