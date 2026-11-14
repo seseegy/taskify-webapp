@@ -53,7 +53,7 @@ export function LoginPage() {
           <Logo size="lg" />
           <TypedText
             as="h1"
-            className="mt-5 text-3xl font-extrabold tracking-tight"
+            className="mt-5 text-3xl font-semibold tracking-tight"
             text={greeting.text}
             accent={greeting.accent}
             accentClassName="text-gradient-brand"

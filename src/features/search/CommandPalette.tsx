@@ -5,12 +5,12 @@ import {
   CornerDownLeft,
   FileCog,
   Hash,
+  Info,
   ListChecks,
   Moon,
   NotebookPen,
   Plus,
   Search,
-  Sparkles,
   StickyNote,
   Sun,
   Trash2,
@@ -362,7 +362,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
           enterKeyHint="go"
           className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted/70"
         />
-        <kbd className="hidden rounded-md border border-line px-1.5 py-0.5 text-[10px] font-bold text-muted sm:block">
+        <kbd className="hidden rounded-md border border-line px-1.5 py-0.5 text-[11px] font-semibold text-muted sm:block">
           ESC
         </kbd>
       </label>
@@ -385,7 +385,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
                 disabled={!enabled}
                 onClick={() => setOverride(k)}
                 className={cn(
-                  'min-h-8 rounded-full px-3 py-1 text-xs font-bold transition disabled:opacity-50',
+                  'min-h-8 rounded-full px-3 py-1 text-xs font-semibold transition disabled:opacity-50',
                   cap.kind === k
                     ? cn('shine text-white shadow', KIND_META[k].gradient)
                     : 'text-muted glass hover:text-fg',
@@ -419,7 +419,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
               <p
                 id={`${baseId}-g-${group.section}`}
                 role="presentation"
-                className="mt-2 mb-1 px-2 text-xs font-bold tracking-wide text-muted uppercase first:mt-0"
+                className="mt-2 mb-1 px-2 text-xs font-semibold text-muted first:mt-0"
               >
                 {group.section}
               </p>
@@ -460,7 +460,7 @@ function PaletteBody({ initial, onClose }: { initial: string; onClose: () => voi
       </div>
 
       <p className="mt-3 hidden flex-wrap items-center gap-x-1.5 border-t border-line pt-3 text-xs text-muted sm:flex">
-        <Sparkles className="size-3.5 text-primary" />
+        <Info className="size-3.5 text-muted" aria-hidden="true" />
         Ada nominal = transaksi · ada waktu = tugas · awali <b>j:</b> = jurnal · <b>c:</b> = catatan
         · <b>#tag</b> · ↑↓ lalu Enter
         {!fts && ' · (pencarian dasar)'}

@@ -108,7 +108,7 @@ export function JournalInsights({ today, compact }: { today: LocalDate; compact?
                     to={`/jurnal?entri=${e.id}`}
                     className="block rounded-2xl px-2 py-2 hover:bg-surface"
                   >
-                    <span className="flex items-center gap-2 text-xs font-bold text-mod-journal">
+                    <span className="flex items-center gap-2 text-xs font-semibold text-mod-journal">
                       <MoodIcon mood={e.mood} className="size-3.5" /> {ago} ·{' '}
                       {formatLocalDate(e.entry_date, 'd MMM yyyy')}
                     </span>
@@ -148,7 +148,7 @@ function Stat({
         <Icon className="size-4" />
       </span>
       <p className="text-[11px] font-semibold text-muted">{label}</p>
-      <p className="truncate text-base font-extrabold tracking-tight sm:text-lg">{value}</p>
+      <p className="truncate text-base font-semibold tracking-tight sm:text-lg">{value}</p>
     </Card>
   );
 }

@@ -118,7 +118,7 @@ export function TasksPage() {
             })}
 
             <div className="mx-1 my-1 hidden items-center justify-between px-2 pt-3 lg:flex">
-              <span className="text-xs font-bold tracking-wide text-muted uppercase">Daftar</span>
+              <span className="text-xs font-semibold text-muted">Daftar</span>
               <button
                 type="button"
                 aria-label="Daftar baru"
@@ -153,7 +153,7 @@ export function TasksPage() {
         {/* Konten */}
         <Card className="min-w-0 animate-fade-up p-3 sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3 px-1">
-            <h2 className="flex items-center gap-2 text-lg font-bold">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
               {currentList && (
                 <span className={cn('size-3 rounded-full', listColor(currentList.color).dot)} />
               )}
@@ -237,7 +237,7 @@ function NavButton({
       {count > 0 && (
         <span
           className={cn(
-            'min-w-5 rounded-full px-1.5 text-center text-xs font-bold',
+            'min-w-5 rounded-full px-1.5 text-center text-xs font-semibold',
             active ? 'bg-white/25' : danger ? 'bg-danger/15 text-danger' : 'bg-surface',
           )}
         >
@@ -340,7 +340,7 @@ function TaskViewContent({
               {g.label && (
                 <h3
                   className={cn(
-                    'mb-1 px-3 text-xs font-bold tracking-wide uppercase',
+                    'mb-1 px-3 text-xs font-semibold',
                     g.tone === 'danger' ? 'text-danger' : 'text-muted',
                   )}
                 >
@@ -402,7 +402,7 @@ function groupByFinished(rows: Task[], view: 'done' | 'trash', today: LocalDate)
 const EMPTY: Record<string, { title: string; description: string; icon: LucideIcon }> = {
   today: {
     title: 'Hari ini kosong',
-    description: 'Tambahkan tugas di atas, atau nikmati waktu luangmu ✨',
+    description: 'Tambahkan tugas di atas, atau nikmati waktu luangmu',
     icon: Sun,
   },
   upcoming: {
@@ -412,7 +412,7 @@ const EMPTY: Record<string, { title: string; description: string; icon: LucideIc
   },
   overdue: {
     title: 'Tidak ada yang terlambat',
-    description: 'Semua tugas tepat waktu. Mantap!',
+    description: 'Semua tugas tepat waktu.',
     icon: CircleCheckBig,
   },
   all: {

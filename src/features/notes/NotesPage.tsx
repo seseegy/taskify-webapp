@@ -271,7 +271,7 @@ const NoteList = memo(function NoteList({
           Catatan di Sampah bisa dipulihkan.
           <button
             type="button"
-            className="font-bold text-danger hover:underline"
+            className="font-semibold text-danger hover:underline"
             onClick={() =>
               void (async () => {
                 const ok = await askConfirm({
@@ -340,7 +340,7 @@ function Group({
 }) {
   return (
     <section className="mb-3 last:mb-0">
-      <h3 className="mb-1 flex items-center gap-1.5 px-2 text-xs font-bold tracking-wide text-muted uppercase">
+      <h3 className="mb-1 flex items-center gap-1.5 px-2 text-xs font-semibold text-muted">
         {icon}
         {label}
       </h3>
@@ -386,12 +386,10 @@ const NoteItem = memo(
         >
           {dated ? (
             <>
-              <span className="text-[10px] font-semibold uppercase opacity-80">
+              <span className="text-xs font-medium opacity-80">
                 {formatLocalDate(note.note_date!, 'EEE')}
               </span>
-              <span className="text-lg font-extrabold">
-                {formatLocalDate(note.note_date!, 'd')}
-              </span>
+              <span className="text-lg font-semibold">{formatLocalDate(note.note_date!, 'd')}</span>
             </>
           ) : (
             <StickyNote className="size-5" aria-hidden="true" />
@@ -399,7 +397,7 @@ const NoteItem = memo(
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-bold">{note.title || 'Tanpa judul'}</span>
+            <span className="truncate text-sm font-semibold">{note.title || 'Tanpa judul'}</span>
             {note.is_pinned === 1 && (
               <Pin className="size-3 shrink-0 text-primary" aria-label="Disematkan" />
             )}
@@ -413,7 +411,7 @@ const NoteItem = memo(
               <TagChip key={t.id} tag={t} link={false} size="sm" />
             ))}
             {tags.length > 3 && (
-              <span className="text-[10px] font-semibold text-muted">+{tags.length - 3}</span>
+              <span className="text-[11px] font-semibold text-muted">+{tags.length - 3}</span>
             )}
           </span>
         </span>

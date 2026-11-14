@@ -23,7 +23,7 @@ export function SubtaskList({ parent }: { parent: Task }) {
       {subtasks.length > 0 && (
         <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-surface">
           <div
-            className="h-full rounded-full bg-gradient-tasks transition-all"
+            className="h-full rounded-full bg-gradient-tasks transition-[width]"
             style={{ width: `${(done / subtasks.length) * 100}%` }}
           />
         </div>

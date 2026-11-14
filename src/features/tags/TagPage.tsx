@@ -71,12 +71,7 @@ export function TagPage() {
           ) : (
             groups.map((g) => (
               <section key={g.type} className="mb-4 last:mb-0">
-                <h2
-                  className={cn(
-                    'mb-1 px-2 text-xs font-bold tracking-wide uppercase',
-                    ENTITY_META[g.type].text,
-                  )}
-                >
+                <h2 className={cn('mb-1 px-2 text-xs font-semibold', ENTITY_META[g.type].text)}>
                   {ENTITY_META[g.type].label} · {g.rows.length}
                 </h2>
                 {g.rows.map((r) => (
@@ -98,7 +93,7 @@ export function TagPage() {
           )}
         </Card>
         <Card className="animate-fade-up self-start">
-          <h2 className="mb-3 font-bold">Semua tag</h2>
+          <h2 className="mb-3 font-semibold">Semua tag</h2>
           {all.length === 0 && (
             <p className="text-sm text-muted">Belum ada tag. Ketik #nama saat menambah tugas.</p>
           )}

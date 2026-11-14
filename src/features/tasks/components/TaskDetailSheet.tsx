@@ -119,7 +119,7 @@ function TaskForm({ task }: { task: Task }) {
               }
             }}
             className={cn(
-              'field-sizing-content min-h-10 w-full resize-none rounded-lg bg-transparent px-1 py-1 text-lg font-bold outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
+              'field-sizing-content min-h-10 w-full resize-none rounded-lg bg-transparent px-1 py-1 text-lg font-semibold outline-none focus-visible:ring-2 focus-visible:ring-primary/60',
               done && 'text-muted line-through',
             )}
           />
@@ -203,7 +203,7 @@ function TaskForm({ task }: { task: Task }) {
                 aria-checked={task.priority === p.value}
                 onClick={() => save({ priority: p.value })}
                 className={cn(
-                  'flex-1 rounded-lg py-2 text-xs font-bold transition',
+                  'flex-1 rounded-lg py-2 text-xs font-semibold transition',
                   task.priority === p.value
                     ? cn(
                         'text-white shadow-md',
@@ -293,7 +293,7 @@ function Field({
 }) {
   return (
     <section>
-      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-bold tracking-wide text-muted uppercase">
+      <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-muted">
         <Icon className="size-3.5" /> {label}
       </h3>
       {children}

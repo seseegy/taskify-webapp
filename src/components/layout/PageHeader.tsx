@@ -25,7 +25,7 @@ export function PageHeader({ title, subtitle, icon: Icon, gradient, actions }: P
           </div>
         )}
         <div className="min-w-0">
-          <h1 className="truncate text-2xl font-extrabold tracking-tight">{title}</h1>
+          <h1 className="truncate text-2xl font-semibold tracking-tight">{title}</h1>
           {subtitle && <p className="truncate text-sm text-muted">{subtitle}</p>}
         </div>
       </div>

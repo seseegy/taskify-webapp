@@ -63,7 +63,7 @@ export function FocusCard({ today }: { today: LocalDate }) {
       </CardHeader>
       <QuickAdd defaultDate={today} placeholder="Tambah tugas hari ini…" className="mb-2" />
       {data.length === 0 ? (
-        <p className="px-2 py-3 text-sm text-muted">Semua beres untuk hari ini 🎉</p>
+        <p className="px-2 py-3 text-sm text-muted">Semua beres untuk hari ini</p>
       ) : (
         <div className="space-y-0.5">
           {data.slice(0, LIMIT).map((t) => (

@@ -203,7 +203,7 @@ function Body({
   return (
     <div className="space-y-6">
       <section aria-labelledby="set-autolock">
-        <h3 id="set-autolock" className="mb-1 flex items-center gap-2 text-sm font-bold">
+        <h3 id="set-autolock" className="mb-1 flex items-center gap-2 text-sm font-semibold">
           <Timer className="size-4" aria-hidden="true" /> Kunci otomatis
         </h3>
         <p className="mb-2.5 text-xs text-muted">
@@ -222,7 +222,7 @@ function Body({
       </section>
 
       <section aria-labelledby="set-keys" className="space-y-2">
-        <h3 id="set-keys" className="text-sm font-bold">
+        <h3 id="set-keys" className="text-sm font-semibold">
           Kunci & pemulihan
         </h3>
         <button
@@ -451,7 +451,7 @@ function DeviceTrustSection() {
 
   return (
     <section aria-labelledby="set-trust" className="space-y-2">
-      <h3 id="set-trust" className="text-sm font-bold">
+      <h3 id="set-trust" className="text-sm font-semibold">
         Perangkat ini
       </h3>
       {state.meta ? (

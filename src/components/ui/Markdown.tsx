@@ -21,12 +21,12 @@ type WithNode<T extends keyof React.JSX.IntrinsicElements> = ComponentPropsWitho
 export function Markdown({ children, className, onToggleTask }: Props) {
   const components: Components = {
     h1: (p) => (
-      <h1 className="mt-5 mb-2 text-2xl font-extrabold tracking-tight first:mt-0" {...strip(p)} />
+      <h1 className="mt-5 mb-2 text-2xl font-semibold tracking-tight first:mt-0" {...strip(p)} />
     ),
     h2: (p) => (
-      <h2 className="mt-5 mb-2 text-xl font-bold tracking-tight first:mt-0" {...strip(p)} />
+      <h2 className="mt-5 mb-2 text-xl font-semibold tracking-tight first:mt-0" {...strip(p)} />
     ),
-    h3: (p) => <h3 className="mt-4 mb-1.5 text-lg font-bold first:mt-0" {...strip(p)} />,
+    h3: (p) => <h3 className="mt-4 mb-1.5 text-lg font-semibold first:mt-0" {...strip(p)} />,
     p: (p) => <p className="my-2 leading-relaxed first:mt-0 last:mb-0" {...strip(p)} />,
     a: ({ node: _n, ...p }) => (
       <a
@@ -106,7 +106,7 @@ export function Markdown({ children, className, onToggleTask }: Props) {
       </div>
     ),
     th: (p) => (
-      <th className="border-b border-line px-2 py-1.5 text-left font-bold" {...strip(p)} />
+      <th className="border-b border-line px-2 py-1.5 text-left font-semibold" {...strip(p)} />
     ),
     td: (p) => <td className="border-b border-line/60 px-2 py-1.5" {...strip(p)} />,
     img: ({ node: _n, alt, ...p }) => (

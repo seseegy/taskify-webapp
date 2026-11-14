@@ -57,7 +57,7 @@ export function ProjectPanel({ project, onBack }: { project: CodeProject; onBack
           <ArrowLeft />
         </Button>
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-extrabold tracking-tight">{project.name}</h2>
+          <h2 className="truncate text-xl font-semibold tracking-tight">{project.name}</h2>
           {project.description && (
             <p className="mt-0.5 text-sm text-muted">{project.description}</p>
           )}
@@ -106,14 +106,12 @@ export function ProjectPanel({ project, onBack }: { project: CodeProject; onBack
       </div>
 
       <section>
-        <h3 className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">
-          Unggah versi baru
-        </h3>
+        <h3 className="mb-2 text-xs font-semibold text-muted">Unggah versi baru</h3>
         <VersionUploader projectId={project.id} labels={versions.map((v) => v.version_label)} />
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">Versi</h3>
+        <h3 className="mb-2 text-xs font-semibold text-muted">Versi</h3>
         {versions.length === 0 ? (
           <p className="text-sm text-muted">Belum ada arsip.</p>
         ) : (
@@ -127,7 +125,7 @@ export function ProjectPanel({ project, onBack }: { project: CodeProject; onBack
 
       <section>
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h3 className="text-xs font-bold tracking-wide text-muted uppercase">Konfigurasi</h3>
+          <h3 className="text-xs font-semibold text-muted">Konfigurasi</h3>
           <Link
             to={`/vault?tab=konfigurasi`}
             className="min-h-9 rounded-lg px-2 text-xs font-semibold text-primary transition hover:bg-surface"
@@ -144,11 +142,11 @@ export function ProjectPanel({ project, onBack }: { project: CodeProject; onBack
 
       <div className="grid gap-4 sm:grid-cols-2">
         <section>
-          <h3 className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">Tag</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted">Tag</h3>
           <TagPicker type="code_project" entityId={project.id} />
         </section>
         <section>
-          <h3 className="mb-2 text-xs font-bold tracking-wide text-muted uppercase">Tautan</h3>
+          <h3 className="mb-2 text-xs font-semibold text-muted">Tautan</h3>
           <LinksPanel type="code_project" id={project.id} />
         </section>
       </div>
@@ -179,7 +177,7 @@ function VersionRow({
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
-            'rounded-lg px-2 py-0.5 text-xs font-extrabold',
+            'rounded-lg px-2 py-0.5 text-xs font-semibold',
             latest ? 'bg-gradient-vault text-white' : 'bg-surface',
           )}
         >
@@ -197,7 +195,7 @@ function VersionRow({
           </span>
         </span>
         {uploading ? (
-          <span className="flex items-center gap-2 text-xs font-bold text-primary">
+          <span className="flex items-center gap-2 text-xs font-semibold text-primary">
             <Loader2 className="size-4 animate-spin" /> {Math.round(progress * 100)}%
             <button
               type="button"
@@ -241,7 +239,7 @@ function VersionRow({
             </Button>
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-xs font-bold text-danger">
+          <span className="flex items-center gap-1 text-xs font-semibold text-danger">
             {att.status === 'failed' ? 'Gagal' : 'Belum terunggah'}
             {hasFile && (
               <Button size="sm" variant="ghost" onClick={() => void actions.retry(att)}>
@@ -262,7 +260,7 @@ function VersionRow({
       {uploading && (
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface">
           <div
-            className="h-full rounded-full bg-gradient-vault transition-all"
+            className="h-full rounded-full bg-gradient-vault transition-[width]"
             style={{ width: `${progress * 100}%` }}
           />
         </div>

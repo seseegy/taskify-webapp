@@ -239,7 +239,7 @@ export function Listbox({
               {header && (
                 <div
                   role="presentation"
-                  className="px-2 pt-2 pb-1 text-xs font-bold tracking-wide text-muted"
+                  className="px-2 pt-2 pb-1 text-xs font-semibold tracking-wide text-muted"
                 >
                   {option.group}
                 </div>

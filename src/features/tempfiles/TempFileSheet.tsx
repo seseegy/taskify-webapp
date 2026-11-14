@@ -117,7 +117,7 @@ function Body({
       <div className="flex items-center gap-3">
         <FileGlyph mime={file.mime_type} name={file.file_name} />
         <div className="min-w-0">
-          <p className="text-sm font-bold break-words">{file.file_name}</p>
+          <p className="text-sm font-semibold break-words">{file.file_name}</p>
           <p className="text-xs text-muted">
             {formatBytes(file.size_bytes)} · diunggah {fmtDateTime(file.created_at)}
           </p>
@@ -139,7 +139,7 @@ function Body({
 
       {state === 'ready' && (
         <section aria-labelledby="tf-link" className="space-y-2">
-          <h3 id="tf-link" className="flex items-center gap-2 text-sm font-bold">
+          <h3 id="tf-link" className="flex items-center gap-2 text-sm font-semibold">
             <Link2 className="size-4" aria-hidden="true" /> Tautan publik
           </h3>
           <Switch
@@ -227,7 +227,7 @@ function Body({
 
       {state !== 'expired' && (
         <section aria-labelledby="tf-expiry-h" className="space-y-2">
-          <h3 id="tf-expiry-h" className="flex items-center gap-2 text-sm font-bold">
+          <h3 id="tf-expiry-h" className="flex items-center gap-2 text-sm font-semibold">
             <Clock className="size-4" aria-hidden="true" /> Masa berlaku
           </h3>
           <p className="text-sm text-muted">{expiryLabel(file.expires_at, now)}</p>

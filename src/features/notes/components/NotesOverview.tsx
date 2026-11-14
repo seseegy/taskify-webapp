@@ -137,7 +137,7 @@ function Stat({
         <Icon className="size-4" aria-hidden="true" />
       </span>
       <p className="text-[11px] font-semibold text-muted">{label}</p>
-      <p className="truncate text-base font-extrabold tracking-tight sm:text-lg">{value}</p>
+      <p className="truncate text-base font-semibold tracking-tight sm:text-lg">{value}</p>
     </Card>
   );
 }

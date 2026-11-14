@@ -56,7 +56,7 @@ export function OverviewTab({
               {wallets.filter((w) => !w.is_archived).length} dompet aktif
             </CardDescription>
           </div>
-          <p className="text-gradient-brand text-2xl font-extrabold tracking-tight tabular-nums sm:text-3xl">
+          <p className="text-gradient-brand text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">
             {formatIDR(totalBalance)}
           </p>
         </CardHeader>
@@ -218,7 +218,7 @@ function Stat({
         <span className="block text-xs font-semibold text-muted">{label}</span>
         <span
           className={cn(
-            'block truncate text-lg font-extrabold tracking-tight tabular-nums',
+            'block truncate text-lg font-semibold tracking-tight tabular-nums',
             tone === 'success' ? 'text-success' : 'text-danger',
           )}
         >

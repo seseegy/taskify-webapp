@@ -141,7 +141,7 @@ function SnippetForm({
                 aria-selected={mode === m}
                 onClick={() => setMode(m)}
                 className={cn(
-                  'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-bold',
+                  'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
                   mode === m ? 'bg-gradient-vault text-white shadow' : 'text-muted',
                 )}
               >

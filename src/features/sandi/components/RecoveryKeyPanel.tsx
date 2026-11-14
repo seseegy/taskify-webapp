@@ -32,11 +32,9 @@ export function RecoveryKeyPanel({
       </div>
 
       <div className="rounded-2xl p-4 glass-strong">
-        <p className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">
-          Kunci pemulihan
-        </p>
+        <p className="mb-2 text-xs font-semibold text-muted">Kunci pemulihan</p>
         <p
-          className="flex flex-wrap gap-x-3 gap-y-1.5 font-mono text-lg font-bold tracking-wider select-all sm:text-xl"
+          className="flex flex-wrap gap-x-3 gap-y-1.5 font-mono text-lg font-semibold tracking-wider select-all sm:text-xl"
           aria-label={`Kunci pemulihan: ${groups.join(', ')}`}
         >
           {groups.map((g, i) => (

@@ -94,7 +94,7 @@ export function LyricsTab({ client, player }: { client: MusicClient; player: Mus
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <h3 className="truncate text-sm font-bold">{song.title}</h3>
+        <h3 className="truncate text-sm font-semibold">{song.title}</h3>
         <p className="truncate text-xs text-muted">{song.artist}</p>
       </div>
 

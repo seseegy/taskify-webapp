@@ -169,9 +169,7 @@ function Sidebar() {
                   <span
                     className={cn(
                       'flex size-9 items-center justify-center rounded-xl transition',
-                      isActive
-                        ? cn('shine text-white shadow-md', item.gradient)
-                        : 'bg-surface group-hover:scale-105',
+                      isActive ? cn('shine text-white shadow-md', item.gradient) : 'bg-surface',
                     )}
                   >
                     <item.icon className="size-[18px]" />
@@ -337,7 +335,7 @@ function SearchButton() {
     >
       <Search className="size-4" />
       <span className="flex-1">Cari & catat cepat</span>
-      <kbd className="rounded-md border border-line px-1.5 text-[10px] font-bold">
+      <kbd className="rounded-md border border-line px-1.5 text-[11px] font-semibold">
         {mac ? '⌘' : 'Ctrl'} K
       </kbd>
     </button>

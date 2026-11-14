@@ -118,7 +118,7 @@ export function VersionUploader({
       <div className="flex items-start gap-3">
         <FileArchive className="mt-0.5 size-6 shrink-0 text-mod-vault" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold">{file.name}</p>
+          <p className="truncate text-sm font-semibold">{file.name}</p>
           <p className="text-xs text-muted">
             {formatBytes(file.size)}
             {info

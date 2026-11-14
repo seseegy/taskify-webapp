@@ -89,7 +89,7 @@ function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }
         {url ? (
           <img src={url} alt={att.file_name} className="size-full object-cover" />
         ) : (
-          <span className="flex flex-col items-center gap-1 px-1 text-center text-[10px] text-muted">
+          <span className="flex flex-col items-center gap-1 px-1 text-center text-[11px] text-muted">
             {isImage(att) ? (
               <ImageIcon className="size-6" />
             ) : att.mime_type?.includes('zip') ? (
@@ -102,7 +102,7 @@ function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }
         )}
       </button>
       {uploading && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/45 text-xs font-bold text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/45 text-xs font-semibold text-white">
           <Loader2 className="size-5 animate-spin" />
           {Math.round(progress * 100)}%
           <button
@@ -116,7 +116,7 @@ function AttachmentTile({ att, onOpen }: { att: Attachment; onOpen: () => void }
         </div>
       )}
       {!uploading && att.status !== 'uploaded' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-rose-800/90 p-1 text-center text-[10px] font-bold text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-rose-800/90 p-1 text-center text-[11px] font-semibold text-white">
           {att.status === 'failed' ? 'Gagal' : 'Menunggu koneksi'}
           <button
             type="button"

@@ -50,7 +50,7 @@ export function Toaster() {
             {t.action && (
               <button
                 type="button"
-                className="min-h-9 rounded-lg px-2.5 py-1.5 font-bold text-primary transition hover:bg-surface"
+                className="min-h-9 rounded-lg px-2.5 py-1.5 font-semibold text-primary transition hover:bg-surface"
                 onClick={() => {
                   void t.action!.onClick();
                   dismiss(t.id);

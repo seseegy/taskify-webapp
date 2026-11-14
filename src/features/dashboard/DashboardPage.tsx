@@ -5,7 +5,6 @@ import {
   ListChecks,
   NotebookPen,
   Plus,
-  Sparkles,
   StickyNote,
   Wallet,
   type LucideIcon,
@@ -41,7 +40,7 @@ export function DashboardPage() {
   const summaryText = `${
     s && s.tasks_today > 0
       ? `Ada ${s.tasks_today - s.tasks_today_done} tugas tersisa hari ini.`
-      : 'Belum ada tugas untuk hari ini. Nikmati harimu!'
+      : 'Belum ada tugas untuk hari ini.'
   }${s && s.tasks_overdue > 0 ? ` ${s.tasks_overdue} tugas lewat tenggat.` : ''}`;
 
   return (
@@ -55,18 +54,12 @@ export function DashboardPage() {
         </p>
         <TypedText
           as="h1"
-          className="relative mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl"
+          className="relative mt-1 text-3xl font-semibold tracking-tight sm:text-4xl"
           text={homeGreeting(greeting(), name)}
           // Menunggu pengaturan terbaca: nama belum diketahui sebelum itu
           enabled={nameReady}
           onceKey="taskify-fx-home-greet"
           onDone={() => setGreetDone(true)}
-          after={
-            <Sparkles
-              aria-hidden="true"
-              className="ml-2 inline size-7 align-[-2px] text-fuchsia-400 sm:size-8"
-            />
-          }
         />
         <TypedText
           as="p"
@@ -140,18 +133,22 @@ export function DashboardPage() {
               <Plus /> Catat
             </Button>
           </CardHeader>
-          <p className="text-gradient-brand text-3xl font-extrabold tracking-tight">
+          <p className="text-gradient-brand text-3xl font-semibold tracking-tight">
             {s ? formatIDR(s.balance) : '–'}
           </p>
           {s && (
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-xl bg-success/10 px-3 py-2">
                 <p className="text-xs text-muted">Masuk bulan ini</p>
-                <p className="font-bold text-success">{formatIDR(s.income_month)}</p>
+                <p className="font-semibold text-success tabular-nums">
+                  {formatIDR(s.income_month)}
+                </p>
               </div>
               <div className="rounded-xl bg-danger/10 px-3 py-2">
                 <p className="text-xs text-muted">Keluar bulan ini</p>
-                <p className="font-bold text-danger">{formatIDR(s.expense_month)}</p>
+                <p className="font-semibold text-danger tabular-nums">
+                  {formatIDR(s.expense_month)}
+                </p>
               </div>
             </div>
           )}
@@ -209,7 +206,7 @@ function StatCard({
         <Icon className="size-5" />
       </span>
       <p className="relative text-xs font-semibold text-muted">{label}</p>
-      <p className="relative mt-0.5 truncate text-lg font-extrabold tracking-tight sm:text-xl">
+      <p className="relative mt-0.5 truncate text-lg font-semibold tracking-tight sm:text-xl">
         {value}
       </p>
       {hint && <p className="relative truncate text-xs text-muted">{hint}</p>}
@@ -250,7 +247,7 @@ function WeekStrip({ today }: { today: string }) {
               <span className={cn('text-[11px] font-semibold', !isToday && 'text-muted')}>
                 {formatLocalDate(day, 'EEEEEE')}
               </span>
-              <span className="text-lg font-extrabold">{formatLocalDate(day, 'd')}</span>
+              <span className="text-lg font-semibold">{formatLocalDate(day, 'd')}</span>
               <ActivityDots activity={activity} className="h-1.5" />
             </div>
           );

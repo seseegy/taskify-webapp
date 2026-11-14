@@ -9,7 +9,7 @@ export function SetupRequired() {
     <div className="flex min-h-dvh items-center justify-center p-6">
       <Card className="max-w-lg animate-fade-up">
         <Logo withText className="mb-6" />
-        <div className="mb-3 flex items-center gap-2 font-bold text-warning">
+        <div className="mb-3 flex items-center gap-2 font-semibold text-warning">
           <TriangleAlert className="size-5" />
           Konfigurasi belum lengkap
         </div>

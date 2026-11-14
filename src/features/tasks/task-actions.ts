@@ -112,7 +112,7 @@ export function useTaskActions() {
         }
         await setStatus(task.id, 'done');
         if (!task.parent_id) {
-          toast('Tugas selesai 🎉', {
+          toast('Tugas selesai', {
             tone: 'success',
             action: { label: 'Urungkan', onClick: () => setStatus(task.id, 'todo') },
           });

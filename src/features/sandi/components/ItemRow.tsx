@@ -11,7 +11,7 @@ export function Avatar({ title, className }: { title: string; className?: string
     <span
       aria-hidden="true"
       className={cn(
-        'flex size-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-base font-bold text-white shadow-sm',
+        'flex size-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br text-base font-semibold text-white shadow-sm',
         avatarGradient(title),
         className,
       )}

@@ -377,7 +377,7 @@ function HistoryList({
         return (
           <li key={v.id} className="rounded-2xl p-3 glass">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm font-bold">v{v.number}</span>
+              <span className="font-mono text-sm font-semibold">v{v.number}</span>
               {i === 0 && (
                 <span className="rounded-lg bg-primary/12 px-1.5 py-0.5 text-[11px] font-semibold text-primary">
                   terbaru

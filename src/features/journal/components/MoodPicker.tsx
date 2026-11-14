@@ -23,7 +23,7 @@ export function MoodPicker({
             title={m.label}
             onClick={() => onChange(active ? null : m.value)}
             className={cn(
-              'flex h-11 items-center justify-center gap-1.5 rounded-2xl px-3 text-xs font-bold transition active:scale-95',
+              'flex h-11 items-center justify-center gap-1.5 rounded-2xl px-3 text-xs font-semibold transition active:scale-95',
               active
                 ? cn('shine bg-linear-to-br text-white shadow-lg', m.className)
                 : cn('glass hover:bg-surface-strong', m.text),

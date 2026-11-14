@@ -80,7 +80,7 @@ export function RecoverScreen({
     return (
       <Card className="mx-auto w-full max-w-xl animate-fade-up space-y-4 p-5 sm:p-7">
         <div>
-          <h2 className="text-xl font-extrabold tracking-tight">Master password diganti</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Master password diganti</h2>
           <p className="mt-1.5 text-sm text-muted">
             Kunci pemulihan yang lama akan <strong>tidak berlaku</strong> setelah kamu menyimpan
             perubahan. Simpan kunci yang baru ini dulu.
@@ -116,7 +116,7 @@ export function RecoverScreen({
         <span className="shine mb-4 flex size-14 items-center justify-center rounded-2xl bg-gradient-sandi text-white shadow-lg">
           <KeyRound className="size-7" aria-hidden="true" />
         </span>
-        <h2 className="text-xl font-extrabold tracking-tight">Pulihkan dengan kunci pemulihan</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Pulihkan dengan kunci pemulihan</h2>
         <p className="mt-1.5 text-sm text-muted">
           Masukkan kunci pemulihan yang kamu simpan saat membuat brankas, lalu buat master password
           baru. Sandi tersimpanmu tetap utuh.

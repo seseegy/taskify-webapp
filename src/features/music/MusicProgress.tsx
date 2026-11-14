@@ -45,7 +45,7 @@ export function PrepareProgress({
           )}
         >
           <div
-            className="h-full rounded-full bg-gradient-music transition-all"
+            className="h-full rounded-full bg-gradient-music transition-[width]"
             style={{ width: `${clamped}%` }}
           />
         </div>
