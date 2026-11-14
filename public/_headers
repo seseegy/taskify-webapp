@@ -36,3 +36,7 @@
   Cache-Control: no-cache
 /index.html
   Cache-Control: no-cache
+
+# Halaman unduh Berkas publik: jangan diindeks mesin pencari (tautannya rahasia bagi pemegangnya).
+/unduh/*
+  X-Robots-Tag: noindex, nofollow

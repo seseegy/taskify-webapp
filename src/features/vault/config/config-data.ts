@@ -7,6 +7,7 @@ import { softDeleted, touch, withMeta } from '@/db/mutations';
 import { configFiles, configVersions, type ConfigFile, type ConfigFormat } from '@/db/schema';
 import { useUser } from '@/features/auth/auth-context';
 import { decryptConfig, encryptConfig, type ConfigPayload } from '@/features/sandi/crypto';
+import { currentKeyRef } from '@/features/sandi/sandi-store';
 import { clip, LIMITS } from '@/lib/limits';
 
 /**
@@ -187,10 +188,14 @@ export function useConfigActions() {
         });
         const version = withMeta(userId, { file_id: file.id, enc: '', v: 1 });
         // id berkas DAN id versi dibuat dulu: keduanya bagian dari AAD
-        const enc = await encryptConfig(dek, userId, file.id, version.id, {
-          text: v.text,
-          note: v.note.trim(),
-        });
+        const enc = await encryptConfig(
+          dek,
+          userId,
+          file.id,
+          version.id,
+          { text: v.text, note: v.note.trim() },
+          await currentKeyRef(dek),
+        );
         await db.transaction(async (tx) => {
           await tx.insert(configFiles).values(file);
           await tx.insert(configVersions).values({ ...version, enc });
@@ -204,10 +209,14 @@ export function useConfigActions() {
        */
       async saveVersion(dek: CryptoKey, fileId: string, payload: ConfigPayload): Promise<string> {
         const row = withMeta(userId, { file_id: fileId, enc: '', v: 1 });
-        const enc = await encryptConfig(dek, userId, fileId, row.id, {
-          text: payload.text,
-          note: payload.note.trim(),
-        });
+        const enc = await encryptConfig(
+          dek,
+          userId,
+          fileId,
+          row.id,
+          { text: payload.text, note: payload.note.trim() },
+          await currentKeyRef(dek),
+        );
         await db.insert(configVersions).values({ ...row, enc });
         // `updated_at` berkas ikut bergerak agar daftar terurut masuk akal
         await db.update(configFiles).set(touch({})).where(eq(configFiles.id, fileId));

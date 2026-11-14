@@ -25,4 +25,6 @@ export const EXPORT_TABLES = [
   // Konfigurasi: metadata teks biasa + isi versi terenkripsi (sama amannya dengan Sandi)
   'config_files',
   'config_versions',
+  // Berkas publik: metadata (isi di R2). Memuat token tautan publik — perlakukan ekspor sebagai rahasia.
+  'temp_files',
 ] as const;

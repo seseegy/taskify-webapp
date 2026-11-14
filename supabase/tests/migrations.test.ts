@@ -10,8 +10,12 @@ import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
 import { getTableConfig } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { drizzleSchema } from '../../src/db/schema';
+import { drizzleSchema, VAULT_ENCRYPTED_TABLES } from '../../src/db/schema';
+import { keyRef } from '../../src/features/sandi/crypto';
+import { sha256Hex16 } from '../../src/lib/hash';
 import { EXPORT_TABLES } from '../../src/features/settings/export-tables';
+import { TEMP_QUOTA_BYTES as CLIENT_QUOTA } from '../../src/features/tempfiles/tempfile-limits';
+import { TEMP_QUOTA_BYTES as EDGE_QUOTA } from '../functions/_shared/tempfiles';
 
 const DIR = fileURLToPath(new URL('../migrations/', import.meta.url));
 const FILES = readdirSync(DIR)
@@ -47,6 +51,8 @@ beforeAll(async () => {
   await pg.exec(`
     CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN;
     CREATE SCHEMA auth;
+    -- Sama dengan Supabase: role Data API boleh memakai skema auth (auth.uid() dari fungsi SQL)
+    GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role;
     CREATE TABLE auth.users (id uuid PRIMARY KEY DEFAULT gen_random_uuid());
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('app.uid', true), '')::uuid $$;
     CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT coalesce(nullif(current_setting('app.jwt', true), ''), '{}')::jsonb $$;
@@ -481,24 +487,42 @@ describe('Sandi · pw_keys & pw_items', () => {
     expect(await rows(`SELECT 1 FROM public.pw_items WHERE id = $1`, [id])).toEqual([]);
   });
 
-  it('pemilik boleh mengganti password (UPDATE pw_keys) — updated_at diperbarui trigger', async () => {
-    const [before] = await rows<{ id: string; updated_at: Date }>(
-      `SELECT id, updated_at FROM public.pw_keys WHERE user_id = $1`,
-      [alice],
-    );
-    await asUser(alice, () =>
-      pg.query(`UPDATE public.pw_keys SET salt = $1, wrapped_key = $2 WHERE id = $3`, [
-        b64(30),
-        b64(90),
-        before!.id,
-      ]),
-    );
-    const [after] = await rows<{ salt: string; updated_at: Date }>(
-      `SELECT salt, updated_at FROM public.pw_keys WHERE id = $1`,
-      [before!.id],
-    );
-    expect(after!.salt).toBe(b64(30));
-    expect(after!.updated_at.getTime()).toBeGreaterThanOrEqual(before!.updated_at.getTime());
+  it('UPDATE kunci biasa (klien versi lama) DINETRALKAN: kunci tetap, tulisan tanpa label sejak itu ditolak', async () => {
+    // Akun sendiri: tes ini menyalakan "label wajib", yang akan mengubah perilaku tes lain
+    const dave = (
+      await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`)
+    )[0]!.id;
+    const keyId = await uuid();
+    await asUser(dave, () => key(keyId));
+    await expect(asUser(dave, async () => item(await uuid()))).resolves.toBeDefined(); // lama: ok
+
+    // Tidak dilempar: klien lama yang ditolak akan mengulang selamanya dan antreannya macet
+    await expect(
+      asUser(dave, () =>
+        pg.query(`UPDATE public.pw_keys SET salt = $1, wrapped_key = $2 WHERE id = $3`, [
+          b64(30),
+          b64(90),
+          keyId,
+        ]),
+      ),
+    ).resolves.toBeDefined();
+    const [after] = await rows<{
+      salt: string;
+      wrapped_key: string;
+      labels_required_at: Date | null;
+    }>(`SELECT salt, wrapped_key, labels_required_at FROM public.pw_keys WHERE id = $1`, [keyId]);
+    expect(after).toMatchObject({ salt: b64(24), wrapped_key: b64(80) });
+    expect(after!.labels_required_at).not.toBeNull();
+    // Tulisan berikutnya klien itu memakai DEK yang tidak pernah diterima server → ditolak
+    await expect(asUser(dave, async () => item(await uuid()))).rejects.toMatchObject({
+      code: '23V03',
+    });
+    // UPDATE yang tidak menyentuh materi kunci tetap boleh
+    await expect(
+      asUser(dave, () =>
+        pg.query(`UPDATE public.pw_keys SET updated_at = now() WHERE id = $1`, [keyId]),
+      ),
+    ).resolves.toBeDefined();
   });
 
   it('parameter KDF lemah ditolak: iterasi < 100 ribu, KDF tak dikenal, salt/kunci terlalu pendek', async () => {
@@ -520,6 +544,9 @@ describe('Sandi · pw_keys & pw_items', () => {
   });
 
   it('batas ukuran enc: terlalu pendek (bukan ciphertext) dan > 256 KB ditolak', async () => {
+    // Data terenkripsi butuh brankas (trigger vault_enc_guard); bob membuatnya di sini — setelah
+    // tes RLS di atas yang memastikan bob tidak melihat kunci siapa pun.
+    await asUser(bob, async () => key(await uuid()));
     for (const enc of ['', 'x'.repeat(10), 'x'.repeat(262145)]) {
       await expect(
         asUser(bob, async () => item(await uuid(), enc)),
@@ -654,6 +681,15 @@ describe('Vault · konfigurasi berversi', () => {
     alice = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!
       .id;
     bob = (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!.id;
+    // Isi versi dienkripsi DEK brankas → butuh brankas (trigger vault_enc_guard)
+    for (const uid of [alice, bob])
+      await asUser(uid, () =>
+        pg.query(
+          `INSERT INTO public.pw_keys (id, kdf, iterations, salt, wrapped_key, recovery_salt, recovery_wrapped_key)
+           VALUES (gen_random_uuid(), 'pbkdf2-sha256', 600000, $1, $2, $1, $2)`,
+          ['S'.repeat(24), 'W'.repeat(80)],
+        ),
+      );
   });
 
   it('pemilik membuat berkas + beberapa versi; user_id terisi dari auth.uid(), tanpa UNIQUE nomor versi', async () => {
@@ -771,6 +807,13 @@ describe('Vault · konfigurasi berversi', () => {
     const carol = (
       await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`)
     )[0]!.id;
+    await asUser(carol, () =>
+      pg.query(
+        `INSERT INTO public.pw_keys (id, kdf, iterations, salt, wrapped_key, recovery_salt, recovery_wrapped_key)
+         VALUES (gen_random_uuid(), 'pbkdf2-sha256', 600000, $1, $2, $1, $2)`,
+        ['S'.repeat(24), 'W'.repeat(80)],
+      ),
+    );
     const f = await asUser(carol, () => file());
     await asUser(carol, () => version(f));
 
@@ -1225,5 +1268,711 @@ describe('MFA · policy restrictive mfa_aal2', () => {
       `SELECT has_function_privilege('anon', 'public.mfa_satisfied()', 'execute') AS ok`,
     );
     expect(ok).toBe(false);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// Sandi · penjaga kunci brankas (migrasi …_vault_key_guard.sql)
+// Rotasi kunci tidak boleh bisa menghasilkan data yang tidak terbuka selamanya.
+// -----------------------------------------------------------------------------------------
+describe('Sandi · penjaga kunci brankas (label kunci, rotasi atomik)', () => {
+  const W1 = 'A'.repeat(60) + 'kunci-1';
+  const W2 = 'B'.repeat(60) + 'kunci-2';
+  const W3 = 'C'.repeat(60) + 'kunci-3';
+  const body = 'Z'.repeat(80);
+  let ref1: string;
+  let ref2: string;
+  let ref3: string;
+
+  async function asUser<T>(uid: string, fn: () => Promise<T>): Promise<T> {
+    await pg.exec('SET ROLE authenticated');
+    await pg.query(`SELECT set_config('app.uid', $1, false)`, [uid]);
+    try {
+      return await fn();
+    } finally {
+      await pg.exec('RESET ROLE');
+      await pg.query(`SELECT set_config('app.uid', '', false)`);
+    }
+  }
+  const uuid = () => rows<{ id: string }>(`SELECT gen_random_uuid() AS id`).then((r) => r[0]!.id);
+  const newUser = async () =>
+    (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!.id;
+  const makeKey = async (uid: string, wrapped = W1) => {
+    const id = await uuid();
+    await asUser(uid, () =>
+      pg.query(
+        `INSERT INTO public.pw_keys (id, kdf, iterations, salt, wrapped_key, recovery_salt, recovery_wrapped_key)
+         VALUES ($1, 'pbkdf2-sha256', 600000, $2, $3, $2, $3)`,
+        [id, 'S'.repeat(24), wrapped],
+      ),
+    );
+    return id;
+  };
+  const putItem = (uid: string, id: string, enc: string) =>
+    asUser(uid, () => pg.query(`INSERT INTO public.pw_items (id, enc) VALUES ($1, $2)`, [id, enc]));
+  const setItem = (uid: string, id: string, enc: string) =>
+    asUser(uid, () => pg.query(`UPDATE public.pw_items SET enc = $1 WHERE id = $2`, [enc, id]));
+  const encOf = async (id: string) =>
+    (await rows<{ enc: string }>(`SELECT enc FROM public.pw_items WHERE id = $1`, [id]))[0]!.enc;
+  const keyOf = async (uid: string) =>
+    (
+      await rows<{
+        wrapped_key: string;
+        salt: string;
+        rotated_from: string | null;
+        labels_required_at: Date | null;
+      }>(
+        `SELECT wrapped_key, salt, rotated_from, labels_required_at FROM public.pw_keys WHERE user_id = $1`,
+        [uid],
+      )
+    )[0]!;
+  const rotate = (uid: string, key: Record<string, unknown>, rowsArg: unknown[]) =>
+    asUser(uid, async () => {
+      const res = await pg.query<{ r: Record<string, unknown> }>(
+        `SELECT public.apply_vault_rotation($1::jsonb, $2::jsonb) AS r`,
+        [JSON.stringify(key), JSON.stringify(rowsArg)],
+      );
+      return res.rows[0]!.r;
+    });
+
+  beforeAll(async () => {
+    [ref1, ref2, ref3] = await Promise.all([keyRef(W1), keyRef(W2), keyRef(W3)]);
+  });
+
+  it('vault_key_ref() di SQL = keyRef()/sha256Hex16() di klien (vektor SHA-256 yang sama + kunci acak)', async () => {
+    const [{ a, w, e }] = await rows<{ a: string; w: string; e: string }>(
+      `SELECT public.vault_key_ref('abc') AS a, public.vault_key_ref($1) AS w,
+              public.vault_key_ref($2) AS e`,
+      [W1, `${'0'.repeat(16)}.ciphertext ✨`],
+    );
+    expect(a).toBe('ba7816bf8f01cfea');
+    expect(w).toBe(ref1);
+    expect(e).toBe(await sha256Hex16(`${'0'.repeat(16)}.ciphertext ✨`)); // UTF-8 sama
+  });
+
+  it('tabel ber-trigger vault_enc_guard = VAULT_ENCRYPTED_TABLES di schema.ts', async () => {
+    const t = await rows<{ relname: string }>(
+      `SELECT c.relname FROM pg_trigger g JOIN pg_class c ON c.oid = g.tgrelid
+        WHERE g.tgname = 'vault_enc_guard' ORDER BY c.relname`,
+    );
+    expect(t.map((r) => r.relname)).toEqual([...VAULT_ENCRYPTED_TABLES].sort());
+  });
+
+  it('sebelum rotasi: label kunci saat ini & format lama diterima; label lain dan tanpa brankas ditolak', async () => {
+    const u = await newUser();
+    await expect(putItem(u, await uuid(), `${ref1}.${body}`)).rejects.toMatchObject({
+      code: '23V03',
+    }); // belum ada brankas
+    await makeKey(u);
+    await expect(putItem(u, await uuid(), `${ref1}.${body}`)).resolves.toBeDefined();
+    await expect(putItem(u, await uuid(), body)).resolves.toBeDefined(); // klien versi lama
+    await expect(putItem(u, await uuid(), `${ref2}.${body}`)).rejects.toMatchObject({
+      code: '23V03',
+    });
+  });
+
+  it('klien tidak bisa mengarang riwayat rotasi / "label wajib" saat membuat brankas', async () => {
+    const u = await newUser();
+    const id = await uuid();
+    await asUser(u, () =>
+      pg.query(
+        `INSERT INTO public.pw_keys (id, kdf, iterations, salt, wrapped_key, recovery_salt, recovery_wrapped_key, rotated_from, labels_required_at)
+         VALUES ($1, 'pbkdf2-sha256', 600000, $2, $3, $2, $3, $4, now())`,
+        [id, 'S'.repeat(24), W1, ref2],
+      ),
+    );
+    expect(await keyOf(u)).toMatchObject({ rotated_from: null, labels_required_at: null });
+  });
+
+  /** Brankas dengan isi lengkap: item berlabel, item lama, riwayat TOTP, dan versi konfigurasi. */
+  async function vaultWithData() {
+    const u = await newUser();
+    const keyId = await makeKey(u);
+    const ids = { i1: await uuid(), legacy: await uuid(), log: await uuid(), ver: await uuid() };
+    const old = {
+      i1: `${ref1}.${body}`,
+      legacy: body,
+      log: `${ref1}.log${body}`,
+      ver: `${ref1}.ver${body}`,
+    };
+    await putItem(u, ids.i1, old.i1);
+    await putItem(u, ids.legacy, old.legacy);
+    await asUser(u, async () => {
+      await pg.query(`INSERT INTO public.pw_totp_log (id, enc) VALUES ($1, $2)`, [
+        ids.log,
+        old.log,
+      ]);
+      const f = await uuid();
+      await pg.query(
+        `INSERT INTO public.config_files (id, name, format) VALUES ($1, '.env', 'env')`,
+        [f],
+      );
+      await pg.query(`INSERT INTO public.config_versions (id, file_id, enc) VALUES ($1, $2, $3)`, [
+        ids.ver,
+        f,
+        old.ver,
+      ]);
+    });
+    /** Baris rotasi seperti dari connector: `b` = sidik enc LAMA yang didekripsi klien. */
+    const allRows = async (enc: (r: string) => string | null) => [
+      { t: 'pw_items', id: ids.i1, enc: enc('i1'), b: await sha256Hex16(old.i1) },
+      // tak terbaca di klien: dipertimbangkan saja
+      { t: 'pw_items', id: ids.legacy, enc: null, b: await sha256Hex16(old.legacy) },
+      { t: 'pw_totp_log', id: ids.log, enc: enc('log'), b: await sha256Hex16(old.log) },
+      { t: 'config_versions', id: ids.ver, enc: enc('ver'), b: await sha256Hex16(old.ver) },
+    ];
+    return { u, keyId, ids, allRows };
+  }
+
+  it('rotasi atomik: kunci + seluruh isi berganti dalam SATU transaksi; baris "dipertimbangkan" tidak diubah', async () => {
+    const { u, keyId, ids, allRows } = await vaultWithData();
+    const r = await rotate(
+      u,
+      { id: keyId, wrapped_key: W2, salt: 'T'.repeat(24), rotated_from: ref1 },
+      await allRows((n) => `${ref2}.${n}${body}`),
+    );
+    expect(r).toEqual({ reencrypted: 3 });
+
+    const k = await keyOf(u);
+    expect(k).toMatchObject({ wrapped_key: W2, salt: 'T'.repeat(24), rotated_from: ref1 });
+    expect(k.labels_required_at).not.toBeNull();
+    expect(await encOf(ids.i1)).toBe(`${ref2}.i1${body}`);
+    expect(await encOf(ids.legacy)).toBe(body);
+    const [{ log }] = await rows<{ log: string }>(
+      `SELECT enc AS log FROM public.pw_totp_log WHERE id = $1`,
+      [ids.log],
+    );
+    const [{ ver }] = await rows<{ ver: string }>(
+      `SELECT enc AS ver FROM public.config_versions WHERE id = $1`,
+      [ids.ver],
+    );
+    expect([log, ver]).toEqual([`${ref2}.log${body}`, `${ref2}.ver${body}`]);
+  });
+
+  it('mengulang rotasi yang SUDAH diterima (respons hilang di jaringan) = sukses, bukan ditolak', async () => {
+    const { u, keyId, allRows } = await vaultWithData();
+    const key = { id: keyId, wrapped_key: W2, rotated_from: ref1 };
+    const rowsArg = await allRows((n) => `${ref2}.${n}${body}`);
+    await rotate(u, key, rowsArg);
+    await expect(rotate(u, key, rowsArg)).resolves.toEqual({ reencrypted: 0, replayed: true });
+    expect((await keyOf(u)).wrapped_key).toBe(W2);
+  });
+
+  it('SETELAH rotasi: tulisan dengan kunci lama atau tanpa label ditolak (perangkat yang offline); kunci baru & hapus lunak tetap jalan', async () => {
+    const { u, keyId, ids, allRows } = await vaultWithData();
+    await rotate(
+      u,
+      { id: keyId, wrapped_key: W2, rotated_from: ref1 },
+      await allRows(() => `${ref2}.${body}`),
+    );
+
+    // Perangkat lain masih memakai DEK lama: edit & item baru ditolak, versi di server utuh
+    await expect(setItem(u, ids.i1, `${ref1}.edit-offline${body}`)).rejects.toMatchObject({
+      code: '23V03',
+    });
+    await expect(putItem(u, await uuid(), `${ref1}.${body}`)).rejects.toMatchObject({
+      code: '23V03',
+    });
+    await expect(setItem(u, ids.i1, `edit-klien-lama${body}`)).rejects.toMatchObject({
+      code: '23V03',
+    });
+    expect(await encOf(ids.i1)).toBe(`${ref2}.${body}`);
+
+    await expect(setItem(u, ids.i1, `${ref2}.edit-baru${body}`)).resolves.toBeDefined();
+    // UPDATE yang tidak mengubah isi tidak diperiksa (mis. hapus lunak baris format lama)
+    await expect(
+      asUser(u, () =>
+        pg.query(`UPDATE public.pw_items SET deleted_at = now() WHERE id = $1`, [ids.legacy]),
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  it('compare-and-swap: rotasi dari kunci yang SUDAH diganti perangkat lain ditolak (23V01), tidak ada yang berubah', async () => {
+    const { u, keyId, ids, allRows } = await vaultWithData();
+    await rotate(
+      u,
+      { id: keyId, wrapped_key: W2, rotated_from: ref1 },
+      await allRows(() => `${ref2}.${body}`),
+    );
+    // Perangkat kedua masih mengira kuncinya W1
+    await expect(
+      rotate(
+        u,
+        { id: keyId, wrapped_key: W3, rotated_from: ref1 },
+        await allRows(() => `${ref3}.${body}`),
+      ),
+    ).rejects.toMatchObject({ code: '23V01' });
+    expect((await keyOf(u)).wrapped_key).toBe(W2);
+    expect(await encOf(ids.i1)).toBe(`${ref2}.${body}`);
+  });
+
+  it('kelengkapan: ada baris di server yang tidak ikut dirotasi → ditolak (23V02), kunci TIDAK berganti', async () => {
+    const { u, keyId, ids, allRows } = await vaultWithData();
+    // Item yang dibuat perangkat lain dan belum sampai ke perangkat yang merotasi
+    await putItem(u, await uuid(), `${ref1}.${body}`);
+    await expect(
+      rotate(
+        u,
+        { id: keyId, wrapped_key: W2, rotated_from: ref1 },
+        await allRows(() => `${ref2}.${body}`),
+      ),
+    ).rejects.toMatchObject({ code: '23V02' });
+    expect((await keyOf(u)).wrapped_key).toBe(W1);
+    expect(await encOf(ids.i1)).toBe(`${ref1}.${body}`);
+  });
+
+  it('kelengkapan berlaku per tabel: riwayat TOTP / versi konfigurasi yang terlewat juga ditolak', async () => {
+    for (const drop of ['pw_totp_log', 'config_versions']) {
+      const { u, keyId, allRows } = await vaultWithData();
+      const partial = (await allRows(() => `${ref2}.${body}`)).filter((r) => r.t !== drop);
+      await expect(
+        rotate(u, { id: keyId, wrapped_key: W2, rotated_from: ref1 }, partial),
+        drop,
+      ).rejects.toMatchObject({ code: '23V02' });
+      expect((await keyOf(u)).wrapped_key, drop).toBe(W1);
+    }
+  });
+
+  it('versi: baris yang diubah perangkat lain sejak dienkripsi ulang → ditolak (23V02), edit itu TIDAK tertimpa', async () => {
+    const { u, keyId, ids, allRows } = await vaultWithData();
+    const rowsArg = await allRows(() => `${ref2}.${body}`); // perangkat A memotret versi lama
+    await setItem(u, ids.i1, `${ref1}.edit-perangkat-B${body}`); // B mengedit, masih kunci lama
+    await expect(
+      rotate(u, { id: keyId, wrapped_key: W2, rotated_from: ref1 }, rowsArg),
+    ).rejects.toMatchObject({ code: '23V02' });
+    expect(await encOf(ids.i1)).toBe(`${ref1}.edit-perangkat-B${body}`);
+    expect((await keyOf(u)).wrapped_key).toBe(W1);
+  });
+
+  it('atomik: satu baris gagal (label salah) → SELURUH rotasi batal, termasuk kunci', async () => {
+    const { u, keyId, ids, allRows } = await vaultWithData();
+    const bad = await allRows(() => `${ref2}.${body}`);
+    bad[2] = { ...bad[2]!, enc: `${ref3}.${body}` };
+    await expect(
+      rotate(u, { id: keyId, wrapped_key: W2, rotated_from: ref1 }, bad),
+    ).rejects.toMatchObject({ code: '23V03' });
+    expect((await keyOf(u)).wrapped_key).toBe(W1);
+    expect(await encOf(ids.i1)).toBe(`${ref1}.${body}`);
+  });
+
+  it('baris yang sudah dihapus permanen di server boleh tetap disebut (dilewati, bukan error)', async () => {
+    const { u, keyId, allRows } = await vaultWithData();
+    const rowsArg = [
+      ...(await allRows(() => `${ref2}.${body}`)),
+      { t: 'pw_items', id: await uuid(), enc: `${ref2}.${body}`, b: '0'.repeat(16) },
+    ];
+    await expect(
+      rotate(u, { id: keyId, wrapped_key: W2, rotated_from: ref1 }, rowsArg),
+    ).resolves.toBeDefined();
+    expect((await keyOf(u)).wrapped_key).toBe(W2);
+  });
+
+  it('rotasi FORMAT LAMA (antrean klien lama, tanpa rotated_from) tidak diterapkan, tapi tulisan tanpa label sejak itu ditolak', async () => {
+    const { u, keyId, ids } = await vaultWithData();
+    const r = await rotate(u, { id: keyId, wrapped_key: W2, salt: 'T'.repeat(24) }, [
+      { t: 'pw_items', id: ids.i1, enc: `isi-dg-DEK-ditolak${body}` }, // tanpa label, tanpa b
+    ]);
+    expect(r).toMatchObject({ code: '23V05' });
+    const k = await keyOf(u);
+    expect(k.wrapped_key).toBe(W1);
+    expect(k.labels_required_at).not.toBeNull(); // tercatat walau rotasinya ditolak
+    // Edit berikutnya di antrean klien lama (tanpa label, DEK yang ditolak) tidak boleh masuk
+    await expect(setItem(u, ids.i1, `edit-berikutnya${body}`)).rejects.toMatchObject({
+      code: '23V03',
+    });
+    // Perangkat versi baru tetap bisa menulis dengan label kunci yang sah
+    await expect(setItem(u, ids.i1, `${ref1}.edit-baru${body}`)).resolves.toBeDefined();
+  });
+
+  it('akun lain: tidak bisa merotasi brankas orang lain, dan rotasinya sendiri tidak menyentuh baris orang lain', async () => {
+    const alice = await vaultWithData();
+    const bobUser = await newUser();
+    const bobKey = await makeKey(bobUser);
+
+    await expect(
+      rotate(bobUser, { id: alice.keyId, wrapped_key: W2, rotated_from: ref1 }, []),
+    ).rejects.toMatchObject({ code: '23V05' });
+    // bob menyebut id item alice di p_rows-nya sendiri
+    await rotate(bobUser, { id: bobKey, wrapped_key: W2, rotated_from: ref1 }, [
+      { t: 'pw_items', id: alice.ids.i1, enc: `${ref2}.disusupkan${body}`, b: '0'.repeat(16) },
+    ]);
+    expect(await encOf(alice.ids.i1)).toBe(`${ref1}.${body}`);
+    expect((await keyOf(alice.u)).wrapped_key).toBe(W1);
+  });
+
+  it('bentuk tidak valid ditolak (23V05) tanpa mengubah apa pun', async () => {
+    const { u, keyId } = await vaultWithData();
+    const ok = { id: keyId, wrapped_key: W2, rotated_from: ref1 };
+    const bad: [Record<string, unknown>, unknown[]][] = [
+      [{ id: keyId, rotated_from: ref1 }, []], // tanpa wrapped_key
+      [ok, [{ t: 'tasks', id: keyId, b: '0'.repeat(16) }]],
+      [ok, [{ t: 'pw_items', b: '0'.repeat(16) }]], // tanpa id
+      [ok, [{ t: 'pw_items', id: keyId }]], // tanpa sidik versi
+      [ok, ['bukan-objek']],
+    ];
+    for (const [k, r] of bad)
+      await expect(rotate(u, k, r), JSON.stringify([k, r])).rejects.toMatchObject({
+        code: '23V05',
+      });
+    expect((await keyOf(u)).wrapped_key).toBe(W1);
+  });
+
+  it('setelah RPC selesai, PATCH kunci biasa di transaksi yang sama tetap dinetralkan (flag rotasi direset)', async () => {
+    const { u, keyId, allRows } = await vaultWithData();
+    const rowsArg = await allRows(() => `${ref2}.${body}`);
+    const after = await asUser(u, async () => {
+      await pg.exec('BEGIN');
+      try {
+        await pg.query(`SELECT public.apply_vault_rotation($1::jsonb, $2::jsonb)`, [
+          JSON.stringify({ id: keyId, wrapped_key: W2, rotated_from: ref1 }),
+          JSON.stringify(rowsArg),
+        ]);
+        await pg.query(`UPDATE public.pw_keys SET wrapped_key = $1 WHERE id = $2`, [W3, keyId]);
+        return (
+          await pg.query<{ w: string }>(
+            `SELECT wrapped_key AS w FROM public.pw_keys WHERE id = $1`,
+            [keyId],
+          )
+        ).rows[0]!.w;
+      } finally {
+        await pg.exec('ROLLBACK');
+      }
+    });
+    expect(after).toBe(W2);
+  });
+
+  it('hak eksekusi: authenticated boleh memanggil RPC, anon tidak', async () => {
+    const [g] = await rows<{ auth: boolean; anon: boolean }>(
+      `SELECT has_function_privilege('authenticated', 'public.apply_vault_rotation(jsonb, jsonb)', 'EXECUTE') AS auth,
+              has_function_privilege('anon', 'public.apply_vault_rotation(jsonb, jsonb)', 'EXECUTE') AS anon`,
+    );
+    expect(g).toEqual({ auth: true, anon: false });
+  });
+
+  it('akun ber-MFA dengan token aal1 tidak bisa merotasi (RLS mfa_aal2 tetap berlaku di RPC)', async () => {
+    const { u, keyId, allRows } = await vaultWithData();
+    const rowsArg = await allRows(() => `${ref2}.${body}`);
+    await pg.query(`INSERT INTO auth.mfa_factors (user_id, status) VALUES ($1, 'verified')`, [u]);
+    await pg.exec('SET ROLE authenticated');
+    await pg.query(`SELECT set_config('app.uid', $1, false)`, [u]);
+    await pg.query(`SELECT set_config('app.jwt', $1, false)`, [
+      JSON.stringify({ sub: u, aal: 'aal1' }),
+    ]);
+    try {
+      await expect(
+        pg.query(`SELECT public.apply_vault_rotation($1::jsonb, $2::jsonb)`, [
+          JSON.stringify({ id: keyId, wrapped_key: W2, rotated_from: ref1 }),
+          JSON.stringify(rowsArg),
+        ]),
+      ).rejects.toMatchObject({ code: '23V05' }); // brankas tidak terlihat
+    } finally {
+      await pg.exec('RESET ROLE');
+      await pg.query(`SELECT set_config('app.uid', '', false)`);
+      await pg.query(`SELECT set_config('app.jwt', '', false)`);
+    }
+    expect((await keyOf(u)).wrapped_key).toBe(W1);
+  });
+});
+
+// -----------------------------------------------------------------------------------------
+// Berkas publik (tempfile): temp_files + fungsi service_role (migrasi …_temp_files.sql)
+// Fungsi dipanggil sebagai superuser di sini = peran Edge Function (service_role).
+// -----------------------------------------------------------------------------------------
+describe('Berkas publik · temp_files', () => {
+  const MB = 1024 * 1024;
+  const tok = (c: string) => c.repeat(43);
+  let seq = 0;
+  /** Token unik yang valid (43 karakter base64url). */
+  const token = () => `t${String(++seq).padStart(5, '0')}`.padEnd(43, 'x');
+
+  const newUser = async () =>
+    (await rows<{ id: string }>(`INSERT INTO auth.users DEFAULT VALUES RETURNING id`))[0]!.id;
+  const uuid = () => rows<{ id: string }>(`SELECT gen_random_uuid() AS id`).then((r) => r[0]!.id);
+  const reserve = async (
+    user: string,
+    size: number,
+    opts: { expires?: string | null; token?: string; name?: string } = {},
+  ) => {
+    const id = await uuid();
+    const t = opts.token ?? token();
+    await pg.query(
+      `SELECT * FROM public.temp_file_reserve($1, $2, $3, 'application/pdf', $4, $5, $6)`,
+      [user, id, opts.name ?? 'laporan.pdf', size, opts.expires ?? null, t],
+    );
+    return { id, token: t };
+  };
+  const complete = (user: string, id: string) =>
+    rows<{ status: string; etag: string | null }>(
+      `SELECT * FROM public.temp_file_complete($1, $2, '"etag-1"')`,
+      [user, id],
+    );
+  const used = async (user: string) =>
+    Number(
+      (await rows<{ n: string }>(`SELECT public.temp_files_used_bytes($1) AS n`, [user]))[0]!.n,
+    );
+  const resolve = (t: string, count = false) =>
+    rows<{ id: string; file_name: string }>(`SELECT * FROM public.temp_file_resolve($1, $2)`, [
+      t,
+      count,
+    ]);
+  const age = (id: string, col: string, interval: string) =>
+    pg.query(`UPDATE public.temp_files SET ${col} = now() - $2::interval WHERE id = $1`, [
+      id,
+      interval,
+    ]);
+
+  it('kuota 1 GB sama di SQL, Edge Function, dan klien', async () => {
+    const [{ q }] = await rows<{ q: string }>(`SELECT public.temp_files_quota_bytes() AS q`);
+    expect(Number(q)).toBe(1024 ** 3);
+    expect(EDGE_QUOTA).toBe(1024 ** 3);
+    expect(CLIENT_QUOTA).toBe(1024 ** 3);
+  });
+
+  it('pesan tempat → baris pending dengan key temp/<id> (tanpa pemilik); tidak bisa diunduh sebelum selesai', async () => {
+    const u = await newUser();
+    const { id, token: t } = await reserve(u, 10 * MB);
+    const [f] = await rows<{ status: string; storage_key: string; is_public: boolean }>(
+      `SELECT status, storage_key, is_public FROM public.temp_files WHERE id = $1`,
+      [id],
+    );
+    expect(f).toEqual({ status: 'pending', storage_key: `temp/${id}`, is_public: true });
+    expect(await resolve(t)).toEqual([]);
+    expect((await complete(u, id))[0]).toMatchObject({ status: 'ready', etag: '"etag-1"' });
+    expect((await complete(u, id))[0]!.status).toBe('ready'); // idempoten
+    expect(await resolve(t)).toMatchObject([{ etag: '"etag-1"' }]);
+  });
+
+  it('kuota: total semua berkas (termasuk yang sedang diunggah) tidak boleh lewat 1 GB', async () => {
+    const u = await newUser();
+    const a = await reserve(u, 600 * MB);
+    await complete(u, a.id);
+    await reserve(u, 300 * MB); // masih pending, tetap dihitung
+    await expect(reserve(u, 200 * MB)).rejects.toMatchObject({ code: 'TF001' });
+    await expect(reserve(u, 124 * MB)).resolves.toBeDefined(); // tepat 1 GB
+    expect(await used(u)).toBe(1024 * MB);
+    await expect(reserve(u, 1)).rejects.toMatchObject({ code: 'TF001' });
+    // akun lain punya kuota sendiri
+    await expect(reserve(await newUser(), 1024 * MB)).resolves.toBeDefined();
+  });
+
+  it('yang dihapus, kedaluwarsa, dan pesanan ditinggalkan (> 2 jam) tidak memakan kuota', async () => {
+    const u = await newUser();
+    const del = await reserve(u, 300 * MB);
+    await complete(u, del.id);
+    await pg.query(`SELECT public.temp_file_mark_deleted($1, $2)`, [u, del.id]);
+    const exp = await reserve(u, 300 * MB, {
+      expires: new Date(Date.now() + 60_000).toISOString(),
+    });
+    await complete(u, exp.id);
+    await age(exp.id, 'expires_at', '1 second');
+    const abandoned = await reserve(u, 300 * MB);
+    await age(abandoned.id, 'created_at', '3 hours');
+    const old = await reserve(u, 100 * MB);
+    await complete(u, old.id);
+    await age(old.id, 'created_at', '400 days'); // berkas siap tetap dihitung berapa pun umurnya
+    expect(await used(u)).toBe(100 * MB);
+  });
+
+  it('menyelesaikan pesanan lama memeriksa kuota lagi (tidak bisa menyelinap lewat batas)', async () => {
+    const u = await newUser();
+    const slow = await reserve(u, 600 * MB);
+    await age(slow.id, 'created_at', '3 hours'); // tidak dihitung lagi …
+    const b = await reserve(u, 600 * MB); // … jadi ini lolos
+    await complete(u, b.id);
+    await expect(complete(u, slow.id)).rejects.toMatchObject({ code: 'TF001' });
+  });
+
+  it('tautan publik: hanya berkas siap, publik, belum dihapus, belum kedaluwarsa', async () => {
+    const u = await newUser();
+    const f = await reserve(u, MB, { name: 'foto.jpg' });
+    await complete(u, f.id);
+    expect((await resolve(f.token))[0]!.file_name).toBe('foto.jpg');
+
+    await pg.query(`SELECT public.temp_file_update($1, $2, p_is_public => false)`, [u, f.id]);
+    expect(await resolve(f.token)).toEqual([]);
+    await pg.query(`SELECT public.temp_file_update($1, $2, p_is_public => true)`, [u, f.id]);
+    expect(await resolve(f.token)).toHaveLength(1);
+
+    await age(f.id, 'expires_at', '1 second');
+    expect(await resolve(f.token)).toEqual([]);
+    for (const bad of ['', 'pendek', tok('*'), `${tok('a')}a`])
+      expect(await resolve(bad), bad).toEqual([]);
+  });
+
+  it('menghitung unduhan HANYA saat diminta (bukan saat halaman info dibuka)', async () => {
+    const u = await newUser();
+    const f = await reserve(u, MB);
+    await complete(u, f.id);
+    await resolve(f.token);
+    await resolve(f.token, true);
+    await resolve(f.token, true);
+    const [r] = await rows<{ download_count: number; last_download_at: Date | null }>(
+      `SELECT download_count, last_download_at FROM public.temp_files WHERE id = $1`,
+      [f.id],
+    );
+    expect(r!.download_count).toBe(2);
+    expect(r!.last_download_at).not.toBeNull();
+  });
+
+  it('tautan baru mencabut tautan lama SEKETIKA; ganti nama & masa berlaku', async () => {
+    const u = await newUser();
+    const f = await reserve(u, MB);
+    await complete(u, f.id);
+    const fresh = token();
+    await pg.query(
+      `SELECT public.temp_file_update($1, $2, p_name => 'baru.pdf', p_set_expiry => true, p_expires_at => now() + interval '1 day', p_token => $3)`,
+      [u, f.id, fresh],
+    );
+    expect(await resolve(f.token)).toEqual([]);
+    expect((await resolve(fresh))[0]!.file_name).toBe('baru.pdf');
+    // Tanpa batas waktu
+    await pg.query(`SELECT public.temp_file_update($1, $2, p_set_expiry => true)`, [u, f.id]);
+    const [r] = await rows<{ expires_at: Date | null }>(
+      `SELECT expires_at FROM public.temp_files WHERE id = $1`,
+      [f.id],
+    );
+    expect(r!.expires_at).toBeNull();
+  });
+
+  it('yang sudah kedaluwarsa tidak bisa dihidupkan lagi; masa berlaku di masa lalu ditolak', async () => {
+    const u = await newUser();
+    const f = await reserve(u, MB);
+    await complete(u, f.id);
+    await expect(
+      pg.query(
+        `SELECT public.temp_file_update($1, $2, p_set_expiry => true, p_expires_at => now() - interval '1 minute')`,
+        [u, f.id],
+      ),
+    ).rejects.toMatchObject({ code: 'TF005' });
+    await pg.query(
+      `UPDATE public.temp_files SET expires_at = now() - interval '1 second' WHERE id = $1`,
+      [f.id],
+    );
+    await expect(
+      pg.query(`SELECT public.temp_file_update($1, $2, p_set_expiry => true)`, [u, f.id]),
+    ).rejects.toMatchObject({ code: 'TF003' });
+  });
+
+  it('fungsi pemilik tidak bisa menyentuh berkas akun lain', async () => {
+    const alice = await newUser();
+    const bob = await newUser();
+    const f = await reserve(alice, MB);
+    await expect(complete(bob, f.id)).rejects.toMatchObject({ code: 'TF002' });
+    await expect(
+      pg.query(`SELECT public.temp_file_update($1, $2, p_is_public => false)`, [bob, f.id]),
+    ).rejects.toMatchObject({ code: 'TF002' });
+    const [{ k }] = await rows<{ k: string | null }>(
+      `SELECT public.temp_file_mark_deleted($1, $2) AS k`,
+      [bob, f.id],
+    );
+    expect(k).toBeNull();
+    const [{ deleted_at }] = await rows<{ deleted_at: Date | null }>(
+      `SELECT deleted_at FROM public.temp_files WHERE id = $1`,
+      [f.id],
+    );
+    expect(deleted_at).toBeNull();
+  });
+
+  it('hapus: tautan mati seketika; pembersih hanya menghapus baris yang memang boleh dihapus', async () => {
+    const u = await newUser();
+    const keep = await reserve(u, MB);
+    await complete(u, keep.id);
+    const del = await reserve(u, MB);
+    await complete(u, del.id);
+    const [{ k }] = await rows<{ k: string }>(`SELECT public.temp_file_mark_deleted($1, $2) AS k`, [
+      u,
+      del.id,
+    ]);
+    expect(k).toBe(`temp/${del.id}`);
+    expect(await resolve(del.token)).toEqual([]);
+
+    const purgeable = (
+      await rows<{ id: string }>(`SELECT id FROM public.temp_files_to_purge(1000)`)
+    ).map((r) => r.id);
+    expect(purgeable).toContain(del.id);
+    expect(purgeable).not.toContain(keep.id);
+    // Meminta penghapusan baris yang masih hidup tidak berpengaruh
+    const [{ n }] = await rows<{ n: number }>(`SELECT public.temp_files_purge($1::uuid[]) AS n`, [
+      [del.id, keep.id],
+    ]);
+    expect(n).toBe(1);
+    expect(await rows(`SELECT 1 FROM public.temp_files WHERE id = $1`, [keep.id])).toHaveLength(1);
+  });
+
+  it('RLS: pemilik hanya MEMBACA miliknya; tidak ada insert/update/delete dari klien; anon tanpa akses', async () => {
+    const alice = await newUser();
+    const bob = await newUser();
+    const f = await reserve(alice, MB);
+    const as = async <T>(uid: string, fn: () => Promise<T>) => {
+      await pg.exec('SET ROLE authenticated');
+      await pg.query(`SELECT set_config('app.uid', $1, false)`, [uid]);
+      try {
+        return await fn();
+      } finally {
+        await pg.exec('RESET ROLE');
+        await pg.query(`SELECT set_config('app.uid', '', false)`);
+      }
+    };
+    expect(await as(alice, () => rows(`SELECT id FROM public.temp_files`))).toEqual([{ id: f.id }]);
+    expect(await as(bob, () => rows(`SELECT id FROM public.temp_files`))).toEqual([]);
+    for (const sql of [
+      `UPDATE public.temp_files SET size_bytes = 1, status = 'ready' WHERE id = '${f.id}'`,
+      `DELETE FROM public.temp_files WHERE id = '${f.id}'`,
+      `INSERT INTO public.temp_files (id, file_name, size_bytes, storage_key, share_token)
+       VALUES (gen_random_uuid(), 'x', 1, 'temp/${f.id}', '${tok('q')}')`,
+    ])
+      await expect(
+        as(alice, () => pg.query(sql)),
+        sql,
+      ).rejects.toThrow(/permission denied/i);
+
+    await pg.exec('SET ROLE anon');
+    try {
+      await expect(pg.query(`SELECT * FROM public.temp_files`)).rejects.toThrow(
+        /permission denied/i,
+      );
+    } finally {
+      await pg.exec('RESET ROLE');
+    }
+  });
+
+  it('fungsi berkas hanya bisa dipanggil service_role (bukan klien, bukan anon)', async () => {
+    const fns = await rows<{ proname: string; auth: boolean; anon: boolean; svc: boolean }>(
+      `SELECT p.proname,
+              has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth,
+              has_function_privilege('anon', p.oid, 'EXECUTE') AS anon,
+              has_function_privilege('service_role', p.oid, 'EXECUTE') AS svc
+         FROM pg_proc p
+        WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'temp_file%'`,
+    );
+    expect(fns.map((f) => f.proname).sort()).toEqual(
+      [
+        'temp_file_complete',
+        'temp_file_keys',
+        'temp_file_mark_deleted',
+        'temp_file_reserve',
+        'temp_file_resolve',
+        'temp_file_update',
+        'temp_files_purge',
+        'temp_files_quota_bytes',
+        'temp_files_to_purge',
+        'temp_files_used_bytes',
+      ].sort(),
+    );
+    for (const f of fns)
+      expect([f.proname, f.auth, f.anon, f.svc]).toEqual([f.proname, false, false, true]);
+  });
+
+  it('CHECK: ukuran 1 B–1 GB, format token & key, nama 1–255', async () => {
+    const u = await newUser();
+    await expect(reserve(u, 0)).rejects.toThrow(/check/i);
+    // Lebih dari 1 GB ditolak oleh pemeriksaan kuota lebih dulu (sebelum CHECK kolom)
+    await expect(reserve(await newUser(), 1024 * MB + 1)).rejects.toMatchObject({ code: 'TF001' });
+    await expect(reserve(u, 1, { token: 'pendek' })).rejects.toThrow(/check/i);
+    await expect(reserve(u, 1, { name: '' })).rejects.toThrow(/check/i);
+    await expect(reserve(u, 1, { name: 'x'.repeat(256) })).rejects.toThrow(/check/i);
+    const dupe = token();
+    await reserve(u, 1, { token: dupe });
+    await expect(reserve(u, 1, { token: dupe })).rejects.toThrow(/duplicate|unique/i);
   });
 });

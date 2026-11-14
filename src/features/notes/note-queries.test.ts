@@ -153,7 +153,7 @@ describe('CALENDAR_ACTIVITY_SQL', () => {
     const { db, add } = makeDb();
     db.exec(`
       CREATE TABLE journal_entries (id TEXT, entry_date TEXT, mood INTEGER, deleted_at TEXT);
-      CREATE TABLE transactions (id TEXT, occurred_on TEXT, kind TEXT, amount INTEGER, deleted_at TEXT);
+      CREATE TABLE transactions (id TEXT, occurred_on TEXT, kind TEXT, amount INTEGER, debt_id TEXT, deleted_at TEXT);
       CREATE TABLE snippets (id TEXT, created_at TEXT, deleted_at TEXT);
       CREATE TABLE code_projects (id TEXT, created_at TEXT, deleted_at TEXT);
       CREATE TABLE attachments (id TEXT, entity_type TEXT, created_at TEXT, deleted_at TEXT);
@@ -164,6 +164,34 @@ describe('CALENDAR_ACTIVITY_SQL', () => {
     add('sampah', { date: '2026-10-07', deleted: '2026-10-09T00:00:00Z' });
     add('luar', { date: '2026-11-02' });
     expect(run(db)).toEqual({ '2026-10-07:notes': 2 });
+  });
+
+  it('transaksi: hanya pemasukan/pengeluaran biasa — transfer & transaksi hutang tidak dihitung', () => {
+    const { db } = makeDb();
+    db.exec(`
+      CREATE TABLE journal_entries (id TEXT, entry_date TEXT, mood INTEGER, deleted_at TEXT);
+      CREATE TABLE transactions (id TEXT, occurred_on TEXT, kind TEXT, amount INTEGER, debt_id TEXT, deleted_at TEXT);
+      CREATE TABLE snippets (id TEXT, created_at TEXT, deleted_at TEXT);
+      CREATE TABLE code_projects (id TEXT, created_at TEXT, deleted_at TEXT);
+      CREATE TABLE attachments (id TEXT, entity_type TEXT, created_at TEXT, deleted_at TEXT);
+      INSERT INTO transactions VALUES ('makan', '2026-10-07', 'expense', 25000, NULL, NULL);
+      INSERT INTO transactions VALUES ('gaji', '2026-10-07', 'income', 5000000, NULL, NULL);
+      INSERT INTO transactions VALUES ('pinjamkan', '2026-10-07', 'expense', 100000, 'hutang-1', NULL);
+      INSERT INTO transactions VALUES ('pelunasan', '2026-10-07', 'income', 100000, 'hutang-1', NULL);
+      INSERT INTO transactions VALUES ('pindah', '2026-10-07', 'transfer', 70000, NULL, NULL);
+      INSERT INTO transactions VALUES ('sampah', '2026-10-07', 'expense', 9, NULL, '2026-10-08T00:00:00Z');
+    `);
+    const rows = db
+      .prepare(CALENDAR_ACTIVITY_SQL)
+      .all('2026-10-01', '2026-10-31', SQLITE_TZ_MODIFIER) as {
+      day: string;
+      kind: string;
+      count: number;
+      amount: number;
+    }[];
+    expect(
+      Object.fromEntries(rows.map((r) => [`${r.day}:${r.kind}`, [r.count, r.amount]])),
+    ).toEqual({ '2026-10-07:expense': [1, 25000], '2026-10-07:income': [1, 5000000] });
   });
 });
 

@@ -58,3 +58,5 @@ streams:
       # Vault · Konfigurasi: metadata teks biasa, isi versi terenkripsi (DEK Sandi)
       - SELECT * FROM config_files WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
       - SELECT * FROM config_versions WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'
+      # Berkas publik: metadata saja (isi di R2). Klien hanya membaca; tulisan lewat Edge Function.
+      - SELECT * FROM temp_files WHERE user_id = auth.user_id() AND auth.parameter('aal') = 'aal2'

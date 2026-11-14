@@ -53,7 +53,21 @@ export async function uploadToR2(
     size: file.size,
     contentType: file.type || 'application/octet-stream',
   });
-  await new Promise<void>((resolve, reject) => {
+  await putWithProgress(url, file, onProgress, signal);
+}
+
+/**
+ * PUT ke presigned URL dengan progres. XHR karena fetch belum mendukung progres upload.
+ * Dipakai lampiran (uploadToR2) dan Berkas publik (features/tempfiles).
+ */
+export function putWithProgress(
+  url: string,
+  file: Blob,
+  onProgress?: (fraction: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Dibatalkan', 'AbortError'));
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');

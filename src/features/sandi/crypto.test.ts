@@ -19,6 +19,8 @@ import {
   resetPasswordWithRecovery,
   rotateRecoveryKey,
   SandiError,
+  keyRef,
+  splitEnc,
   toB64,
   unlockWithPassword,
   unlockWithRecoveryKey,
@@ -31,6 +33,9 @@ const FAST = { iterations: MIN_ITERATIONS };
 const USER = '0192f3a0-aaaa-7000-8000-000000000001';
 const OTHER_USER = '0192f3a0-bbbb-7000-8000-000000000002';
 const PASSWORD = 'kuda-biru-minum-kopi-pagi';
+/** Label kunci apa pun (16 hex) — fungsi enkripsi tidak mencocokkannya dengan DEK; itu tugas server. */
+const REF = '0123456789abcdef';
+const body = (enc: string) => splitEnc(enc).body;
 
 const item = (over: Partial<ItemPayload> = {}): ItemPayload => ({
   totp: null,
@@ -51,7 +56,7 @@ async function setup() {
 describe('brankas · membuat & membuka', () => {
   it('master password benar membuka kunci yang bisa mendekripsi item', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'item-1', item());
+    const enc = await encryptItem(v.dek, USER, 'item-1', item(), REF);
 
     const dek = await unlockWithPassword(v.record, PASSWORD, USER);
     expect(dek).not.toBeNull();
@@ -190,7 +195,7 @@ describe('brankas · kunci pemulihan', () => {
 
   it('membuka brankas dan mendekripsi item yang dibuat dengan password', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'a', item());
+    const enc = await encryptItem(v.dek, USER, 'a', item(), REF);
     const dek = await unlockWithRecoveryKey(v.record, v.recoveryKey, USER);
     expect(dek).not.toBeNull();
     expect((await decryptItem(dek!, USER, 'a', enc)).password).toBe('Zk9#mQ2$vL7!pXr4');
@@ -225,7 +230,7 @@ describe('brankas · kunci pemulihan', () => {
 describe('brankas · ganti password & pemulihan', () => {
   it('changePassword: DEK BARU; item lama terbaca setelah dienkripsi ulang; password & pemulihan lama mati', async () => {
     const v = await setup();
-    const enc0 = await encryptItem(v.dek, USER, 'a', item());
+    const enc0 = await encryptItem(v.dek, USER, 'a', item(), REF);
 
     const next = await changePassword(v.record, PASSWORD, 'password-baru-yang-panjang', USER, FAST);
     expect(next).not.toBeNull();
@@ -234,6 +239,7 @@ describe('brankas · ganti password & pemulihan', () => {
       next!.previousDek,
       next!.dek,
       USER,
+      REF,
     );
     expect(skipped).toEqual([]);
     const enc = updated[0]!.enc;
@@ -260,7 +266,7 @@ describe('brankas · ganti password & pemulihan', () => {
 
   it('lupa password: kunci pemulihan + password baru → item terbaca setelah dienkripsi ulang', async () => {
     const v = await setup();
-    const enc0 = await encryptItem(v.dek, USER, 'a', item());
+    const enc0 = await encryptItem(v.dek, USER, 'a', item(), REF);
     const next = await resetPasswordWithRecovery(
       v.record,
       v.recoveryKey,
@@ -269,8 +275,9 @@ describe('brankas · ganti password & pemulihan', () => {
       FAST,
     );
     expect(next).not.toBeNull();
-    const enc = (await reencryptItems([{ id: 'a', enc: enc0 }], next!.previousDek, next!.dek, USER))
-      .updated[0]!.enc;
+    const enc = (
+      await reencryptItems([{ id: 'a', enc: enc0 }], next!.previousDek, next!.dek, USER, REF)
+    ).updated[0]!.enc;
     const dek = await unlockWithPassword(next!.record, 'master-baru-setelah-lupa', USER);
     expect((await decryptItem(dek!, USER, 'a', enc)).username).toBe('rosyid');
     expect(await unlockWithRecoveryKey(next!.record, v.recoveryKey, USER)).toBeNull(); // dicabut
@@ -304,15 +311,16 @@ describe('brankas · ganti password & pemulihan', () => {
   // membuka data, termasuk item yang ditulis SETELAH rotasi.
   it('rotasi kunci pemulihan: kunci lama + record lama TIDAK membuka item (lama maupun baru)', async () => {
     const v = await setup();
-    const enc0 = await encryptItem(v.dek, USER, 'a', item());
+    const enc0 = await encryptItem(v.dek, USER, 'a', item(), REF);
     const next = await rotateRecoveryKey(v.record, PASSWORD, USER, FAST);
     const { updated } = await reencryptItems(
       [{ id: 'a', enc: enc0 }],
       next!.previousDek,
       next!.dek,
       USER,
+      REF,
     );
-    const encNew = await encryptItem(next!.dek, USER, 'b', item({ title: 'Setelah rotasi' }));
+    const encNew = await encryptItem(next!.dek, USER, 'b', item({ title: 'Setelah rotasi' }), REF);
 
     // penyerang: kunci pemulihan LAMA + salinan record LAMA → mendapat DEK lama
     const stolen = await unlockWithRecoveryKey(v.record, v.recoveryKey, USER);
@@ -325,7 +333,7 @@ describe('brankas · ganti password & pemulihan', () => {
 
   it('rotasi: DEK selalu baru dan tidak sama dengan yang lama', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'a', item());
+    const enc = await encryptItem(v.dek, USER, 'a', item(), REF);
     for (const next of [
       await rotateRecoveryKey(v.record, PASSWORD, USER, FAST),
       await changePassword(v.record, PASSWORD, 'password-baru-yang-panjang', USER, FAST),
@@ -354,21 +362,21 @@ describe('item dengan kunci TOTP', () => {
   it('kunci TOTP tersimpan utuh melewati enkripsi & dekripsi', async () => {
     const v = await setup();
     const payload = item({ title: 'GitHub', totp });
-    const enc = await encryptItem(v.dek, USER, 'id-totp', payload);
+    const enc = await encryptItem(v.dek, USER, 'id-totp', payload, REF);
     expect(await decryptItem(v.dek, USER, 'id-totp', enc)).toEqual(payload);
   });
 
   it('kunci TOTP tidak terbaca sebagai teks terang di ciphertext', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'id-totp', item({ totp }));
+    const enc = await encryptItem(v.dek, USER, 'id-totp', item({ totp }), REF);
     expect(enc).not.toContain(totp.secret);
-    expect(atob(enc)).not.toContain(totp.secret);
+    expect(atob(body(enc))).not.toContain(totp.secret);
   });
 
   it('item TANPA sandi (hanya nama + TOTP) tetap bolak-balik utuh', async () => {
     const v = await setup();
     const payload = item({ title: 'Binance', password: '', username: '', url: '', totp });
-    const enc = await encryptItem(v.dek, USER, 'x', payload);
+    const enc = await encryptItem(v.dek, USER, 'x', payload, REF);
     const back = await decryptItem(v.dek, USER, 'x', enc);
     expect(back.totp).toEqual(totp);
     expect(back.password).toBe('');
@@ -377,10 +385,16 @@ describe('item dengan kunci TOTP', () => {
   it('parameter TOTP yang aneh dinormalkan saat dibaca kembali; yang rusak jadi null', async () => {
     const v = await setup();
     // ditulis oleh versi lain / data rusak: periode mustahil & algoritma tak dikenal
-    const odd = await encryptItem(v.dek, USER, 'y', {
-      ...item(),
-      totp: { secret: 'jbsw y3dp ehpk 3pxp', digits: 7, period: 0, algorithm: 'MD5' } as never,
-    });
+    const odd = await encryptItem(
+      v.dek,
+      USER,
+      'y',
+      {
+        ...item(),
+        totp: { secret: 'jbsw y3dp ehpk 3pxp', digits: 7, period: 0, algorithm: 'MD5' } as never,
+      },
+      REF,
+    );
     const back = await decryptItem(v.dek, USER, 'y', odd);
     expect(back.totp).toEqual({
       secret: 'JBSWY3DPEHPK3PXP',
@@ -389,22 +403,29 @@ describe('item dengan kunci TOTP', () => {
       algorithm: 'SHA1',
     });
 
-    const broken = await encryptItem(v.dek, USER, 'z', {
-      ...item(),
-      totp: { secret: 'bukan-base32-0189' } as never,
-    });
+    const broken = await encryptItem(
+      v.dek,
+      USER,
+      'z',
+      {
+        ...item(),
+        totp: { secret: 'bukan-base32-0189' } as never,
+      },
+      REF,
+    );
     expect((await decryptItem(v.dek, USER, 'z', broken)).totp).toBeNull();
   });
 
   it('kunci TOTP ikut dienkripsi ulang saat DEK dirotasi', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'a', item({ totp }));
+    const enc = await encryptItem(v.dek, USER, 'a', item({ totp }), REF);
     const next = await changePassword(v.record, PASSWORD, 'password-baru-yang-panjang', USER, FAST);
     const { updated } = await reencryptItems(
       [{ id: 'a', enc }],
       next!.previousDek,
       next!.dek,
       USER,
+      REF,
     );
     expect((await decryptItem(next!.dek, USER, 'a', updated[0]!.enc)).totp).toEqual(totp);
   });
@@ -415,10 +436,10 @@ describe('reencryptItems', () => {
     const a = await setup();
     const b = await setup();
     const rows = [
-      { id: 'i1', enc: await encryptItem(a.dek, USER, 'i1', item({ title: 'Satu' })) },
-      { id: 'i2', enc: await encryptItem(a.dek, USER, 'i2', item({ title: 'Dua' })) },
+      { id: 'i1', enc: await encryptItem(a.dek, USER, 'i1', item({ title: 'Satu' }), REF) },
+      { id: 'i2', enc: await encryptItem(a.dek, USER, 'i2', item({ title: 'Dua' }), REF) },
     ];
-    const { updated, skipped } = await reencryptItems(rows, a.dek, b.dek, USER);
+    const { updated, skipped } = await reencryptItems(rows, a.dek, b.dek, USER, REF);
     expect(skipped).toEqual([]);
     expect(updated.map((r) => r.id)).toEqual(['i1', 'i2']);
     expect((await decryptItem(b.dek, USER, 'i1', updated[0]!.enc)).title).toBe('Satu');
@@ -431,19 +452,19 @@ describe('reencryptItems', () => {
     const foreign = await setup();
     const b = await setup();
     const rows = [
-      { id: 'ok', enc: await encryptItem(a.dek, USER, 'ok', item()) },
-      { id: 'asing', enc: await encryptItem(foreign.dek, USER, 'asing', item()) },
+      { id: 'ok', enc: await encryptItem(a.dek, USER, 'ok', item(), REF) },
+      { id: 'asing', enc: await encryptItem(foreign.dek, USER, 'asing', item(), REF) },
       { id: 'rusak', enc: 'bukan-base64!!' },
-      { id: 'tertukar', enc: await encryptItem(a.dek, USER, 'lain', item()) },
+      { id: 'tertukar', enc: await encryptItem(a.dek, USER, 'lain', item(), REF) },
     ];
-    const { updated, skipped } = await reencryptItems(rows, a.dek, b.dek, USER);
+    const { updated, skipped } = await reencryptItems(rows, a.dek, b.dek, USER, REF);
     expect(updated.map((r) => r.id)).toEqual(['ok']);
     expect(skipped).toEqual(['asing', 'rusak', 'tertukar']);
   });
 
   it('daftar kosong → tidak ada yang diubah', async () => {
     const a = await setup();
-    expect(await reencryptItems([], a.dek, a.dek, USER)).toEqual({ updated: [], skipped: [] });
+    expect(await reencryptItems([], a.dek, a.dek, USER, REF)).toEqual({ updated: [], skipped: [] });
   });
 });
 
@@ -456,38 +477,48 @@ describe('item · enkripsi', () => {
       password: 'p@ss"w\\ord\u0000kontrol',
       favorite: true,
     });
-    const enc = await encryptItem(v.dek, USER, 'id-uni', p);
+    const enc = await encryptItem(v.dek, USER, 'id-uni', p, REF);
     expect(await decryptItem(v.dek, USER, 'id-uni', enc)).toEqual(p);
   });
 
   it('IV acak: payload sama menghasilkan ciphertext berbeda', async () => {
     const v = await setup();
-    const a = await encryptItem(v.dek, USER, 'x', item());
-    const b = await encryptItem(v.dek, USER, 'x', item());
+    const a = await encryptItem(v.dek, USER, 'x', item(), REF);
+    const b = await encryptItem(v.dek, USER, 'x', item(), REF);
     expect(a).not.toBe(b);
   });
 
   it('ciphertext tidak memuat isi polos', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'x', item({ password: 'RAHASIA-SANGAT-UNIK-123' }));
+    const enc = await encryptItem(
+      v.dek,
+      USER,
+      'x',
+      item({ password: 'RAHASIA-SANGAT-UNIK-123' }),
+      REF,
+    );
     expect(enc).not.toContain('RAHASIA');
-    expect(atob(enc)).not.toContain('RAHASIA-SANGAT-UNIK-123');
-    expect(atob(enc)).not.toContain('github');
+    expect(atob(body(enc))).not.toContain('RAHASIA-SANGAT-UNIK-123');
+    expect(atob(body(enc))).not.toContain('github');
   });
 
   it('padding: sandi pendek dan agak panjang di blok yang sama punya panjang ciphertext sama', async () => {
     const v = await setup();
-    const a = fromB64(await encryptItem(v.dek, USER, 'x', item({ password: 'a' })));
-    const b = fromB64(await encryptItem(v.dek, USER, 'x', item({ password: 'a'.repeat(60) })));
+    const a = fromB64(body(await encryptItem(v.dek, USER, 'x', item({ password: 'a' }), REF)));
+    const b = fromB64(
+      body(await encryptItem(v.dek, USER, 'x', item({ password: 'a'.repeat(60) }), REF)),
+    );
     expect(a.length).toBe(b.length);
-    const c = fromB64(await encryptItem(v.dek, USER, 'x', item({ notes: 'z'.repeat(1000) })));
+    const c = fromB64(
+      body(await encryptItem(v.dek, USER, 'x', item({ notes: 'z'.repeat(1000) }), REF)),
+    );
     expect(c.length).toBeGreaterThan(a.length);
     expect((c.length - 12 - 16) % 256).toBe(0);
   });
 
   it('diubah satu byte → ditolak (autentikasi GCM)', async () => {
     const v = await setup();
-    const bytes = fromB64(await encryptItem(v.dek, USER, 'x', item()));
+    const bytes = fromB64(body(await encryptItem(v.dek, USER, 'x', item(), REF)));
     const at = bytes.length - 20;
     bytes[at] = bytes[at]! ^ 1;
     await expect(decryptItem(v.dek, USER, 'x', toB64(bytes))).rejects.toMatchObject({
@@ -498,26 +529,26 @@ describe('item · enkripsi', () => {
 
   it('ditukar ke baris lain (id item berbeda) → ditolak', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'item-A', item({ title: 'A' }));
+    const enc = await encryptItem(v.dek, USER, 'item-A', item({ title: 'A' }), REF);
     await expect(decryptItem(v.dek, USER, 'item-B', enc)).rejects.toBeInstanceOf(SandiError);
   });
 
   it('dipindah ke akun lain (user berbeda) → ditolak', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'item-A', item());
+    const enc = await encryptItem(v.dek, USER, 'item-A', item(), REF);
     await expect(decryptItem(v.dek, OTHER_USER, 'item-A', enc)).rejects.toBeInstanceOf(SandiError);
   });
 
   it('dengan kunci brankas lain → ditolak', async () => {
     const v = await setup();
     const other = await setup();
-    const enc = await encryptItem(v.dek, USER, 'x', item());
+    const enc = await encryptItem(v.dek, USER, 'x', item(), REF);
     await expect(decryptItem(other.dek, USER, 'x', enc)).rejects.toBeInstanceOf(SandiError);
   });
 
   it('terpotong / kosong / bukan base64 → ditolak dengan SandiError, tidak melempar error lain', async () => {
     const v = await setup();
-    const enc = await encryptItem(v.dek, USER, 'x', item());
+    const enc = await encryptItem(v.dek, USER, 'x', item(), REF);
     for (const bad of ['', 'AAAA', enc.slice(0, 20), '%%%bukan-base64%%%']) {
       await expect(decryptItem(v.dek, USER, 'x', bad), bad).rejects.toBeInstanceOf(SandiError);
     }
@@ -568,34 +599,34 @@ describe('konfigurasi Vault · enkripsi', () => {
 
   it('bolak-balik utuh, termasuk teks mentah multi-baris dan catatan', async () => {
     const v = await setup();
-    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload, REF);
     expect(await decryptConfig(v.dek, USER, FILE, VER, enc)).toEqual(payload);
   });
 
   it('komentar, baris kosong, dan urutan bertahan apa adanya (teks mentah = sumber kebenaran)', async () => {
     const v = await setup();
     const text = '# atas\n\nB=2\nA=1\n\n# bawah\n';
-    const enc = await encryptConfig(v.dek, USER, FILE, VER, { text, note: '' });
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, { text, note: '' }, REF);
     expect((await decryptConfig(v.dek, USER, FILE, VER, enc)).text).toBe(text);
   });
 
   it('ciphertext tidak memuat isi polos maupun catatannya', async () => {
     const v = await setup();
-    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload, REF);
     for (const needle of ['rahasia-sekali', 'API_URL', 'api.example.com', 'awal'])
       expect(enc).not.toContain(needle);
   });
 
   it('padding: isi pendek dan agak panjang menghasilkan panjang ciphertext yang sama', async () => {
     const v = await setup();
-    const a = await encryptConfig(v.dek, USER, FILE, VER, { text: 'A=1', note: '' });
-    const b = await encryptConfig(v.dek, USER, FILE, VER, { text: 'A=1234567890', note: '' });
+    const a = await encryptConfig(v.dek, USER, FILE, VER, { text: 'A=1', note: '' }, REF);
+    const b = await encryptConfig(v.dek, USER, FILE, VER, { text: 'A=1234567890', note: '' }, REF);
     expect(a.length).toBe(b.length);
   });
 
   it('AAD: ciphertext tidak bisa dipindah ke berkas lain, versi lain, atau akun lain', async () => {
     const v = await setup();
-    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload, REF);
     await expect(decryptConfig(v.dek, USER, 'file-2', VER, enc)).rejects.toThrow(SandiError);
     await expect(decryptConfig(v.dek, USER, FILE, 'ver-2', enc)).rejects.toThrow(SandiError);
     await expect(decryptConfig(v.dek, OTHER_USER, FILE, VER, enc)).rejects.toThrow(SandiError);
@@ -603,20 +634,20 @@ describe('konfigurasi Vault · enkripsi', () => {
 
   it('domain terpisah: versi konfigurasi tidak bisa dibaca sebagai item Sandi, dan sebaliknya', async () => {
     const v = await setup();
-    const cfg = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    const cfg = await encryptConfig(v.dek, USER, FILE, VER, payload, REF);
     await expect(decryptItem(v.dek, USER, VER, cfg)).rejects.toThrow(SandiError);
 
-    const it0 = await encryptItem(v.dek, USER, VER, item());
+    const it0 = await encryptItem(v.dek, USER, VER, item(), REF);
     await expect(decryptConfig(v.dek, USER, FILE, VER, it0)).rejects.toThrow(SandiError);
   });
 
   it('kunci brankas lain, data diubah, atau bukan base64 → SandiError (bukan error lain)', async () => {
     const v = await setup();
     const other = await createVault('lain-lain-lain-lain', USER, FAST);
-    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload);
+    const enc = await encryptConfig(v.dek, USER, FILE, VER, payload, REF);
 
     await expect(decryptConfig(other.dek, USER, FILE, VER, enc)).rejects.toThrow(SandiError);
-    const bytes = fromB64(enc);
+    const bytes = fromB64(body(enc));
     bytes[bytes.length - 1]! ^= 1;
     await expect(decryptConfig(v.dek, USER, FILE, VER, toB64(bytes))).rejects.toThrow(SandiError);
     for (const bad of ['', 'x', 'bukan-base64!!'])
@@ -636,25 +667,81 @@ describe('konfigurasi Vault · enkripsi', () => {
     const foreign = await createVault('lain-lain-lain-lain', USER, FAST);
 
     const rows = [
-      { id: 'v1', file_id: 'f1', enc: await encryptConfig(v.dek, USER, 'f1', 'v1', payload) },
+      { id: 'v1', file_id: 'f1', enc: await encryptConfig(v.dek, USER, 'f1', 'v1', payload, REF) },
       {
         id: 'v2',
         file_id: 'f2',
-        enc: await encryptConfig(v.dek, USER, 'f2', 'v2', { text: 'B=2', note: '' }),
+        enc: await encryptConfig(v.dek, USER, 'f2', 'v2', { text: 'B=2', note: '' }, REF),
       },
       {
         id: 'v3',
         file_id: 'f3',
-        enc: await encryptConfig(foreign.dek, USER, 'f3', 'v3', { text: 'C=3', note: '' }),
+        enc: await encryptConfig(foreign.dek, USER, 'f3', 'v3', { text: 'C=3', note: '' }, REF),
       },
     ];
     // `next.previousDek` adalah DEK lama hasil rotasi; sama dengan `v.dek` yang dipakai di atas
-    const res = await reencryptConfigVersions(rows, next.previousDek, next.dek, USER);
+    const res = await reencryptConfigVersions(rows, next.previousDek, next.dek, USER, REF);
     expect(res.skipped).toEqual(['v3']);
     expect(res.updated.map((r) => r.id)).toEqual(['v1', 'v2']);
 
     const byId = new Map(res.updated.map((r) => [r.id, r.enc]));
     expect(await decryptConfig(next.dek, USER, 'f1', 'v1', byId.get('v1')!)).toEqual(payload);
     expect((await decryptConfig(next.dek, USER, 'f2', 'v2', byId.get('v2')!)).text).toBe('B=2');
+  });
+});
+
+describe('label kunci pada ciphertext (penjaga rotasi di server)', () => {
+  it('keyRef = 16 hex pertama SHA-256 — vektor uji yang SAMA dipakai untuk vault_key_ref() di SQL', async () => {
+    // SHA-256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+    expect(await keyRef('abc')).toBe('ba7816bf8f01cfea');
+    const v = await setup();
+    const ref = await keyRef(v.record.wrapped_key);
+    expect(ref).toMatch(/^[0-9a-f]{16}$/);
+    expect(await keyRef(v.record.wrapped_key)).toBe(ref); // deterministik
+    const other = await setup();
+    expect(await keyRef(other.record.wrapped_key)).not.toBe(ref);
+  });
+
+  it('item, riwayat TOTP, dan versi konfigurasi diberi label `<ref>.`; splitEnc memisahkannya', async () => {
+    const v = await setup();
+    const enc = await encryptItem(v.dek, USER, 'a', item(), REF);
+    expect(enc.startsWith(`${REF}.`)).toBe(true);
+    expect(splitEnc(enc)).toEqual({ ref: REF, body: enc.slice(17) });
+
+    const cfg = await encryptConfig(v.dek, USER, 'f', 'v', { text: 'A=1', note: '' }, REF);
+    expect(splitEnc(cfg).ref).toBe(REF);
+  });
+
+  it('baris LAMA tanpa label tetap terbaca (kompatibel dengan data sebelum migrasi)', async () => {
+    const v = await setup();
+    const legacy = body(await encryptItem(v.dek, USER, 'a', item(), REF));
+    expect(splitEnc(legacy)).toEqual({ ref: null, body: legacy });
+    expect(await decryptItem(v.dek, USER, 'a', legacy)).toEqual(item());
+  });
+
+  it('label tidak valid ditolak sebelum mengenkripsi (bukan menghasilkan data yang ditolak server)', async () => {
+    const v = await setup();
+    for (const bad of ['', 'ABCDEF0123456789', '0123', '0123456789abcdef0', 'zzzzzzzzzzzzzzzz'])
+      await expect(encryptItem(v.dek, USER, 'a', item(), bad), bad).rejects.toMatchObject({
+        name: 'SandiError',
+        code: 'invalid',
+      });
+  });
+
+  it('rotasi mencatat wrapped_key ASAL (untuk compare-and-swap di server)', async () => {
+    const v = await setup();
+    const next = await changePassword(v.record, PASSWORD, 'password-baru-yang-panjang', USER, FAST);
+    expect(next!.previousWrappedKey).toBe(v.record.wrapped_key);
+    expect(next!.record.wrapped_key).not.toBe(v.record.wrapped_key);
+    const rot = await rotateRecoveryKey(v.record, PASSWORD, USER, FAST);
+    expect(rot!.previousWrappedKey).toBe(v.record.wrapped_key);
+    const rec = await resetPasswordWithRecovery(
+      v.record,
+      v.recoveryKey,
+      'baru-baru-baru-baru',
+      USER,
+      FAST,
+    );
+    expect(rec!.previousWrappedKey).toBe(v.record.wrapped_key);
   });
 });

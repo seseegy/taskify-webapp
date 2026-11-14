@@ -23,6 +23,7 @@
     "vapid:generate": "node scripts/generate-vapid-keys.mjs",
     "fn:deploy": "supabase functions deploy send-reminders --no-verify-jwt",
     "fn:deploy:files": "supabase functions deploy files --no-verify-jwt",
+    "fn:deploy:tempfiles": "supabase functions deploy tempfiles --no-verify-jwt",
     "db:new": "supabase migration new",
     "db:push": "supabase db push",
     "db:types": "supabase gen types typescript --linked --schema public > src/lib/supabase.types.ts"

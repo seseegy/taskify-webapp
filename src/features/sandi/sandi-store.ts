@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { clearClipboardNow } from './clipboard';
+import { keyRef, SandiError } from './crypto';
 
 /**
  * Status kunci brankas. Store ini memegang kunci data (DEK) di memori sebagai CryptoKey
@@ -118,3 +119,22 @@ export const useSandiStore = create<SandiState>((set, get) => ({
     set({ autoLockMinutes });
   },
 }));
+
+/**
+ * Label kunci (`keyRef`) untuk DEK yang sedang terbuka. Dipakai SETIAP penulisan data terenkripsi
+ * supaya server tahu kunci mana yang dipakai (lihat `keyRef` di crypto.ts).
+ *
+ * Label diturunkan dari `stamp` yang disimpan BERSAMA `dek` saat brankas dibuka, jadi selalu
+ * cocok dengan kunci yang benar-benar mengenkripsi. Bila `dek` yang diberikan bukan yang ada di
+ * store (brankas sudah dikunci atau kuncinya berganti di tengah jalan), penulisan ditolak di
+ * sini — lebih baik gagal daripada menulis data yang tidak bisa dibuka siapa pun.
+ */
+export async function currentKeyRef(dek: CryptoKey): Promise<string> {
+  const { dek: current, stamp } = useSandiStore.getState();
+  if (current !== dek || !stamp)
+    throw new SandiError(
+      'invalid',
+      'Brankas terkunci atau kuncinya baru diganti. Buka brankas lagi lalu simpan ulang.',
+    );
+  return keyRef(stamp);
+}

@@ -62,7 +62,7 @@ export interface PeriodStats {
   versions_new: number;
 }
 
-const STATS_SQL = `
+export const STATS_SQL = `
   SELECT
     (SELECT COUNT(*) FROM tasks WHERE deleted_at IS NULL AND parent_id IS NULL AND status = 'done'
         AND date(completed_at, ?3) BETWEEN ?1 AND ?2)                                     AS tasks_done,
@@ -76,7 +76,8 @@ const STATS_SQL = `
         AND kind = 'income' AND occurred_on BETWEEN ?1 AND ?2)                            AS income,
     (SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE deleted_at IS NULL AND debt_id IS NULL
         AND kind = 'expense' AND occurred_on BETWEEN ?1 AND ?2)                           AS expense,
-    (SELECT COUNT(*) FROM transactions WHERE deleted_at IS NULL AND occurred_on BETWEEN ?1 AND ?2) AS tx_count,
+    (SELECT COUNT(*) FROM transactions WHERE deleted_at IS NULL AND debt_id IS NULL
+        AND kind <> 'transfer' AND occurred_on BETWEEN ?1 AND ?2)                         AS tx_count,
     (SELECT COUNT(*) FROM journal_entries WHERE deleted_at IS NULL AND entry_date BETWEEN ?1 AND ?2) AS journal_entries,
     (SELECT COUNT(DISTINCT entry_date) FROM journal_entries WHERE deleted_at IS NULL
         AND entry_date BETWEEN ?1 AND ?2)                                                 AS journal_days,
@@ -153,6 +154,7 @@ export interface HeatDay {
 /**
  * Aturan hitung SAMA dengan Kalender & Review (supaya angka satu hari tidak berbeda antar layar):
  *  - tugas = hanya tugas induk (subtask tidak dihitung sendiri)
+ *  - transaksi = tanpa transfer & tanpa transaksi hutang (debt_id)
  *  - vault = snippet baru + project baru + versi file project baru
  */
 export const HEATMAP_SQL = `SELECT date(completed_at, ?3) AS day, 'tasks' AS kind, COUNT(*) AS n FROM tasks
@@ -167,7 +169,8 @@ export const HEATMAP_SQL = `SELECT date(completed_at, ?3) AS day, 'tasks' AS kin
       GROUP BY note_date
      UNION ALL
      SELECT occurred_on, 'transactions', COUNT(*) FROM transactions
-      WHERE deleted_at IS NULL AND occurred_on BETWEEN ?1 AND ?2 GROUP BY occurred_on
+      WHERE deleted_at IS NULL AND debt_id IS NULL AND kind <> 'transfer'
+        AND occurred_on BETWEEN ?1 AND ?2 GROUP BY occurred_on
      UNION ALL
      SELECT day, 'vault', COUNT(*) FROM (
        SELECT date(created_at, ?3) AS day FROM snippets WHERE deleted_at IS NULL
