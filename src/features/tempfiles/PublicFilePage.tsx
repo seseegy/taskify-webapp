@@ -59,7 +59,7 @@ export function PublicFilePage({ token }: { token: string | null }) {
             <span className="shine mx-auto mb-4 flex size-16 items-center justify-center rounded-3xl bg-gradient-settings text-white shadow-lg">
               <FileQuestion className="size-8" aria-hidden="true" />
             </span>
-            <h1 className="text-lg font-bold">Berkas tidak tersedia</h1>
+            <h1 className="text-lg font-semibold">Berkas tidak tersedia</h1>
             <p className="mt-1.5 text-sm text-muted">
               Tautan ini sudah kedaluwarsa, dicabut, berkasnya dihapus pemiliknya, atau tautannya
               tidak lengkap saat disalin.
@@ -69,7 +69,7 @@ export function PublicFilePage({ token }: { token: string | null }) {
 
         {state.kind === 'error' && (
           <div className="py-4">
-            <h1 className="text-lg font-bold">Tidak bisa memeriksa tautan</h1>
+            <h1 className="text-lg font-semibold">Tidak bisa memeriksa tautan</h1>
             <p className="mt-1.5 text-sm text-muted">Periksa koneksi internet lalu coba lagi.</p>
             <Button className="mt-4" variant="secondary" onClick={() => setAttempt((a) => a + 1)}>
               Coba lagi
@@ -100,7 +100,7 @@ function ReadyBody({
   return (
     <div>
       <FileGlyph mime={info.mime_type} name={info.file_name} size="lg" className="mx-auto mb-4" />
-      <h1 className="text-lg font-bold break-words">{info.file_name}</h1>
+      <h1 className="text-lg font-semibold break-words">{info.file_name}</h1>
       <dl className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted">
         <div className="flex items-center gap-1.5">
           <dt className="sr-only">Ukuran</dt>

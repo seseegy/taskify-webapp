@@ -127,7 +127,7 @@ export function TempFilesPage() {
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-base font-bold tracking-tight">Unggah berkas</h2>
+              <h2 className="text-base font-semibold tracking-tight">Unggah berkas</h2>
               <p className="text-sm text-muted">
                 Maks. 1 GB total. Tautan publik langsung dibuat; bisa dicabut kapan saja.
               </p>
@@ -211,7 +211,7 @@ function QuotaCard({ used, count }: { used: number; count: number }) {
         className="h-2.5 overflow-hidden rounded-full bg-surface ring-1 ring-line ring-inset"
       >
         <div
-          className={cn('h-full rounded-full transition-all', tone)}
+          className={cn('h-full rounded-full transition-[width]', tone)}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -280,7 +280,7 @@ function JobRow({ job }: { job: UploadJob }) {
           className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-surface ring-1 ring-line ring-inset"
         >
           <div
-            className="h-full rounded-full bg-gradient-files transition-all"
+            className="h-full rounded-full bg-gradient-files transition-[width]"
             style={{ width: `${job.progress * 100}%` }}
           />
         </div>
