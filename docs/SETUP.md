@@ -613,8 +613,10 @@ Dua migrasi baru: `20261101000100_vault_key_guard.sql` (rotasi kunci Sandi yang 
    `temp_files`), kecuali `alter default privileges` di sana sudah pernah dijalankan.
 2. **Sync Streams**: deploy ulang `powersync/sync-config.yaml` di PowerSync Dashboard (ada query
    `temp_files` baru). Ini TIDAK otomatis.
-3. **Edge Function**: `pnpm fn:deploy:tempfiles`. Secret R2 & `CRON_SECRET` sama dengan fungsi
-   `files` (§8.4), jadi tidak perlu diatur lagi.
+3. **Edge Function**: `pnpm fn:deploy:tempfiles`, atau tanpa terminal: GitHub → **Actions** →
+   **Deploy Edge Function** → **Run workflow** → `tempfiles` (sekali isi secret GitHub
+   `SUPABASE_ACCESS_TOKEN` & `SUPABASE_PROJECT_REF`; lihat `.github/workflows/deploy-functions.yml`).
+   Secret R2 & `CRON_SECRET` sama dengan fungsi `files` (§8.4), jadi tidak perlu diatur lagi.
 4. **Aplikasi**: deploy Cloudflare (§5), lalu buka aplikasi di setiap perangkat dan terima
    pembaruan. Selama masih ada perangkat dengan versi lama:
    - Ganti master password HANYA dari versi baru. Dari versi lama, server menetralkan permintaannya
