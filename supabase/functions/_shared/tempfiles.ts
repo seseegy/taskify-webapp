@@ -131,6 +131,37 @@ export function tokenFromPath(pathname: string): string | null {
   return m ? m[1]! : null;
 }
 
+/**
+ * Alur unduhan publik: PERIKSA dulu, baru HITUNG.
+ *
+ *   1. `resolve(token, false)` — berkas boleh diunduh? (tanpa menghitung)
+ *   2. `verify(row)`           — isi objek masih yang diperiksa saat unggah (lempar bila tidak)
+ *   3. `resolve(token, true)`  — hitung satu unduhan. Fungsi SQL memeriksa ulang syaratnya di
+ *      UPDATE yang sama, jadi berkas yang dihapus/dijadikan privat/kedaluwarsa/tokennya diganti
+ *      di sela langkah 1–3 tidak terhitung dan tidak diserahkan (null → 404).
+ *
+ * Unduhan yang DITOLAK (isi berubah, R2 gagal) tidak pernah menambah `download_count`.
+ * `count = false` (HEAD) berhenti setelah langkah 2.
+ */
+export async function checkedPublicDownload<R extends { id: string; etag: string | null }>(
+  token: string | null,
+  count: boolean,
+  deps: {
+    resolve: (token: string, count: boolean) => Promise<R | null>;
+    verify: (row: R) => Promise<void>;
+  },
+): Promise<R | null> {
+  if (!isShareToken(token)) return null;
+  const row = await deps.resolve(token, false);
+  if (!row) return null;
+  await deps.verify(row);
+  if (!count) return row;
+  const counted = await deps.resolve(token, true);
+  // Baris yang dihitung harus berkas & isi yang tadi diperiksa
+  if (!counted || counted.id !== row.id || counted.etag !== row.etag) return null;
+  return counted;
+}
+
 /** Kode error (juga dipakai klien untuk pesan): diawali TF. */
 export const TEMPFILE_ERROR = {
   quota: 'TF001',

@@ -10,7 +10,8 @@
 //
 // Publik (tanpa login):
 //   POST { action: 'info', token }                     → { file_name, size_bytes, … }
-//   GET  /functions/v1/tempfiles/d/<token>             → 302 ke presigned GET (dihitung 1 unduhan)
+//   GET  /functions/v1/tempfiles/d/<token>             → 302 ke presigned GET (dihitung 1 unduhan
+//                                                        SETELAH isi objek lolos pemeriksaan)
 //
 // Cron (header x-cron-secret): POST { action: 'cleanup' } → hapus yang kedaluwarsa/dihapus/
 //   ditinggalkan + objek yatim di prefix temp/.
@@ -33,6 +34,7 @@ import { mfaRequirementMet } from '../_shared/mfa.ts';
 import { bucketUrl, objectUrl, parseListing, r2, decodeXml } from '../_shared/r2.ts';
 import {
   attachmentDisposition,
+  checkedPublicDownload,
   DOWNLOAD_TTL_SECONDS,
   expiresAtFor,
   isExpiryOption,
@@ -346,21 +348,23 @@ async function publicInfo(token: unknown) {
 }
 
 async function publicDownload(pathname: string, count: boolean): Promise<Response> {
-  const f = await resolve(tokenFromPath(pathname), count);
-  if (!f)
-    return new Response('Berkas tidak ditemukan atau sudah kedaluwarsa.\n', {
-      status: 404,
+  const text = (status: number, message: string) =>
+    new Response(`${message}\n`, {
+      status,
       headers: { ...PRIVATE, 'Content-Type': 'text/plain; charset=utf-8' },
     });
+  let f: Resolved | null;
   try {
-    await assertUnchanged(f);
+    // Diperiksa dulu, baru dihitung: unduhan yang ditolak tidak menambah download_count
+    f = await checkedPublicDownload(tokenFromPath(pathname), count, {
+      resolve,
+      verify: assertUnchanged,
+    });
   } catch (e) {
     if (!(e instanceof HttpError)) throw e;
-    return new Response(`${e.message}.\n`, {
-      status: e.status,
-      headers: { ...PRIVATE, 'Content-Type': 'text/plain; charset=utf-8' },
-    });
+    return text(e.status, `${e.message}.`);
   }
+  if (!f) return text(404, 'Berkas tidak ditemukan atau sudah kedaluwarsa.');
   // Key = temp/<id berkas>: URL presigned tidak mengungkap pemilik
   return new Response(null, {
     status: 302,

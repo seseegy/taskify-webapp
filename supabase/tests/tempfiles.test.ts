@@ -6,6 +6,7 @@ import {
 } from '../../src/features/tempfiles/tempfile-limits';
 import {
   attachmentDisposition,
+  checkedPublicDownload,
   EXPIRY_OPTIONS,
   expiresAtFor,
   isExpiryOption,
@@ -138,5 +139,95 @@ describe('Edge Function tempfiles · aturan murni', () => {
     expect(safeEqual('', '')).toBe(false);
     expect(safeEqual(null, 'x')).toBe(false);
     expect(safeEqual('x', undefined)).toBe(false);
+  });
+});
+
+describe('checkedPublicDownload · periksa dulu, baru hitung', () => {
+  const TOKEN = 'A'.repeat(43);
+  type Row = { id: string; etag: string | null };
+  const row: Row = { id: F, etag: '"abc"' };
+
+  /** resolve palsu yang mencatat setiap panggilan (count = true berarti menambah hitungan). */
+  function fakeResolve(answers: { peek: Row | null; counted?: Row | null }) {
+    const calls: boolean[] = [];
+    const resolve = async (_t: string, count: boolean) => {
+      calls.push(count);
+      return count
+        ? answers.counted === undefined
+          ? answers.peek
+          : answers.counted
+        : answers.peek;
+    };
+    return { resolve, calls };
+  }
+  const ok = async () => {};
+
+  it('GET yang lolos: diperiksa lalu dihitung tepat sekali', async () => {
+    const r = fakeResolve({ peek: row });
+    const order: string[] = [];
+    const got = await checkedPublicDownload(TOKEN, true, {
+      resolve: async (t, c) => (order.push(c ? 'count' : 'peek'), r.resolve(t, c)),
+      verify: async () => void order.push('verify'),
+    });
+    expect(got).toEqual(row);
+    expect(order).toEqual(['peek', 'verify', 'count']);
+  });
+
+  it('isi berubah (verify melempar): TIDAK dihitung, error diteruskan', async () => {
+    const r = fakeResolve({ peek: row });
+    const boom = new Error('berubah');
+    await expect(
+      checkedPublicDownload(TOKEN, true, {
+        resolve: r.resolve,
+        verify: async () => Promise.reject(boom),
+      }),
+    ).rejects.toBe(boom);
+    expect(r.calls).toEqual([false]);
+  });
+
+  it('tidak ada / tidak publik: null, tanpa verify & tanpa hitung', async () => {
+    const r = fakeResolve({ peek: null });
+    let verified = false;
+    const got = await checkedPublicDownload(TOKEN, true, {
+      resolve: r.resolve,
+      verify: async () => void (verified = true),
+    });
+    expect(got).toBeNull();
+    expect(verified).toBe(false);
+    expect(r.calls).toEqual([false]);
+  });
+
+  it('token tidak valid: tidak menyentuh database', async () => {
+    const r = fakeResolve({ peek: row });
+    expect(
+      await checkedPublicDownload('pendek', true, { resolve: r.resolve, verify: ok }),
+    ).toBeNull();
+    expect(await checkedPublicDownload(null, true, { resolve: r.resolve, verify: ok })).toBeNull();
+    expect(r.calls).toEqual([]);
+  });
+
+  it('HEAD (count = false): diperiksa, tidak dihitung', async () => {
+    const r = fakeResolve({ peek: row });
+    expect(await checkedPublicDownload(TOKEN, false, { resolve: r.resolve, verify: ok })).toEqual(
+      row,
+    );
+    expect(r.calls).toEqual([false]);
+  });
+
+  it('dihapus/dicabut di sela pemeriksaan dan penghitungan: null (404)', async () => {
+    const r = fakeResolve({ peek: row, counted: null });
+    expect(await checkedPublicDownload(TOKEN, true, { resolve: r.resolve, verify: ok })).toBeNull();
+  });
+
+  it('baris yang dihitung bukan yang diperiksa (id/etag beda): null', async () => {
+    for (const counted of [
+      { ...row, id: U },
+      { ...row, etag: '"lain"' },
+    ]) {
+      const r = fakeResolve({ peek: row, counted });
+      expect(
+        await checkedPublicDownload(TOKEN, true, { resolve: r.resolve, verify: ok }),
+      ).toBeNull();
+    }
   });
 });
