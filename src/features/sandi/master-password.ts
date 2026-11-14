@@ -123,9 +123,16 @@ function addPatternIssues(patterns: Set<string>, issues: string[]): void {
   if (patterns.has('repeat')) issues.push('Mengandung pengulangan karakter.');
 }
 
+/** Saran yang selalu menyertai penolakan karena lemah: menghapus satu pola saja belum tentu cukup. */
+export const MASTER_ADVICE = 'Pakai frasa 5 kata, atau sandi acak minimal 16 karakter.';
+
 /**
  * Alasan master password ditolak, atau `null` bila boleh dipakai. Async karena memuat pemeriksa;
  * bila gagal dimuat mengembalikan `ENGINE_LOAD_ERROR` (gagal tertutup).
+ *
+ * Penolakan karena lemah = pola pertama yang ditemukan (bila ada) + `MASTER_ADVICE`. Sandi acak
+ * pendek bisa kebetulan memuat kata umum ("love", "sun"); tanpa saran, pengguna hanya diberi tahu
+ * kata itu, padahal masalah utamanya panjang sandi.
  */
 export async function masterPasswordProblem(
   password: string,
@@ -139,9 +146,6 @@ export async function masterPasswordProblem(
   }
   const s = evaluateMasterPassword(password, userInputs);
   if (s.bits < MASTER_MIN_BITS)
-    return (
-      s.issues[0] ??
-      'Terlalu mudah ditebak. Pakai frasa 5 kata, atau sandi acak minimal 16 karakter.'
-    );
+    return `${s.issues[0] ?? 'Terlalu mudah ditebak.'} ${MASTER_ADVICE}`;
   return null;
 }

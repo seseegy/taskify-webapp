@@ -8,6 +8,7 @@ import {
 } from './generator';
 import {
   ENGINE_LOAD_ERROR,
+  MASTER_ADVICE,
   MASTER_MIN_BITS,
   ensureStrengthEngine,
   evaluateMasterPassword,
@@ -70,8 +71,19 @@ describe('gerbang master password (zxcvbn-ts)', () => {
   );
 
   it('sandi acak pendek (12) ditolak dengan petunjuk yang bisa ditindaklanjuti', async () => {
-    const p = generatePassword({ ...DEFAULT_PASSWORD_OPTIONS, length: 12 });
-    expect(await masterPasswordProblem(p)).toMatch(/frasa 5 kata|16 karakter/);
+    // Banyak percobaan: sandi acak kadang memuat kata umum ("love", "sun"); petunjuk tetap wajib ada
+    for (let i = 0; i < 40; i++) {
+      const p = generatePassword({ ...DEFAULT_PASSWORD_OPTIONS, length: 12 });
+      expect(await masterPasswordProblem(p), p).toMatch(/frasa 5 kata|16 karakter/);
+    }
+  });
+
+  it('penolakan karena pola tetap menyertakan saran (deterministik)', async () => {
+    // Acak 12 karakter yang memuat kata umum: sumber kegagalan acak tes di atas sebelumnya
+    const msg = await masterPasswordProblem('x7Qlove#k2Mz');
+    expect(msg).toMatch(/kata atau nama yang umum/);
+    expect(msg).toContain(MASTER_ADVICE);
+    expect(await masterPasswordProblem('Welcome2024!!')).toContain(MASTER_ADVICE);
   });
 
   it(
