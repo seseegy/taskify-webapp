@@ -49,7 +49,9 @@ import {
   usePwItemRows,
   usePwTotpLogRows,
   useRejectedKeyUploads,
+  useRejectedRotation,
   useSandiActions,
+  useStaleVaultWrites,
   type DecryptedItem,
 } from './sandi-data';
 import { forgetDevice, readTrustMeta, rememberDevice } from './device-trust';
@@ -58,6 +60,7 @@ import { syncClockOffset } from './totp-clock';
 import { KEY_REJECTED_MESSAGE, REMOTE_KEY_MESSAGE, type RemoteKeyState } from './vault-guard';
 import { useSandiStore } from './sandi-store';
 import { skippedMessage } from './vault-rekey';
+import { rotationRejectedMessage } from './vault-rotation';
 import type { PwKeys } from '@/db/schema';
 
 type Tab = 'brankas' | 'kode' | 'generator';
@@ -99,6 +102,8 @@ export function SandiPage() {
       ) : (
         <>
           <RejectedKeyBanner />
+          <RejectedRotationBanner />
+          <StaleVaultWritesBanner />
           <VaultTab view={tab === 'kode' ? 'codes' : 'items'} />
         </>
       )}
@@ -175,6 +180,69 @@ function RejectedKeyBanner() {
           Pengaturan → Sinkronisasi.
         </p>
         <Button variant="secondary" size="sm" onClick={() => void actions.dismissRejectedKeys()}>
+          Mengerti, tutup
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Penggantian master password / kunci pemulihan yang ditolak server setelah layar ganti sandi
+ * ditutup. Tidak ada yang berubah di server; perangkat ini kembali ke kunci lama setelah sinkron.
+ */
+function RejectedRotationBanner() {
+  const code = useRejectedRotation();
+  const actions = useSandiActions();
+  if (code === undefined) return null;
+  return (
+    <div
+      role="alert"
+      className="mb-4 flex max-w-3xl gap-3 rounded-2xl bg-warning/12 p-3.5 text-sm text-warning"
+    >
+      <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <p>
+          <strong>Penggantian kunci brankas ditolak server.</strong> {rotationRejectedMessage(code)}
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void actions.dismissRejectedRotation()}
+        >
+          Mengerti, tutup
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Perangkat ini menyimpan/mengubah sandi (atau konfigurasi Vault) dengan kunci brankas LAMA —
+ * biasanya karena offline saat master password diganti di perangkat lain. Server menolaknya
+ * (23V03) supaya data di server tidak tertimpa sesuatu yang tidak bisa dibuka lagi.
+ */
+function StaleVaultWritesBanner() {
+  const count = useStaleVaultWrites();
+  const actions = useSandiActions();
+  if (count === 0) return null;
+  return (
+    <div
+      role="alert"
+      className="mb-4 flex max-w-3xl gap-3 rounded-2xl bg-warning/12 p-3.5 text-sm text-warning"
+    >
+      <TriangleAlert className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+      <div className="min-w-0 flex-1 space-y-2">
+        <p>
+          <strong>{count} perubahan brankas dari perangkat ini ditolak server</strong> karena dibuat
+          dengan kunci lama (master password sudah diganti di perangkat lain). Data di server tetap
+          utuh. Buka brankas dengan master password terbaru lalu ulangi perubahan yang belum ada.
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => void actions.dismissStaleVaultWrites()}
+        >
           Mengerti, tutup
         </Button>
       </div>
@@ -315,11 +383,19 @@ function VaultTab({ view }: { view: VaultView }) {
             }
           }}
           onFinished={async (vault: RewrittenVault) => {
-            const result = await actions.replaceVault(row.id, vault);
+            // Brankas tetap TERKUNCI selama menunggu server (layar ini tetap tampil dengan status
+            // menyimpan). Ditolak → error dilempar dan ditampilkan RecoverScreen; tidak ada yang
+            // berubah di server, kunci lama tetap berlaku.
+            const { result, confirmed } = await actions.replaceVault(row.id, vault);
             setRecovering(false);
             // DEK dirotasi: kepercayaan lama jadi basi, jadi segarkan bila perangkat dipercaya
             if (await readTrustMeta()) await rememberDevice(vault.dek, vault.record.wrapped_key);
             unlock(vault.dek, vault.record.wrapped_key);
+            if (!confirmed)
+              toast(
+                'Perubahan masih dikirim ke server — biarkan aplikasi terbuka dan online sampai selesai.',
+                { duration: 12_000 },
+              );
             const skippedNote = skippedMessage(result);
             if (skippedNote) toast(skippedNote);
           }}

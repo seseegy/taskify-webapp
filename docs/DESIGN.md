@@ -16,15 +16,15 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 
 ## Utility
 
-| Kelas                                                                                       | Pakai untuk                                                                  |
-| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `glass` / `glass-strong`                                                                    | Kartu, panel, input, nav (kaca semi-transparan; blur latar hanya di desktop) |
-| `bg-gradient-brand`                                                                         | Aksi utama, logo (indigo → ungu → pink)                                      |
-| `bg-gradient-{tasks,journal,notes,finance,vault,calendar,sandi,settings,music,tiktok}`      | Identitas modul (ikon, header, sel aktif)                                    |
-| `text-gradient-brand`                                                                       | Angka/judul penting (saldo, logo)                                            |
-| `shine`                                                                                     | Kilau tipis di atas elemen bergradasi                                        |
-| `text-fg`, `text-muted`, `bg-surface`, `border-line`, `text-primary/danger/success/warning` | Token warna yang otomatis menyesuaikan tema                                  |
-| `bg-mod-*`                                                                                  | Warna solid modul (titik di kalender)                                        |
+| Kelas                                                                                        | Pakai untuk                                                                  |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `glass` / `glass-strong`                                                                     | Kartu, panel, input, nav (kaca semi-transparan; blur latar hanya di desktop) |
+| `bg-gradient-brand`                                                                          | Aksi utama, logo (indigo → ungu → pink)                                      |
+| `bg-gradient-{tasks,journal,notes,finance,vault,calendar,sandi,settings,music,tiktok,files}` | Identitas modul (ikon, header, sel aktif)                                    |
+| `text-gradient-brand`                                                                        | Angka/judul penting (saldo, logo)                                            |
+| `shine`                                                                                      | Kilau tipis di atas elemen bergradasi                                        |
+| `text-fg`, `text-muted`, `bg-surface`, `border-line`, `text-primary/danger/success/warning`  | Token warna yang otomatis menyesuaikan tema                                  |
+| `bg-mod-*`                                                                                   | Warna solid modul (titik di kalender)                                        |
 
 ## Warna modul
 
@@ -39,6 +39,7 @@ Tema disimpan per perangkat (`localStorage`), dan skrip di `index.html` memasang
 | Sandi    | rose → violet   | `#f43f5e`      |
 | Musik    | fuchsia → ungu  | —              |
 | TikTok   | cyan → rose     | —              |
+| Berkas   | teal → indigo   | —              |
 
 Musik dan TikTok **tidak punya** `--color-mod-*`. Token `bg-mod-*` ada khusus untuk titik aktivitas di
 kalender dan legenda Review, dan musik tidak pernah muncul di sana — tidak ada "aktivitas musik"

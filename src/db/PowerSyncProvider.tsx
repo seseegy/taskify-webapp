@@ -23,6 +23,7 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let opened: DatabaseHandle | null = null;
     openDatabase()
       .then(async (h) => {
         if (cancelled) return;
@@ -32,6 +33,7 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
         }
         writeDbOwner(userId);
         if (cancelled) return;
+        opened = h;
         setHandle(h);
         await h.powerSync.connect(connector, { crudUploadThrottleMs: 1000 });
         // Minta browser agar tidak menghapus data offline saat penyimpanan menipis
@@ -42,6 +44,11 @@ export function PowerSyncProvider({ children }: { children: ReactNode }) {
       });
     return () => {
       cancelled = true;
+      // Database lokal adalah singleton (openDatabase) dan TETAP terbuka setelah provider ini
+      // dilepas — mis. gerbang MFA menutup aplikasi karena sesi turun ke aal1, atau akun
+      // berganti. Tanpa disconnect, sync & unggah berjalan terus di belakang layar dengan sesi
+      // yang sudah tidak berhak. Mount berikutnya memanggil connect() lagi.
+      if (opened) void opened.powerSync.disconnect();
     };
     // userId sengaja tidak memicu ulang: App memasang provider dengan key = user, jadi akun lain
     // selalu berarti mount baru.

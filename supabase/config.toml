@@ -398,6 +398,11 @@ verify_jwt = false
 [functions.files]
 verify_jwt = false
 
+# Berkas publik: unduhan publik TANPA login (GET /tempfiles/d/<token>), aksi pemilik (JWT aal2
+# diverifikasi di dalam fungsi) & pembersihan (x-cron-secret).
+[functions.tempfiles]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

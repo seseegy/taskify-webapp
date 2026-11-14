@@ -69,6 +69,37 @@ export async function disablePush(): Promise<void> {
   await sub.unsubscribe();
 }
 
+/**
+ * Lepas langganan push perangkat ini saat KELUAR atau saat perangkat dipakai akun lain.
+ *
+ * Tanpa ini perangkat tetap menerima pengingat (berisi judul tugas) milik akun yang sudah keluar,
+ * dan akun berikutnya gagal mengaktifkan notifikasi: endpoint yang sama masih tercatat milik akun
+ * lama, jadi upsert-nya ditolak RLS.
+ *
+ * - Baris di server dihapus bila sesi masih berlaku (best effort, dibatasi waktu: offline tidak
+ *   boleh menahan logout).
+ * - Langganan di browser SELALU dicabut. Endpoint yang dicabut dijawab 404/410 oleh layanan push,
+ *   dan send-reminders lalu menghapus baris lamanya sendiri — jadi tetap bersih walau langkah
+ *   pertama gagal.
+ */
+export async function forgetPushSubscription(timeoutMs = 4_000): Promise<void> {
+  const reg = await getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint),
+      new Promise((resolve) => (timer = setTimeout(resolve, timeoutMs))),
+    ]);
+  } catch {
+    /* offline / sesi sudah habis: cukup cabut di browser */
+  } finally {
+    clearTimeout(timer);
+  }
+  await sub.unsubscribe();
+}
+
 export async function sendTestPush(): Promise<{ devices: number; sent: number }> {
   const { data, error } = await supabase.functions.invoke<{ devices: number; sent: number }>(
     'send-reminders',

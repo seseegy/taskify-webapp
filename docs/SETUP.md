@@ -602,35 +602,86 @@ bubblewrap fingerprint add <SHA-256 dari Play Console> --name=play \
 - Mengganti domain Taskify = ubah `host`, semua URL di `twa-manifest.json`, lalu build ulang & salin
   `assetlinks.json` ke domain baru.
 
+## 16. Berkas publik (tempfile) & penjaga kunci brankas
+
+Dua migrasi baru: `20261101000100_vault_key_guard.sql` (rotasi kunci Sandi yang atomik) dan
+`20261101000200_temp_files.sql` (Berkas publik).
+
+### 16.1 Urutan deploy (penting)
+
+1. **Migrasi**: `pnpm db:push`. Lalu jalankan ulang blok hak baca PowerSync §2.4b (tabel baru
+   `temp_files`), kecuali `alter default privileges` di sana sudah pernah dijalankan.
+2. **Sync Streams**: deploy ulang `powersync/sync-config.yaml` di PowerSync Dashboard (ada query
+   `temp_files` baru). Ini TIDAK otomatis.
+3. **Edge Function**: `pnpm fn:deploy:tempfiles`, atau tanpa terminal: GitHub → **Actions** →
+   **Deploy Edge Function** → **Run workflow** → `tempfiles` (sekali isi secret GitHub
+   `SUPABASE_ACCESS_TOKEN` & `SUPABASE_PROJECT_REF`; lihat `.github/workflows/deploy-functions.yml`).
+   Secret R2 & `CRON_SECRET` sama dengan fungsi `files` (§8.4), jadi tidak perlu diatur lagi.
+4. **Aplikasi**: deploy Cloudflare (§5), lalu buka aplikasi di setiap perangkat dan terima
+   pembaruan. Selama masih ada perangkat dengan versi lama:
+   - Ganti master password HANYA dari versi baru. Dari versi lama, server menetralkan permintaannya
+     (kunci tidak berubah); perangkat itu kembali ke kunci lama setelah sinkron.
+   - Setelah kunci pertama kali diganti dari versi baru (atau versi lama mencoba menggantinya),
+     simpanan sandi dari versi lama ditolak server dan dibuang dari antrean (di versi lama tidak ada
+     pesan khusus; perbarui aplikasinya). Sandi yang disimpan versi baru tampil "tidak bisa dibuka"
+     di versi lama sampai diperbarui.
+5. **Jadwal pembersihan**: jalankan `supabase/sql/schedule-tempfile-cleanup.sql` sekali di SQL
+   Editor (memakai secret Vault yang sama dengan §7.4).
+
+CORS bucket R2 (§8.2) tidak perlu diubah: unggahan memakai PUT + `content-type` yang sama dengan
+lampiran, dan unduhan publik adalah navigasi biasa (bukan fetch), jadi tidak butuh CORS.
+
+### 16.2 Coba
+
+1. Buka **Berkas** (sidebar / Menu di HP), pilih masa berlaku, unggah berkas kecil.
+2. Salin tautan, buka di jendela penyamaran (tanpa login): halaman `/unduh/…` menampilkan nama &
+   ukuran; **Unduh** mengunduh berkasnya, dan hitungan unduhan bertambah.
+3. Matikan tautan publik / buat tautan baru / hapus: tautan lama langsung menampilkan "Berkas tidak
+   tersedia".
+
+```sql
+-- Pemakaian per akun & yang menunggu dibersihkan
+select user_id, count(*), pg_size_pretty(sum(size_bytes)) from temp_files
+ where deleted_at is null group by user_id;
+select * from temp_files_to_purge(50);
+```
+
+> Kuota 1 GB per akun ditegakkan di server (termasuk unggahan yang sedang berjalan). R2 gratis
+> sampai 10 GB penyimpanan dan unduhan (egress) gratis.
+
 ## Troubleshooting
 
-| Gejala                                     | Penyebab & solusi                                                                                                          |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| Layar "Konfigurasi belum lengkap"          | `.env.local` belum diisi / server dev belum di-restart                                                                     |
-| Pintu masuk musik tidak ada di palette     | `VITE_MUSIC_API_URL` kosong (§11), atau server dev belum di-restart                                                        |
-| Aplikasi Android menampilkan bilah alamat  | `/.well-known/assetlinks.json` belum ter-deploy atau sidik jarinya tidak cocok dengan kunci APK / Play App Signing (§15.3) |
-| TikTok: "menolak alamat aplikasi ini"      | Origin Taskify belum ada di `ALLOWED_ORIGINS` Worker ttdl-taskify (§14), lalu `pnpm deploy` di repo itu                    |
-| Kartu TikTok tidak muncul di `/bagikan`    | `VITE_TIKTOK_API_URL` kosong (§14), atau teks yang dibagikan tidak berisi link video/foto TikTok                           |
-| Musik "jalan tapi bisu"                    | `media-src` di `public/_headers` — periksa Console untuk pesan _"Refused to load media"_                                   |
-| Sandi tidak muncul di perangkat lain       | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan         |
-| Konfigurasi tidak muncul di perangkat lain | `sync-config.yaml` belum di-deploy ulang (§12), atau migrasi `…_config_files.sql` belum diterapkan                         |
-| Status macet di _Menyinkron…_              | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)                                       |
-| Error `PSYNC_S2101` di console             | Client Auth PowerSync belum dicentang _Use Supabase Auth_                                                                  |
-| Error `PSYNC_S2105` (aud)                  | Tambahkan audience `authenticated` di Client Auth                                                                          |
-| Upload gagal `42501 permission denied`     | Migrasi 2 (grant) belum dijalankan                                                                                         |
-| Pengaturan menampilkan "Ditolak server"    | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`                                              |
-| Login "Tidak bisa terhubung"               | Login pertama butuh internet; setelah itu aplikasi jalan offline                                                           |
-| Notifikasi "Belum tersedia"                | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                                                           |
-| Notifikasi uji "Edge Function gagal"       | Fungsi belum di-deploy, atau Verify JWT masih menyala                                                                      |
-| Upload gagal "periksa koneksi atau CORS"   | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)                                                   |
-| "Edge Function gagal" saat upload          | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah                                             |
-| Uji berhasil tapi pengingat tidak datang   | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi                                     |
-| Backup gagal "Network is unreachable"      | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)                                            |
-| Backup gagal "server version mismatch"     | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`                                      |
-| "Bagikan" tidak menampilkan Taskify        | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                                                      |
-| "MFA TOTP dimatikan di server"             | Aktifkan App Authenticator di Dashboard → Authentication → Multi-Factor (§13.1)                                            |
-| Data kosong di perangkat lama setelah §13  | Aplikasi versi lama (sesi tanpa kode) + sync-config baru; muat ulang/perbarui aplikasi lalu login dengan kode              |
-| Upload/lampiran "Verifikasi dua langkah…"  | Sesi belum aal2 — keluar lalu masuk lagi dengan kode authenticator                                                         |
+| Gejala                                         | Penyebab & solusi                                                                                                                                                                              |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Layar "Konfigurasi belum lengkap"              | `.env.local` belum diisi / server dev belum di-restart                                                                                                                                         |
+| Pintu masuk musik tidak ada di palette         | `VITE_MUSIC_API_URL` kosong (§11), atau server dev belum di-restart                                                                                                                            |
+| Aplikasi Android menampilkan bilah alamat      | `/.well-known/assetlinks.json` belum ter-deploy atau sidik jarinya tidak cocok dengan kunci APK / Play App Signing (§15.3)                                                                     |
+| TikTok: "menolak alamat aplikasi ini"          | Origin Taskify belum ada di `ALLOWED_ORIGINS` Worker ttdl-taskify (§14), lalu `pnpm deploy` di repo itu                                                                                        |
+| Kartu TikTok tidak muncul di `/bagikan`        | `VITE_TIKTOK_API_URL` kosong (§14), atau teks yang dibagikan tidak berisi link video/foto TikTok                                                                                               |
+| Musik "jalan tapi bisu"                        | `media-src` di `public/_headers` — periksa Console untuk pesan _"Refused to load media"_                                                                                                       |
+| Sandi tidak muncul di perangkat lain           | `sync-config.yaml` belum di-deploy ulang di PowerSync Dashboard (§10), atau migrasi `…_sandi.sql` belum diterapkan                                                                             |
+| Konfigurasi tidak muncul di perangkat lain     | `sync-config.yaml` belum di-deploy ulang (§12), atau migrasi `…_config_files.sql` belum diterapkan                                                                                             |
+| Status macet di _Menyinkron…_                  | Sync Streams belum di-deploy, atau publication `powersync` tidak ada (cek migrasi 3)                                                                                                           |
+| Error `PSYNC_S2101` di console                 | Client Auth PowerSync belum dicentang _Use Supabase Auth_                                                                                                                                      |
+| Error `PSYNC_S2105` (aud)                      | Tambahkan audience `authenticated` di Client Auth                                                                                                                                              |
+| Upload gagal `42501 permission denied`         | Migrasi 2 (grant) belum dijalankan                                                                                                                                                             |
+| Pengaturan menampilkan "Ditolak server"        | Perubahan melanggar constraint; data tersimpan di tabel lokal `upload_errors`                                                                                                                  |
+| Login "Tidak bisa terhubung"                   | Login pertama butuh internet; setelah itu aplikasi jalan offline                                                                                                                               |
+| Notifikasi "Belum tersedia"                    | Sedang di `pnpm dev`; service worker hanya aktif di build/deploy                                                                                                                               |
+| Notifikasi uji "Edge Function gagal"           | Fungsi belum di-deploy, atau Verify JWT masih menyala                                                                                                                                          |
+| Upload gagal "periksa koneksi atau CORS"       | CORS bucket R2 belum diatur / domain belum masuk `AllowedOrigins` (§8.2)                                                                                                                       |
+| "Edge Function gagal" saat upload              | Fungsi `files` belum di-deploy, Verify JWT masih menyala, atau secret R2 salah                                                                                                                 |
+| Uji berhasil tapi pengingat tidak datang       | Cron belum dijadwalkan (7.4), atau `CRON_SECRET` di Vault berbeda dengan secret fungsi                                                                                                         |
+| Backup gagal "Network is unreachable"          | `SUPABASE_DB_URL` memakai koneksi Direct (IPv6); ganti ke Session pooler (§9.2)                                                                                                                |
+| Backup gagal "server version mismatch"         | Versi Postgres Supabase lebih baru dari 17; naikkan image `postgres:` di `backup.yml`                                                                                                          |
+| "Bagikan" tidak menampilkan Taskify            | Share Target hanya untuk PWA yang ter-install via Chrome Android (§6)                                                                                                                          |
+| "MFA TOTP dimatikan di server"                 | Aktifkan App Authenticator di Dashboard → Authentication → Multi-Factor (§13.1)                                                                                                                |
+| Data kosong di perangkat lama setelah §13      | Aplikasi versi lama (sesi tanpa kode) + sync-config baru; muat ulang/perbarui aplikasi lalu login dengan kode                                                                                  |
+| Upload/lampiran "Verifikasi dua langkah…"      | Sesi belum aal2 — keluar lalu masuk lagi dengan kode authenticator                                                                                                                             |
+| Berkas: "Edge Function gagal" / 404            | Fungsi `tempfiles` belum di-deploy (§16.1) atau Verify JWT masih menyala                                                                                                                       |
+| Berkas tidak muncul di daftar / perangkat lain | `sync-config.yaml` belum di-deploy ulang (§16.1), atau hak baca PowerSync untuk `temp_files` belum diberikan (§2.4b)                                                                           |
+| Ganti master password "ditolak server"         | Lihat pesannya: kunci sudah diganti di perangkat lain (23V01) atau sinkron belum lengkap / data baru saja diubah di perangkat lain (23V02). Tidak ada yang berubah; tunggu sinkron lalu ulangi |
+| Banner "perubahan brankas … ditolak"           | Perangkat ini menyimpan sandi dengan kunci lama (offline saat master password diganti). Data server utuh; ulangi perubahannya                                                                  |
 
 ## Perawatan rutin
 

@@ -5,7 +5,8 @@ import { NotFoundPage } from './NotFoundPage';
 import { RouteError } from './RouteError';
 
 /**
- * Rute berbahasa Indonesia. Semua rute di balik login (lihat App.tsx).
+ * Rute berbahasa Indonesia. Semua rute di balik login (lihat App.tsx), KECUALI `/unduh/<token>`
+ * (halaman unduh Berkas publik) yang ditangani App.tsx sebelum gerbang login.
  *
  * - `handle.title` → judul tab/dokumen (lihat useRouteA11y).
  * - Beranda dimuat langsung; halaman lain dipecah per rute (`lazy`) supaya bundel awal kecil
@@ -65,6 +66,14 @@ export const router = createBrowserRouter([
             handle: { title: 'Sandi' },
             lazy: () =>
               import('@/features/sandi/SandiPage').then((m) => ({ Component: m.SandiPage })),
+          },
+          {
+            path: 'berkas',
+            handle: { title: 'Berkas' },
+            lazy: () =>
+              import('@/features/tempfiles/TempFilesPage').then((m) => ({
+                Component: m.TempFilesPage,
+              })),
           },
           {
             path: 'pengaturan',

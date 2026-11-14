@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 import { SQLITE_TZ_MODIFIER } from '@/lib/date';
-import { HEATMAP_SQL, heatLevel, percentChange } from './review-queries';
+import { HEATMAP_SQL, heatLevel, percentChange, STATS_SQL } from './review-queries';
 
 /** Skema minimal (hanya kolom yang dibaca query) di SQLite sungguhan. */
 function makeDb() {
@@ -10,7 +10,7 @@ function makeDb() {
     CREATE TABLE tasks (id TEXT, parent_id TEXT, status TEXT, completed_at TEXT, deleted_at TEXT);
     CREATE TABLE journal_entries (id TEXT, entry_date TEXT, deleted_at TEXT);
     CREATE TABLE notes (id TEXT, note_date TEXT, deleted_at TEXT);
-    CREATE TABLE transactions (id TEXT, occurred_on TEXT, deleted_at TEXT);
+    CREATE TABLE transactions (id TEXT, occurred_on TEXT, kind TEXT, debt_id TEXT, deleted_at TEXT);
     CREATE TABLE snippets (id TEXT, created_at TEXT, deleted_at TEXT);
     CREATE TABLE code_projects (id TEXT, created_at TEXT, deleted_at TEXT);
     CREATE TABLE attachments (id TEXT, entity_type TEXT, created_at TEXT, deleted_at TEXT);
@@ -74,6 +74,48 @@ describe('HEATMAP_SQL', () => {
     const db = makeDb();
     db.exec(`INSERT INTO snippets VALUES ('a', '2026-10-07T17:30:00Z', NULL);`);
     expect(run(db)).toEqual({ '2026-10-08:vault': 1 });
+  });
+
+  it('transaksi: tanpa transfer & transaksi hutang (sama dengan Kalender & Keuangan)', () => {
+    const db = makeDb();
+    db.exec(`
+      INSERT INTO transactions VALUES ('makan', '2026-10-07', 'expense', NULL, NULL);
+      INSERT INTO transactions VALUES ('gaji', '2026-10-07', 'income', NULL, NULL);
+      INSERT INTO transactions VALUES ('pindah', '2026-10-07', 'transfer', NULL, NULL);
+      INSERT INTO transactions VALUES ('pinjam', '2026-10-07', 'income', 'hutang-1', NULL);
+      INSERT INTO transactions VALUES ('sampah', '2026-10-07', 'expense', NULL, '2026-10-08T00:00:00Z');
+    `);
+    expect(run(db)).toEqual({ '2026-10-07:transactions': 2 });
+  });
+});
+
+describe('STATS_SQL (ringkasan Review)', () => {
+  it('pemasukan, pengeluaran, dan jumlah transaksi: tanpa transfer & transaksi hutang', () => {
+    const db = new DatabaseSync(':memory:');
+    db.exec(`
+      CREATE TABLE tasks (id TEXT, parent_id TEXT, status TEXT, completed_at TEXT, created_at TEXT,
+                          due_date TEXT, deleted_at TEXT);
+      CREATE TABLE transactions (id TEXT, occurred_on TEXT, kind TEXT, amount INTEGER, debt_id TEXT,
+                                 deleted_at TEXT);
+      CREATE TABLE journal_entries (id TEXT, entry_date TEXT, mood INTEGER, deleted_at TEXT);
+      CREATE TABLE snippets (id TEXT, created_at TEXT, deleted_at TEXT);
+      CREATE TABLE attachments (id TEXT, entity_type TEXT, created_at TEXT, deleted_at TEXT);
+      INSERT INTO transactions VALUES ('makan', '2026-10-07', 'expense', 25000, NULL, NULL);
+      INSERT INTO transactions VALUES ('gaji', '2026-10-07', 'income', 5000000, NULL, NULL);
+      INSERT INTO transactions VALUES ('pindah', '2026-10-07', 'transfer', 70000, NULL, NULL);
+      INSERT INTO transactions VALUES ('pinjamkan', '2026-10-07', 'expense', 100000, 'h1', NULL);
+      INSERT INTO transactions VALUES ('pelunasan', '2026-10-08', 'income', 100000, 'h1', NULL);
+    `);
+    const r = db.prepare(STATS_SQL).get('2026-10-01', '2026-10-31', SQLITE_TZ_MODIFIER) as {
+      income: number;
+      expense: number;
+      tx_count: number;
+    };
+    expect({ income: r.income, expense: r.expense, tx_count: r.tx_count }).toEqual({
+      income: 5000000,
+      expense: 25000,
+      tx_count: 2,
+    });
   });
 });
 

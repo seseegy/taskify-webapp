@@ -309,6 +309,14 @@ export const attachments = sqliteTable(
 // Sandi (password manager) — SEMUA isi terenkripsi di perangkat (src/features/sandi/crypto.ts).
 // Server dan database lokal hanya melihat ciphertext; tidak ada kolom judul/URL/username polos.
 // -----------------------------------------------------------------------------
+
+/**
+ * Tabel yang kolom `enc`-nya dienkripsi dengan DEK brankas Sandi. Satu daftar untuk:
+ * rotasi kunci (vault-rekey.ts), unggah rotasi atomik (connector.ts), dan server (trigger
+ * `vault_enc_guard` + RPC `apply_vault_rotation`, migrasi …_vault_key_guard.sql — diuji sama).
+ * Menambah jenis data terenkripsi DEK = tambah di sini DAN di migrasi.
+ */
+export const VAULT_ENCRYPTED_TABLES = ['pw_items', 'pw_totp_log', 'config_versions'] as const;
 export const pwKeys = sqliteTable('pw_keys', {
   ...base(),
   version: integer('version').notNull(),
@@ -318,6 +326,10 @@ export const pwKeys = sqliteTable('pw_keys', {
   wrapped_key: text('wrapped_key').notNull(),
   recovery_salt: text('recovery_salt').notNull(),
   recovery_wrapped_key: text('recovery_wrapped_key').notNull(),
+  /** Label kunci (keyRef) asal rotasi terakhir; diisi klien, diperiksa server (compare-and-swap). */
+  rotated_from: text('rotated_from'),
+  /** Sejak kapan server menolak ciphertext tanpa label (diisi server). null = belum. */
+  labels_required_at: text('labels_required_at'),
 });
 
 export const pwItems = sqliteTable('pw_items', {
@@ -372,6 +384,32 @@ export const configVersions = sqliteTable(
   },
   (t) => [index('config_versions_file').on(t.file_id, t.created_at)],
 );
+
+// -----------------------------------------------------------------------------
+// Berkas publik (tempfile). Klien HANYA MEMBACA tabel ini (lewat sinkron); semua tulisan lewat
+// Edge Function `tempfiles` supaya kuota 1 GB, pencabutan tautan, dan hapus berlaku seketika
+// di server (lihat supabase/migrations/…_temp_files.sql). Jangan insert/update dari klien —
+// server tidak memberi grant tulis, jadi perubahannya hanya akan berakhir di upload_errors.
+// -----------------------------------------------------------------------------
+export type TempFileStatus = 'pending' | 'ready';
+
+export const tempFiles = sqliteTable('temp_files', {
+  ...base(),
+  ...softDelete(),
+  file_name: text('file_name').notNull(),
+  mime_type: text('mime_type').notNull(),
+  size_bytes: integer('size_bytes').notNull(),
+  storage_key: text('storage_key').notNull(),
+  status: text('status').$type<TempFileStatus>().notNull(),
+  /** ETag objek R2 saat unggahan diperiksa (diisi server). */
+  etag: text('etag'),
+  share_token: text('share_token').notNull(),
+  is_public: integer('is_public').notNull(),
+  /** null = tanpa batas waktu */
+  expires_at: text('expires_at'),
+  download_count: integer('download_count').notNull(),
+  last_download_at: text('last_download_at'),
+});
 
 // -----------------------------------------------------------------------------
 // LOCAL-ONLY: perubahan yang ditolak server permanen (constraint/RLS).
@@ -446,6 +484,7 @@ export const drizzleSchema = {
   pwTotpLog,
   configFiles,
   configVersions,
+  tempFiles,
   uploadErrors,
   taskListsRelations,
   tasksRelations,
@@ -457,9 +496,17 @@ export const drizzleSchema = {
 /**
  * Skema PowerSync, diturunkan dari tabel Drizzle (relations diabaikan otomatis).
  * `upload_errors` ditandai localOnly agar tidak pernah masuk antrean upload.
+ *
+ * Tabel terenkripsi DEK Sandi melacak nilai `enc` SEBELUM perubahan (`trackPrevious`): transaksi
+ * rotasi kunci mengirim sidik versi lama tiap baris, sehingga server menolak rotasi bila baris itu
+ * sudah diubah perangkat lain (edit itu tidak tertimpa salinan basi). Lihat connector.ts.
  */
+const trackOldEnc = { trackPrevious: { columns: ['enc'] } };
 export const AppSchema = new DrizzleAppSchema({
   ...drizzleSchema,
+  pwItems: { tableDefinition: pwItems, options: trackOldEnc },
+  pwTotpLog: { tableDefinition: pwTotpLog, options: trackOldEnc },
+  configVersions: { tableDefinition: configVersions, options: trackOldEnc },
   uploadErrors: { tableDefinition: uploadErrors, options: { localOnly: true } },
 });
 
@@ -479,3 +526,4 @@ export type PwItem = typeof pwItems.$inferSelect;
 export type PwTotpLog = typeof pwTotpLog.$inferSelect;
 export type ConfigFile = typeof configFiles.$inferSelect;
 export type ConfigVersion = typeof configVersions.$inferSelect;
+export type TempFile = typeof tempFiles.$inferSelect;

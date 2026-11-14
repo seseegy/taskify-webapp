@@ -19,7 +19,7 @@ import { GeneratorPanel } from './GeneratorPanel';
 import { Avatar } from './ItemRow';
 import { PasswordField } from './PasswordField';
 import { StrengthMeter } from './StrengthMeter';
-import { Switch } from './Switch';
+import { Switch } from '@/components/ui/Switch';
 import { TotpCode } from './TotpCode';
 import { TotpField } from './TotpField';
 

@@ -38,7 +38,7 @@ src/
   lib/            env, supabase client, tanggal WIB, uang IDR, id
   styles/         Design system (lihat DESIGN.md)
 supabase/migrations/   Skema Postgres, RLS, publication, seed, pengingat
-supabase/functions/    Edge Function send-reminders & files (Deno)
+supabase/functions/    Edge Function send-reminders, files & tempfiles (Deno); _shared = aturan murni + klien R2
 supabase/sql/          SQL manual berisi secret (jadwal cron)
 supabase/tests/        Tes migrasi di Postgres (PGlite)
 scripts/               generate-vapid-keys.mjs, backup.sh, check-contrast.mjs
@@ -78,12 +78,13 @@ Menambah kolom/tabel = ubah **tiga tempat**: migrasi Supabase, `sync-config.yaml
 `connector.ts` membedakan (aturannya di `src/db/upload-policy.ts`):
 
 - **Sementara** (jaringan, 5xx, JWT kedaluwarsa): dilempar ulang → PowerSync retry dengan backoff.
-- **Permanen** (`22xxx`, `23xxx`, `42501`, dan `TASKIFY_ROW_MISSING`): sisa operasi disimpan ke tabel lokal `upload_errors` (tidak disinkron), lalu antrean dilanjutkan supaya tidak macet. Jumlahnya tampil di Pengaturan.
+- **Sesi bukan aal2**: unggah ditunda (dilempar) tanpa satu permintaan pun, dan `fetchCredentials` mengembalikan null — sync dengan token aal1 hanya menerima data kosong. Penolakan `42501` yang terjadi saat sesi turun ke aal1 di tengah unggahan juga ditunda, bukan dibuang. `PowerSyncProvider` memutus sync saat dilepas (gerbang MFA menutup aplikasi), karena database lokalnya singleton dan tetap terbuka.
+- **Permanen** (`22xxx`, `23xxx` — termasuk `23V0n` penjaga kunci brankas —, `42501`, dan `TASKIFY_ROW_MISSING`): sisa operasi disimpan ke tabel lokal `upload_errors` (tidak disinkron), lalu antrean dilanjutkan supaya tidak macet. Jumlahnya tampil di Pengaturan.
 - **Skema** (PostgREST `PGRST1xx`/`PGRST2xx`, mis. kolom/tabel belum ada karena aplikasi ter-deploy sebelum migrasinya): dicoba ulang selama ±10 menit (minimal 5 percobaan), lalu diperlakukan permanen. Tanpa batas ini, satu transaksi yang macet menahan SELURUH antrean upload.
 
 `PATCH` dikirim dengan `.select('id')`. Jika tidak ada baris yang terkena (baris tidak ada di server — INSERT-nya dulu ditolak, atau sudah dihapus permanen dari perangkat lain), hasilnya `TASKIFY_ROW_MISSING` dan perubahan disimpan ke `upload_errors`, bukan hilang diam-diam.
 
-PUT berurutan pada tabel yang sama digabung menjadi satu `upsert` massal.
+PUT berurutan pada tabel yang sama digabung menjadi satu `upsert` massal. Pengecualian: transaksi rotasi kunci brankas (PATCH `pw_keys.wrapped_key`) dikirim utuh sebagai satu RPC `apply_vault_rotation` (atomik).
 
 ## Kalender sebagai pusat
 
@@ -198,7 +199,7 @@ Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──syn
 - Unduh/pratinjau: cache lokal dulu, baru presigned GET. Isi zip dibaca di browser (JSZip) tanpa ekstrak ke disk.
 - Sebelum upload, zip dianalisis (`features/vault/zip.ts`): file rahasia, node_modules, .git, hasil build. Duplikat dideteksi lewat SHA-256.
 - Hapus = soft delete lokal + hapus objek (best effort). Cron harian (`files` mode cleanup) membersihkan sisanya, termasuk objek yatim. Penelusuran bucket berhalaman (maks. 20 × 1000 objek dan 500 penghapusan per eksekusi).
-- **Logout** menghapus database lokal (`wipeLocalDatabase`) _dan_ Cache Storage lampiran + kotak masuk Bagikan + kepercayaan perangkat Sandi (`clearDeviceData`). Semuanya ditunggu sebelum halaman dimuat ulang.
+- **Logout** menghapus database lokal (`wipeLocalDatabase`) _dan_ Cache Storage lampiran + kotak masuk Bagikan + kepercayaan perangkat Sandi + langganan push perangkat ini (`clearDeviceData`, sebelum `signOut` agar baris langganan di server masih bisa dihapus). Semuanya ditunggu sebelum halaman dimuat ulang. Tanpa mencabut langganan push, perangkat tetap menerima pengingat akun yang sudah keluar, dan akun berikutnya gagal mengaktifkan notifikasi (endpoint yang sama masih milik akun lama).
 - Snippet: syntax highlight (prism-react-renderer + bahasa prismjs tambahan, dimuat lazy), variabel template `{{nama}}` diisi saat disalin.
 - Foto besar (>1,5 MB) diperkecil ke maks. 2000 px JPEG sebelum diunggah.
 
@@ -207,7 +208,7 @@ Browser ── (1) INSERT attachments (pending) ──► SQLite lokal ──syn
 - `/review?periode=minggu|bulan&tanggal=<tanggal>` (desktop: menu samping; HP: tautan dari Beranda). Minggu = Senin–Minggu WIB.
 - Statistik (`features/review/review-queries.ts`) dihitung langsung dengan SQL dari SQLite lokal, jadi tidak perlu tabel ringkasan: tugas selesai/terlambat, hari menulis jurnal & rata-rata mood, pemasukan/pengeluaran + kategori terbesar, item vault baru. Setiap angka dibandingkan dengan periode sebelumnya.
 - **Tulis refleksi** membuka draf jurnal (`?baru=…&templat=review-minggu|bulan`) berisi ringkasan angka + pertanyaan. Draf baru tersimpan setelah diedit, mengikuti aturan simpan otomatis jurnal.
-- Heatmap = jumlah per hari dari tugas selesai + catatan jurnal + catatan bertanggal + transaksi + snippet/project baru. Level 0–4 relatif terhadap hari tersibuk dalam rentang. Beranda menampilkan 16 minggu terakhir.
+- Heatmap = jumlah per hari dari tugas selesai + catatan jurnal + catatan bertanggal + transaksi (tanpa transfer & transaksi hutang, sama dengan Kalender) + snippet/project baru. Level 0–4 relatif terhadap hari tersibuk dalam rentang. Beranda menampilkan 16 minggu terakhir.
 
 ## Bagikan ke Taskify (Share Target)
 
@@ -249,7 +250,13 @@ kunci pemulihan (128 bit acak) ─HKDF-SHA256─► KEK-pemulihan ─AES-GCM─�
 DEK (256 bit acak) ─AES-256-GCM, IV acak, AAD = user + id item─► isi item (judul, URL, username, sandi, catatan)
 ```
 
-- **DEK terpisah dari master password, dan DIROTASI di setiap penggantian kunci.** Ganti master password, pulihkan dengan kunci pemulihan, dan buat kunci pemulihan baru semuanya membuat DEK baru, mengenkripsi ulang SEMUA item (termasuk yang di Sampah) dan mengganti record kunci dalam satu transaksi lokal (`replaceVault`, `reencryptItems`). Dengan begitu "dicabut" benar-benar berarti: sandi/kunci pemulihan lama + salinan `pw_keys` lama (backup Supabase, ekspor) tidak bisa membuka data saat ini, termasuk item yang ditulis sesudahnya. Yang tetap terbuka dengan kunci lama hanyalah snapshot ciphertext lama itu sendiri; itu tidak bisa ditarik kembali. Item yang sudah tidak bisa dibuka dengan DEK lama dibiarkan apa adanya (tidak ditimpa). Perangkat lain yang sedang terbuka mengenali record kunci berubah (`stamp` di `sandi-store.ts` ≠ `wrapped_key`), langsung terkunci, dan meminta master password terbaru. Batas: item yang dibuat di perangkat lain dengan DEK lama SEBELUM perangkat itu sempat sinkron akan tampil sebagai "tidak bisa dibuka" (data tidak hilang).
+- **DEK terpisah dari master password, dan DIROTASI di setiap penggantian kunci.** Ganti master password, pulihkan dengan kunci pemulihan, dan buat kunci pemulihan baru semuanya membuat DEK baru, mengenkripsi ulang SEMUA item (termasuk yang di Sampah) dan mengganti record kunci dalam satu transaksi lokal (`replaceVault`, `reencryptItems`). Dengan begitu "dicabut" benar-benar berarti: sandi/kunci pemulihan lama + salinan `pw_keys` lama (backup Supabase, ekspor) tidak bisa membuka data saat ini, termasuk item yang ditulis sesudahnya. Yang tetap terbuka dengan kunci lama hanyalah snapshot ciphertext lama itu sendiri; itu tidak bisa ditarik kembali. Item yang sudah tidak bisa dibuka dengan DEK lama dibiarkan apa adanya (tidak ditimpa). Perangkat lain yang sedang terbuka mengenali record kunci berubah (`stamp` di `sandi-store.ts` ≠ `wrapped_key`), langsung terkunci, dan meminta master password terbaru.
+- **Rotasi tidak bisa menghilangkan data** (migrasi `…_vault_key_guard.sql`, `vault-rotation.ts`). Setiap ciphertext berlabel kunci: `enc` = `<16 hex>.<base64>`, label = 16 hex pertama SHA-256(`wrapped_key`) (`keyRef()` di klien = `vault_key_ref()` di SQL, diuji dengan vektor yang sama). Label diambil dari `stamp` yang disimpan BERSAMA DEK di store (`currentKeyRef`), jadi selalu cocok dengan kunci yang benar-benar mengenkripsi. Server menegakkan:
+  - trigger `vault_enc_guard` menolak tulisan berlabel kunci lama (23V03) — perangkat yang offline saat master password diganti tidak bisa lagi menimpa item yang sudah dienkripsi ulang; perubahannya masuk `upload_errors` dan halaman Sandi menampilkan banner. Trigger mengunci baris kunci (`FOR SHARE`), jadi tulisan yang datang bersamaan dengan rotasi menunggu lalu diperiksa terhadap kunci baru;
+  - kunci HANYA berganti lewat RPC atomik `apply_vault_rotation`; connector mengirim seluruh transaksi rotasi dalam SATU permintaan. RPC memeriksa compare-and-swap kunci asal (`rotated_from`, 23V01), bahwa SETIAP baris terenkripsi milik user di server ikut di transaksi, dan bahwa tiap baris masih versi yang dienkripsi ulang klien (sidik `enc` lama dari `previousValues` PowerSync, opsi `trackPrevious` di `schema.ts`) — keduanya 23V02. Baris yang tidak bisa dibuka klien tetap disentuh (`updated_at`) supaya terhitung "dipertimbangkan". Ditolak = tidak ada yang berubah di server; klien mengunci brankas dan database lokal kembali ke kunci lama setelah sinkron. Mengulang rotasi yang sudah diterima (respons hilang di jaringan) dijawab sukses (`replayed`), bukan ditolak;
+  - Sebelum mulai, klien mensyaratkan online, sinkron selesai, tidak sedang mengunduh, antrean upload kosong, dan kunci di server = kunci lokal (`rotationBlocker`); setelah menulis, brankas baru dianggap berganti bila server menerima (`rotationOutcome`, maks. 30 dtk; lewat itu = "masih dikirim", dan penolakan yang datang belakangan tampil sebagai banner).
+  - **Klien versi lama** (PWA belum diperbarui): baris lama tanpa label tetap terbaca, dan tulisan tanpa label diterima sampai `pw_keys.labels_required_at` terisi. Kolom itu diisi saat rotasi pertama lewat RPC, ATAU saat klien lama mencoba mengganti kunci (PATCH langsung dinetralkan — kunci tidak berubah — atau rotasi tanpa `rotated_from` di antrean lama). Sejak itu tulisan tanpa label ditolak, karena tulisan berikutnya dari klien lama itu memakai DEK yang tidak pernah diterima server. Kode penolakan sengaja di kelas SQLSTATE 23 agar klien lama pun menganggapnya permanen (tidak mengulang selamanya dan menahan antrean sinkron modul lain). Item berlabel tampil "tidak bisa dibuka" di klien lama sampai diperbarui.
+  - Sisa risiko yang diketahui: tulisan bersamaan dari dua koneksi hanya dinalar (FOR SHARE vs FOR UPDATE), tidak diuji — PGlite satu koneksi. Payload rotasi dikirim sekaligus; bila gateway menolak ukurannya (HTTP 413) hasilnya 23V04 dan tidak ada yang berubah.
 - **AAD mengikat item ke akun + id barisnya**: ciphertext yang ditukar antar baris atau dipindah ke akun lain gagal diautentikasi. Plaintext dipadatkan ke kelipatan 256 byte agar panjang ciphertext tidak membocorkan panjang sandi.
 - Server hanya melihat `pw_keys` (parameter KDF + kunci terbungkus) dan `pw_items.enc`. CHECK Postgres menolak iterasi < 100 ribu dan salt/kunci yang terlalu pendek; satu brankas per user (UNIQUE, pengecualian dari aturan "hindari UNIQUE").
 - **Master password harus berbeda dari password akun Taskify** (server melihat password akun saat login). Syarat: ≥ 12 karakter dan ≥ 50 bit menurut zxcvbn-ts dengan kamus Inggris + Indonesia + bagian email akun (`master-password.ts`, dimuat lazy ±2 MB, gagal tertutup: bila tidak termuat, sandi ditolak). Sandi acak baru lolos sekitar 16 karakter ke atas karena zxcvbn menghitung karakter tanpa pola ±3,3 bit; jalur utama adalah frasa 5 kata dari daftar EFF yang bisa dibuatkan di wizard. Batas yang tidak bisa dibuang: gabungan kata pribadi yang tidak ada di kamus mana pun (nama anak + nama hewan) tidak bisa dibedakan dari acak oleh estimator apa pun. Heuristik cepat di `generator.ts` hanya untuk meter sandi situs, BUKAN gerbang.
@@ -263,7 +270,7 @@ DEK (256 bit acak) ─AES-256-GCM, IV acak, AAD = user + id item─► isi item 
 
 **Pertukaran yang disengaja:** menyimpan kunci TOTP bersama sandi di satu brankas berarti 2FA turun menjadi satu faktor efektif bila brankas DAN master password jatuh bersamaan — sama seperti Bitwarden/1Password. UI memperingatkan agar kode 2FA akun Taskify sendiri TIDAK disimpan di sini (akan membuat pemilik terkunci). File ekspor juga memuat kunci TOTP (terenkripsi).
 
-**`pw_keys` tidak bisa dihapus lewat API.** Aplikasi tidak pernah menghapus record kunci, jadi hak `DELETE` dan policy `owner_delete` sengaja tidak diberikan (hanya `SELECT/INSERT/UPDATE`); sesi pemilik yang bocor tidak bisa menghapus kunci dengan satu perintah. Baris hanya hilang lewat `ON DELETE CASCADE` saat akun dihapus. `UPDATE` tetap diperlukan untuk ganti master password, jadi perlindungan dari penimpaan adalah backup/PITR Supabase.
+**`pw_keys` tidak bisa dihapus lewat API.** Aplikasi tidak pernah menghapus record kunci, jadi hak `DELETE` dan policy `owner_delete` sengaja tidak diberikan (hanya `SELECT/INSERT/UPDATE`); sesi pemilik yang bocor tidak bisa menghapus kunci dengan satu perintah. Baris hanya hilang lewat `ON DELETE CASCADE` saat akun dihapus. Materi kunci hanya bisa diubah lewat `apply_vault_rotation` (lihat di atas); perlindungan dari penimpaan oleh sesi yang bocor tetap backup/PITR Supabase.
 
 **Brankas pertama & dua perangkat.** Server hanya menerima satu `pw_keys` per user (unique index). Agar dua perangkat tidak membuat brankas masing-masing: (1) sebelum wizard tampil dan sekali lagi sebelum menyimpan, perangkat bertanya langsung ke Supabase (bukan DB lokal); tanpa internet atau bila sudah ada, brankas tidak dibuat; (2) setelah menyimpan, brankas baru dibuka hanya setelah server menerima record kuncinya (`waitForKeyUpload`, maks. 15 dtk), jadi tidak ada item yang ditulis dengan kunci yang akhirnya ditolak; (3) bila tetap ada penolakan `pw_keys` di `upload_errors` (dua perangkat persis bersamaan lalu koneksi lambat), halaman Sandi menampilkan banner. Perilaku klien PowerSync saat unggahan ditolak (baris lokal diganti milik pemenang) belum teruji di lingkungan nyata.
 
@@ -345,6 +352,28 @@ Satu-satunya modul yang **tidak menyentuh basis data sama sekali**: tanpa tabel,
 
 Rancangan, batasan, dan alasannya: [`RANCANGAN-MUSIK.md`](RANCANGAN-MUSIK.md). Dua batas yang bukan bug: audionya **tidak bisa digeser posisinya** (hulu tidak melayani `Range`), dan lagu **pertama** perlu 12–28 detik (lagu berikutnya disiapkan di latar belakang).
 
+## Berkas publik (tempfile)
+
+Simpan berkas di R2 dan bagikan lewat tautan yang bisa dibuka siapa saja tanpa login. Kode: `src/features/tempfiles/` (rute `/berkas`, halaman publik `/unduh/<token>`), Edge Function `supabase/functions/tempfiles`, migrasi `…_temp_files.sql`.
+
+```
+Pemilik (aal2) ─(1) create {nama, ukuran, masa berlaku}─► Edge Function tempfiles
+                    └─ temp_file_reserve(): kunci per akun, kuota 1 GB ATOMIK, baris 'pending'
+               ─(2) PUT presigned (Content-Length ditandatangani, 15–60 mnt)─► R2 temp/<id>
+               ─(3) complete─► HEAD objek di R2, ukuran = pesanan? → 'ready' + catat ETag
+Penerima ── /unduh/<token> (halaman aplikasi, tanpa login) ─ info ─► Edge Function
+        └── tombol Unduh ─► GET /functions/v1/tempfiles/d/<token> ─► 302 presigned GET (5 menit,
+                                                       attachment + octet-stream, dihitung 1×)
+```
+
+- **Pengecualian dari "semua tulis lewat DB lokal"**: klien hanya MEMBACA `temp_files` (sinkron PowerSync, tetap tampil offline); semua perubahan lewat Edge Function. Tanpa itu kuota bisa dilampaui dua unggahan paralel, dan menghapus/mencabut tautan baru berlaku setelah antrean sinkron perangkat terkirim. Server tidak memberi grant tulis ke `authenticated`; fungsi SQL-nya hanya untuk `service_role` dan menerima `user_id` dari JWT yang sudah divalidasi. Hasil server langsung tampil lewat overlay (`tempfile-store.ts`) sampai sinkron menyusul.
+- **Kuota**: total 1 GB per akun, termasuk pesanan unggah yang belum selesai (dihitung 2 jam). Diperiksa lagi saat `complete` (pesanan lama tidak bisa menyelinap). Konstanta sama di SQL, `_shared/tempfiles.ts`, dan `tempfile-limits.ts` (diuji).
+- **Masa berlaku**: 1 jam / 1 hari / 7 hari / 30 hari / tanpa batas, dihitung dengan jam server. Lewat waktu = tautan langsung mati; objeknya dihapus pembersih per jam (`supabase/sql/schedule-tempfile-cleanup.sql`). Yang sudah kedaluwarsa tidak bisa dihidupkan lagi.
+- **Tautan**: token 256 bit acak (base64url, 43 karakter). Bisa dinonaktifkan sementara (privat) atau diganti (tautan lama mati seketika). Hapus = tanda `deleted_at` dulu (tautan mati), lalu objek & baris dihapus; bila R2 gagal, pembersih mengulang.
+- **Key R2 = `temp/<id berkas>`**, tanpa id pemilik dan tanpa nama berkas: key terlihat di URL presigned yang diterima pengunduh. Unduhan publik & pemilik memeriksa ETag objek terhadap yang dicatat saat `complete`; objek yang ditimpa (presigned PUT masih berlaku) tidak diserahkan. Masa berlaku PUT mengikuti ukuran (15–60 menit). Unggahan yang PUT-nya gagal langsung melepas pesanannya.
+- **Keamanan unduhan**: selalu `Content-Disposition: attachment` + `application/octet-stream`, jadi berkas HTML/SVG publik tidak pernah dijalankan sebagai halaman. Halaman perantara `/unduh` mencegah pratinjau tautan aplikasi chat terhitung sebagai unduhan, diberi `X-Robots-Tag: noindex`, dan memperingatkan berkas program (.exe, .apk, …). Nama berkas dibersihkan (karakter kontrol, pemisah path) dan tidak dipakai di key R2.
+- **Batas**: satu PUT per berkas (tanpa multipart/resume) — unggahan 1 GB yang terputus harus diulang dari awal, dan tab sebaiknya tetap terbuka. Pesanan yang tidak selesai dalam 6 jam dibersihkan. Tidak ada pembatas laju di endpoint publik; perlindungannya adalah token 256 bit.
+
 ## Batas data & penolakan server
 
 - CHECK Postgres menolak baris yang melanggar batas (mis. `transactions.title` ≤ 120). Penolakan permanen masuk `upload_errors` (lokal), dan **sisa operasi dalam satu transaksi lokal ikut dibuang**; operasi sebelumnya sudah diterapkan, jadi satu transaksi lokal bisa berlaku sebagian di server. Karena itu semua jalur tulis memotong teks lewat `clip(…, LIMITS.x)` (`src/lib/limits.ts`, per code point seperti `char_length`). Ubah `LIMITS` bersamaan dengan CHECK-nya.
@@ -383,3 +412,4 @@ Sengaja tidak diubah (trade-off atau terlalu jarang untuk sebanding dengan risik
 | 8     | Sandi (password manager E2EE)                                                              | ✅     |
 | 9     | Pemutar musik (opsional, Worker terpisah — tanpa basis data)                               | ✅     |
 | 10    | Catatan (bebas atau ditempel ke tanggal, banyak per hari, tag/tautan/pin/pencarian)        | ✅     |
+| 11    | Berkas publik (tempfile): unggah ke R2, tautan publik, masa berlaku, kuota 1 GB            | ✅     |

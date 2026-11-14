@@ -15,6 +15,11 @@ describe('klasifikasi error upload', () => {
     }
   });
 
+  it('penolakan penjaga kunci brankas (23V0n) = permanen, juga menurut aturan kelas 23 klien lama', () => {
+    for (const code of ['23V01', '23V02', '23V03', '23V04', '23V05'])
+      expect(isFatal({ code })).toBe(true);
+  });
+
   it('jaringan, JWT kedaluwarsa, dan error skema BUKAN permanen langsung', () => {
     expect(isFatal(new TypeError('Failed to fetch'))).toBe(false);
     expect(isFatal({ code: 'PGRST301' })).toBe(false);
