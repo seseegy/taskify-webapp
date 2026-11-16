@@ -21,8 +21,9 @@ import type { Song, Track } from './types';
 /**
  * Filter pencarian. Daftar tertutup — Worker menolak nilai lain dengan 400.
  *
- * `undefined` (tanpa filter) berarti hasil campuran, dan hasil campuran **tidak punya
- * halaman lanjutan**: responsnya tidak pernah memuat `cursor`.
+ * `undefined` (tanpa filter) berarti hasil campuran. Dulu hasil campuran tidak punya
+ * halaman lanjutan; sekarang Worker mengirim cursor gabungan untuknya, jadi tab "Semua"
+ * bisa memuat halaman berikutnya seperti tab lain (lihat `supportsPaging`).
  */
 export type SearchFilter = 'songs' | 'videos' | 'albums' | 'artists' | 'playlists';
 
@@ -95,6 +96,27 @@ export const POLL_INTERVAL_MS = 1200;
 /** Batas menyerah. Di atas ini hampir pasti konverternya yang bermasalah. */
 export const CONVERT_TIMEOUT_MS = 90_000;
 
+/** Percobaan ulang maksimal saat kena 429 `retryable` di `resolveStream`. */
+export const MAX_RATE_LIMIT_RETRIES = 3;
+
+/** Batas atas satu kali tunggu dari `Retry-After`: 60 detik — lebih lama dari itu lagu sudah ditinggal pengguna. */
+export const MAX_RETRY_AFTER_MS = 60_000;
+
+/**
+ * Jeda sebelum mengulang 429: selama yang diminta server (`retryAfterSeconds`), atau
+ * backoff eksponensial 1s → 2s → 4s bila server tidak memberi angka.
+ */
+export function retryDelayMs(err: MusicError, attempt: number): number {
+  if (
+    typeof err.retryAfterSeconds === 'number' &&
+    Number.isFinite(err.retryAfterSeconds) &&
+    err.retryAfterSeconds > 0
+  ) {
+    return Math.min(err.retryAfterSeconds * 1000, MAX_RETRY_AFTER_MS);
+  }
+  return Math.min(1000 * 2 ** (attempt - 1), 8000);
+}
+
 /**
  * Error dari pemutar musik. `message`-nya **sudah siap ditampilkan ke pengguna** — pesan
  * dari Worker memang berbahasa Indonesia dan dirancang untuk itu, jadi jangan diterjemahkan
@@ -103,13 +125,29 @@ export const CONVERT_TIMEOUT_MS = 90_000;
 export class MusicError extends Error {
   /** Status HTTP, atau 0 bila permintaannya tidak pernah sampai (jaringan mati). */
   readonly status: number;
+  /**
+   * Kode error Worker (`RATE_LIMITED`, `NOT_FOUND`, …) bila responsnya memakai bentuk
+   * objek `{error:{message, code, retryable, retryAfterSeconds?}}`.
+   */
+  readonly code?: string;
+  /** `false` berarti mengulang tidak akan membantu; `undefined` = server tidak menyebutkannya. */
+  readonly retryable?: boolean;
+  /** Detik yang disarankan server sebelum mengulang, dari bodi atau header `Retry-After`. */
+  readonly retryAfterSeconds?: number;
 
   // Field ditulis eksplisit, bukan sebagai parameter property seperti di repo asal:
   // tsconfig di sini memakai `erasableSyntaxOnly`, yang melarang sintaks itu.
-  constructor(message: string, status = 0) {
+  constructor(
+    message: string,
+    status = 0,
+    info: { code?: string; retryable?: boolean; retryAfterSeconds?: number } = {},
+  ) {
     super(message);
     this.name = 'MusicError';
     this.status = status;
+    this.code = info.code;
+    this.retryable = info.retryable;
+    this.retryAfterSeconds = info.retryAfterSeconds;
   }
 }
 
@@ -175,6 +213,70 @@ export async function supabaseAccessToken(): Promise<string> {
 
 const sleepReal = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/** Hasil uraian bodi error Worker — `message` kosong bila bodinya bukan bentuk yang dikenal. */
+interface ParsedApiError {
+  message?: string;
+  code?: string;
+  retryable?: boolean;
+  retryAfterSeconds?: number;
+}
+
+/**
+ * Membaca header `Retry-After` (detik) menjadi angka yang aman dipakai.
+ * `undefined` bila header tidak ada, bukan angka, atau di luar 1–3600 — nilai absurd
+ * dari hulu tidak diteruskan mentah ke klien. Cerminan `parseRetryAfterHeader` Worker.
+ */
+function parseRetryAfterHeader(value: string | null): number | undefined {
+  if (value === null) return undefined;
+  const n = Number(value.trim());
+  if (!Number.isFinite(n)) return undefined;
+  const s = Math.floor(n);
+  if (s < 1 || s > 3600) return undefined;
+  return s;
+}
+
+/**
+ * Mengurai bodi error Worker, dua bentuk sekaligus:
+ *
+ * - LAMA: `{error: "teks"}` — hanya pesan, tanpa kode.
+ * - BARU: `{error:{message, code, retryable, retryAfterSeconds?}}`.
+ *
+ * `retryAfterSeconds` diambil dari bodi dulu, lalu dari header `Retry-After` bila bodi
+ * tidak menyebutkannya — Worker mengirim keduanya dengan nilai yang sama, tapi salah
+ * satunya bisa hilang di tengah jalan (mis. proksi yang membuang header).
+ */
+async function parseApiError(res: Response): Promise<ParsedApiError> {
+  const fromHeader = parseRetryAfterHeader(res.headers.get('Retry-After'));
+  try {
+    const data = (await res.json()) as { error?: unknown };
+    const e = data.error;
+    if (typeof e === 'string' && e) return { message: e, retryAfterSeconds: fromHeader };
+    if (e && typeof e === 'object') {
+      const o = e as {
+        message?: unknown;
+        code?: unknown;
+        retryable?: unknown;
+        retryAfterSeconds?: unknown;
+      };
+      if (typeof o.message === 'string' && o.message) {
+        const fromBody =
+          typeof o.retryAfterSeconds === 'number' && Number.isFinite(o.retryAfterSeconds)
+            ? Math.max(0, Math.floor(o.retryAfterSeconds))
+            : undefined;
+        return {
+          message: o.message,
+          code: typeof o.code === 'string' ? o.code : undefined,
+          retryable: typeof o.retryable === 'boolean' ? o.retryable : undefined,
+          retryAfterSeconds: fromBody ?? fromHeader,
+        };
+      }
+    }
+  } catch {
+    /* respons bukan JSON — pesan umum yang dipakai */
+  }
+  return { retryAfterSeconds: fromHeader };
+}
+
 export function createMusicClient(
   config: MusicClientConfig,
   deps: MusicClientDeps = {},
@@ -183,6 +285,37 @@ export function createMusicClient(
   const sleep = deps.sleep ?? sleepReal;
   const now = deps.now ?? (() => Date.now());
   const base = config.baseUrl.replace(/\/+$/, '');
+
+  /**
+   * Mengulang permintaan yang kena 429 `retryable`, menunggu selama yang diminta server.
+   *
+   * Tanpa ini, 429 bersifat fatal: `post()` melempar dan `resolveStream` langsung gagal,
+   * padahal server hanya meminta menunggu sebentar. Jeda diambil dari `retryAfterSeconds`
+   * (bodi atau header `Retry-After`); tanpa angka dari server dipakai backoff eksponensial
+   * 1s → 2s → 4s. Maksimal 3 kali ulang — lebih dari itu berarti kuotanya memang habis,
+   * dan menunggu lebih lama hanya menahan UI.
+   *
+   * Hanya 429 yang diulang, dan hanya bila server tidak secara eksplisit melarangnya
+   * (`retryable: false`, mis. kuota harian habis). Status lain (5xx, 401, 403) tetap
+   * dilempar langsung.
+   */
+  async function withRateLimitRetry<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    let attempt = 0;
+    for (;;) {
+      try {
+        return await fn();
+      } catch (err) {
+        const rateLimited =
+          err instanceof MusicError && err.status === 429 && err.retryable !== false;
+        if (!rateLimited) throw err;
+        attempt += 1;
+        if (attempt > MAX_RATE_LIMIT_RETRIES) throw err;
+        if (signal?.aborted) throw new DOMException('Dibatalkan', 'AbortError');
+        await sleep(retryDelayMs(err, attempt));
+        if (signal?.aborted) throw new DOMException('Dibatalkan', 'AbortError');
+      }
+    }
+  }
 
   async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
     let token: string;
@@ -206,7 +339,7 @@ export function createMusicClient(
       if (err instanceof DOMException && err.name === 'AbortError') throw err;
       throw new MusicError('Tidak bisa menghubungi server musik. Periksa koneksi.');
     }
-    if (!res.ok) throw new MusicError(await errorMessage(res), res.status);
+    if (!res.ok) throw await apiError(res);
     return (await res.json()) as T;
   }
 
@@ -214,18 +347,27 @@ export function createMusicClient(
    * Pesan error dari Worker dipakai **apa adanya** — sudah berbahasa Indonesia dan dirancang
    * untuk ditampilkan langsung. Yang ditambahkan di sini hanya penjelasan untuk status yang
    * pesannya tidak akan membantu pengguna.
+   *
+   * Dua bentuk bodi error diterima: bentuk LAMA `{error: "teks"}` dan bentuk BARU
+   * `{error:{message, code, retryable, retryAfterSeconds?}}` (Worker mengirim yang baru
+   * sejak fitur 23). `code`/`retryable`/`retryAfterSeconds` diteruskan ke `MusicError`
+   * supaya pemanggil bisa memutuskan sendiri — mis. `resolveStream` mengulang 429 yang
+   * `retryable` setelah menunggu `retryAfterSeconds`.
    */
-  async function errorMessage(res: Response): Promise<string> {
-    try {
-      const data = (await res.json()) as { error?: unknown };
-      if (typeof data.error === 'string' && data.error) return data.error;
-    } catch {
-      /* respons bukan JSON — lanjut ke pesan umum di bawah */
-    }
-    if (res.status === 401) return 'Sesi berakhir. Masuk ulang.';
-    if (res.status === 403) return 'Akun ini tidak diizinkan memakai pemutar musik.';
-    if (res.status >= 500) return 'Server musik sedang bermasalah. Coba lagi sebentar.';
-    return `Server musik balas HTTP ${res.status}.`;
+  async function apiError(res: Response): Promise<MusicError> {
+    const parsed = await parseApiError(res);
+    return new MusicError(parsed.message ?? fallbackMessage(res.status), res.status, {
+      code: parsed.code,
+      retryable: parsed.retryable,
+      retryAfterSeconds: parsed.retryAfterSeconds,
+    });
+  }
+
+  function fallbackMessage(status: number): string {
+    if (status === 401) return 'Sesi berakhir. Masuk ulang.';
+    if (status === 403) return 'Akun ini tidak diizinkan memakai pemutar musik.';
+    if (status >= 500) return 'Server musik sedang bermasalah. Coba lagi sebentar.';
+    return `Server musik balas HTTP ${status}.`;
   }
 
   return {
@@ -257,9 +399,13 @@ export function createMusicClient(
         dan `m4a` dari konverter tidak bisa diputar — jadi mengandalkan bawaan sisi server
         berarti diam-diam memilih format yang rusak. Lihat `DEFAULT_AUDIO_FORMAT`.
       */
-      const init = await post<{ job?: string; url?: string }>(
-        '/v1/stream/init',
-        { videoId, format: format ?? DEFAULT_AUDIO_FORMAT },
+      const init = await withRateLimitRetry(
+        () =>
+          post<{ job?: string; url?: string }>(
+            '/v1/stream/init',
+            { videoId, format: format ?? DEFAULT_AUDIO_FORMAT },
+            signal,
+          ),
         signal,
       );
       if (init.url) {
@@ -273,9 +419,9 @@ export function createMusicClient(
       while (now() < deadline) {
         if (signal?.aborted) throw new DOMException('Dibatalkan', 'AbortError');
         await sleep(POLL_INTERVAL_MS);
-        const step = await post<{ progress?: number; url?: string }>(
-          '/v1/stream/poll',
-          { job: init.job },
+        const step = await withRateLimitRetry(
+          () =>
+            post<{ progress?: number; url?: string }>('/v1/stream/poll', { job: init.job }, signal),
           signal,
         );
         // ADANYA `url` adalah penanda selesai — `progress: 100` tanpa `url` belum berarti siap.

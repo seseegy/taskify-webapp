@@ -17,7 +17,9 @@
 #    kalau pemutar terasa "jalan tapi bisu", periksa direktif ini lebih dulu.
 #    Host audio konverter berupa subdomain bernomor (mis. ricky4.savenow.to), jadi
 #    wildcard memang diperlukan — menulis satu host saja tidak cukup. Dua domain karena
-#    yang kedua adalah fallback saat yang pertama mati.
+#    yang kedua adalah fallback saat yang pertama mati. Ditambah `*.googlevideo.com`
+#    (jalur direct InnerTube) dan origin Worker musik (audio R2 yang disajikan Worker)
+#    — tanpanya browser memblokir kedua jalur itu meski responsnya 200 OK.
 #    Syarat ini berasal dari kontrak API: music-taskify/docs/API.md §"Syarat CSP".
 #  - img-src: tiga host gambar album YouTube. Sengaja TIDAK dibuka `https:` — hanya host
 #    yang benar-benar terpantau dari respons asli. Kalau ada host baru muncul, tambahkan
@@ -29,7 +31,7 @@
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=(), usb=()
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-OyH5VurHb7D/FJVf9S6pVTmwsfwGExfTmW3Oe5dqhqg='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com https://yt3.googleusercontent.com https://yt3.ggpht.com; media-src 'self' blob: https://*.savenow.to https://*.lbserver.xyz; font-src 'self'; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https: wss:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-OyH5VurHb7D/FJVf9S6pVTmwsfwGExfTmW3Oe5dqhqg='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com https://yt3.googleusercontent.com https://yt3.ggpht.com; media-src 'self' blob: https://*.savenow.to https://*.lbserver.xyz https://*.googlevideo.com https://music-taskify.rosdiyttaa.workers.dev; font-src 'self'; worker-src 'self' blob:; manifest-src 'self'; connect-src 'self' https: wss:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'
 
 # Service worker & HTML tidak boleh di-cache CDN, supaya versi baru langsung terdeteksi.
 /sw.js

@@ -2,8 +2,9 @@
  * Logika pencarian lagu yang tidak butuh React — penggabungan halaman dan aturan paginasi.
  *
  * Dipisahkan karena dua aturannya datang dari kontrak API dan mudah dilanggar tanpa sadar:
- * Worker tidak menyimpan status (jadi dedupe antar halaman tugas klien), dan pencarian tanpa
- * filter tidak punya halaman lanjutan sama sekali.
+ * Worker tidak menyimpan status (jadi dedupe antar halaman tugas klien), dan halaman
+ * berikutnya hanya ada bila respons memuat `cursor` — termasuk di tab "Semua", yang
+ * cursor-nya digabung Worker dari semua jenis hasil (`mergedCursor`).
  */
 
 import type { SearchFilter } from './api-client';
@@ -31,13 +32,13 @@ export const SEARCH_TABS: SearchTabOption[] = [
 /**
  * Apakah filter ini bisa memuat halaman berikutnya.
  *
- * **Pencarian tanpa filter tidak punya halaman lanjutan** — hulu tidak mengirim token
- * lanjutan untuk hasil campuran, jadi responsnya tidak pernah memuat `cursor`. Diperiksa di
- * sini, bukan hanya mengandalkan `cursor` yang kosong, supaya tombol "Muat lagi" **tidak
- * pernah** muncul di tab itu. Menampilkannya lalu gagal lebih buruk daripada tidak ada:
- * yang pertama terlihat seperti kerusakan, yang kedua hanya batas yang jelas.
+ * **Semua filter bisa, termasuk tanpa filter.** Dulu pencarian tanpa filter tidak punya
+ * halaman lanjutan — hulu tidak mengirim token lanjutan untuk hasil campuran. Sejak
+ * Worker mengirim cursor gabungan (`mergedCursor`) untuk hasil campuran, tab "Semua" pun
+ * punya halaman berikutnya, jadi gate ini dibuka. Yang menentukan masih ada lanjutan atau
+ * tidak tetap `cursor`-nya: `canLoadMore` hanya benar bila cursor ada.
  */
-export const supportsPaging = (filter: SearchFilter | undefined): boolean => filter !== undefined;
+export const supportsPaging = (_filter: SearchFilter | undefined): boolean => true;
 
 /** Tombol "Muat lagi" ditampilkan hanya bila filternya mendukung DAN masih ada cursor. */
 export function canLoadMore(filter: SearchFilter | undefined, cursor: string | undefined): boolean {
