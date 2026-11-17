@@ -183,9 +183,9 @@ export function SearchTab({ client, player }: { client: MusicClient; player: Mus
             ))}
           </ul>
           {/*
-            Hanya muncul kalau filternya MEMANG bisa dilanjutkan. Di tab "Semua" tidak ada
-            halaman lanjutan, jadi tombolnya tidak ditampilkan — bukan ditampilkan lalu
-            gagal. Lihat `search-core.ts`.
+            Hanya muncul kalau masih ada cursor. Tab "Semua" pun bisa dilanjutkan: Worker
+            mengirim cursor gabungan untuk hasil campuran, jadi `canLoadMore` benar di
+            semua tab selama cursor-nya ada. Lihat `search-core.ts`.
           */}
           {canLoadMore(filter, cursor) && (
             <Button

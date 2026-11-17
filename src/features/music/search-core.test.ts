@@ -23,9 +23,11 @@ const song = (id: string, patch: Partial<Song> = {}): Song => ({
 const ids = (list: Song[]) => list.map((s) => s.videoId);
 
 describe('paginasi per filter', () => {
-  it('pencarian tanpa filter TIDAK punya halaman lanjutan', () => {
-    // Hulu tidak mengirim token lanjutan untuk hasil campuran.
-    expect(supportsPaging(undefined)).toBe(false);
+  it('pencarian tanpa filter PUNYA halaman lanjutan — Worker mengirim cursor gabungan', () => {
+    // Dulu hulu tidak mengirim token lanjutan untuk hasil campuran, jadi gate ini
+    // menutup tab "Semua". Sejak Worker mengirim `mergedCursor`, tab itu bisa
+    // dilanjutkan seperti tab lain.
+    expect(supportsPaging(undefined)).toBe(true);
   });
 
   it('pencarian dengan filter bisa dilanjutkan', () => {
@@ -33,10 +35,8 @@ describe('paginasi per filter', () => {
     expect(supportsPaging('videos')).toBe(true);
   });
 
-  it('tombol "Muat lagi" tidak pernah muncul di tab Semua, bahkan bila ada cursor', () => {
-    // Pengaman ganda: kalau suatu hari hulu mulai mengirim cursor di hasil campuran,
-    // tombolnya tetap tidak muncul sampai perilakunya benar-benar diperiksa.
-    expect(canLoadMore(undefined, 'kursor-entah-dari-mana')).toBe(false);
+  it('tombol "Muat lagi" muncul di tab Semua bila ada cursor', () => {
+    expect(canLoadMore(undefined, 'kursor-gabungan')).toBe(true);
   });
 
   it('tombol "Muat lagi" muncul hanya saat filternya mendukung DAN masih ada cursor', () => {

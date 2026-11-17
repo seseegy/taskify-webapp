@@ -190,15 +190,20 @@ export function useMusicPlayer(
     send({ type: 'prefetchStart', videoId: prefetchId });
 
     /**
-     * Sengaja TIDAK dibatalkan saat efek dibersihkan. Prefetch itu "tembak dan lupakan":
-     * efek ini ikut berjalan ulang setiap keadaan berubah (mis. progres lagu sekarang), dan
-     * kalau tiap pembersihan membatalkan konversi yang sedang jalan, hasilnya tidak pernah
-     * tiba — padahal id-nya sudah tercatat sebagai "sedang disiapkan", sehingga tidak akan
-     * dicoba lagi. Lagu berikutnya jadi tetap menunggu 15 detik, yaitu persis masalah yang
-     * ingin dihilangkan prefetch. Jangan "diperbaiki".
+     * Dibatalkan saat lagu berubah. Efek ini hanya berjalan ulang bila `prefetchId`
+     * berubah (`client` singleton modul, `send` stabil) — jadi pembersihan di sini
+     * berarti "lagu berikutnya sudah bukan lagu ini lagi", bukan "render ulang biasa".
+     * Tanpa ini, loop poll prefetch lagu lama terus berjalan berdampingan dengan loop
+     * lagu aktif sampai konversinya selesai, dan keduanya bersama-sama menembus bucket
+     * poll Worker (60/menit) sampai kena 429.
+     *
+     * Pembatalan juga membersihkan penanda `prefetching` di state (lewat
+     * `prefetchFailed`, yang di sini hanya berarti "tidak jadi disiapkan") supaya lagu
+     * itu bisa diprefetch lagi nanti bila kembali jadi lagu berikutnya.
      */
+    const controller = new AbortController();
     client
-      .resolveStream(prefetchId)
+      .resolveStream(prefetchId, { signal: controller.signal })
       .then((url) => {
         if (mountedRef.current) send({ type: 'prefetchDone', videoId: prefetchId, url });
       })
@@ -206,6 +211,8 @@ export function useMusicPlayer(
         inFlightRef.current.delete(prefetchId);
         if (mountedRef.current) send({ type: 'prefetchFailed', videoId: prefetchId });
       });
+
+    return () => controller.abort();
   }, [client, prefetchId, send]);
 
   // ----------------------------------------- mengambil keterangan lagu sekarang

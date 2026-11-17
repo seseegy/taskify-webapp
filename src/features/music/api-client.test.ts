@@ -3,10 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   CONVERT_TIMEOUT_MS,
   DEFAULT_AUDIO_FORMAT,
+  MAX_RATE_LIMIT_RETRIES,
   MusicError,
   POLL_INTERVAL_MS,
   createMusicClient,
   progressLabel,
+  retryDelayMs,
   type MusicClientDeps,
   type StreamProgress,
 } from './api-client';
@@ -368,5 +370,173 @@ describe('kalimat progres', () => {
   it('mendekati akhir: tidak menjanjikan 100% yang belum tentu segera', () => {
     expect(progressLabel(90)).toBe('Hampir siap…');
     expect(progressLabel(100)).toBe('Hampir siap…');
+  });
+});
+
+describe('bentuk error objek Worker (item 3)', () => {
+  const rateLimited = (retryAfterSeconds?: number) =>
+    json(
+      {
+        error: {
+          message: 'Batas stream/poll (60/menit) tercapai. Coba lagi dalam 12 detik.',
+          code: 'RATE_LIMITED',
+          retryable: true,
+          ...(retryAfterSeconds !== undefined ? { retryAfterSeconds } : {}),
+        },
+      },
+      429,
+    );
+
+  it('pesan objek dipakai apa adanya, bukan jatuh ke teks generik per status', async () => {
+    const { c } = client(() => rateLimited(12));
+    await expect(c.search('a')).rejects.toMatchObject({
+      message: 'Batas stream/poll (60/menit) tercapai. Coba lagi dalam 12 detik.',
+      status: 429,
+    });
+  });
+
+  it('code, retryable, dan retryAfterSeconds diteruskan ke MusicError', async () => {
+    const { c } = client(() => rateLimited(12));
+    await expect(c.search('a')).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+      retryable: true,
+      retryAfterSeconds: 12,
+    });
+  });
+
+  it('bentuk string lama tetap dibaca', async () => {
+    const { c } = client(() => json({ error: 'Parameter "q" wajib diisi' }, 400));
+    await expect(c.search('a')).rejects.toMatchObject({
+      message: 'Parameter "q" wajib diisi',
+      code: undefined,
+      retryable: undefined,
+    });
+  });
+
+  it('objek tanpa message jatuh ke pesan umum per status, bukan crash', async () => {
+    const { c } = client(() => json({ error: { code: 'RATE_LIMITED' } }, 429));
+    await expect(c.search('a')).rejects.toMatchObject({
+      message: 'Server musik balas HTTP 429.',
+      code: undefined,
+    });
+  });
+
+  it('Retry-After di header dipakai bila bodi tidak menyebut retryAfterSeconds', async () => {
+    const res = new Response(
+      JSON.stringify({
+        error: { message: 'Batas tercapai.', code: 'RATE_LIMITED', retryable: true },
+      }),
+      { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': '7' } },
+    );
+    const { c } = client(() => res);
+    await expect(c.search('a')).rejects.toMatchObject({ retryAfterSeconds: 7 });
+  });
+
+  it('header Retry-After yang bukan angka diabaikan', async () => {
+    const res = new Response(JSON.stringify({ error: 'x' }), {
+      status: 429,
+      headers: { 'Content-Type': 'application/json', 'Retry-After': 'segera' },
+    });
+    const { c } = client(() => res);
+    await expect(c.search('a')).rejects.toMatchObject({ retryAfterSeconds: undefined });
+  });
+});
+
+describe('retry 429 dengan backoff (item 9)', () => {
+  /** Klien yang `sleep`-nya dicatat, supaya jeda retry bisa diperiksa tanpa menunggu. */
+  const retryClient = (handler: Handler) => {
+    const { fetch, calls } = fakeFetch(handler);
+    const sleep = vi.fn(async (ms: number) => {
+      void ms;
+    });
+    const c = createMusicClient(
+      { baseUrl: BASE, getToken: async () => 'jwt-1' },
+      { fetch, sleep, now: () => 0 },
+    );
+    return { c, calls, sleep };
+  };
+
+  const rateLimited = (retryAfterSeconds = 2) =>
+    json(
+      {
+        error: {
+          message: 'Batas stream/poll (60/menit) tercapai.',
+          code: 'RATE_LIMITED',
+          retryable: true,
+          retryAfterSeconds,
+        },
+      },
+      429,
+    );
+
+  it('init yang kena 429 diulang setelah menunggu Retry-After, lalu berhasil', async () => {
+    let init = 0;
+    const { c, calls, sleep } = retryClient((path) => {
+      if (path !== '/v1/stream/init') return json({});
+      init += 1;
+      return init === 1 ? rateLimited(2) : json({ url: 'https://x/g.mp3' });
+    });
+    expect(await c.resolveStream('x')).toBe('https://x/g.mp3');
+    expect(calls.filter((x) => x.path === '/v1/stream/init')).toHaveLength(2);
+    expect(sleep).toHaveBeenCalledTimes(1);
+    expect(sleep).toHaveBeenCalledWith(2000);
+  });
+
+  it('poll yang kena 429 diulang setelah menunggu, lalu url tiba', async () => {
+    let poll = 0;
+    const { c, sleep } = retryClient((path) => {
+      if (path === '/v1/stream/init') return json({ job: 'tugas-1' });
+      poll += 1;
+      if (poll === 1) return rateLimited(3);
+      return json({ url: 'https://x/h.mp3' });
+    });
+    expect(await c.resolveStream('x')).toBe('https://x/h.mp3');
+    // Jeda poll biasa (1200) sebelum poll pertama, lalu jeda retry (3000); poll
+    // ulangannya jalan di iterasi yang sama, jadi tidak ada jeda poll kedua.
+    expect(sleep.mock.calls.map((args) => args[0])).toEqual([POLL_INTERVAL_MS, 3000]);
+  });
+
+  it('429 dengan retryable:false TIDAK diulang', async () => {
+    const { c, calls } = retryClient(() =>
+      json(
+        {
+          error: { message: 'Kuota harian habis.', code: 'RATE_LIMITED', retryable: false },
+        },
+        429,
+      ),
+    );
+    await expect(c.resolveStream('x')).rejects.toMatchObject({
+      message: 'Kuota harian habis.',
+      status: 429,
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('menyerah setelah batas ulang, bukan mengulang selamanya', async () => {
+    const { c, calls, sleep } = retryClient(() => rateLimited(1));
+    await expect(c.resolveStream('x')).rejects.toMatchObject({ status: 429 });
+    expect(calls.filter((x) => x.path === '/v1/stream/init')).toHaveLength(
+      MAX_RATE_LIMIT_RETRIES + 1,
+    );
+    expect(sleep).toHaveBeenCalledTimes(MAX_RATE_LIMIT_RETRIES);
+    expect(sleep).toHaveBeenCalledWith(1000);
+  });
+
+  it('5xx TIDAK diulang — hanya 429 yang layak ditunggu', async () => {
+    const { c, calls } = retryClient(() => new Response('', { status: 502 }));
+    await expect(c.resolveStream('x')).rejects.toMatchObject({ status: 502 });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('tanpa angka dari server: backoff eksponensial 1s, 2s, 4s', () => {
+    const err = new MusicError('Batas tercapai.', 429);
+    expect(retryDelayMs(err, 1)).toBe(1000);
+    expect(retryDelayMs(err, 2)).toBe(2000);
+    expect(retryDelayMs(err, 3)).toBe(4000);
+  });
+
+  it('Retry-After dipakai apa adanya, tapi dibatasi 60 detik', () => {
+    expect(retryDelayMs(new MusicError('x', 429, { retryAfterSeconds: 45 }), 1)).toBe(45_000);
+    expect(retryDelayMs(new MusicError('x', 429, { retryAfterSeconds: 3600 }), 1)).toBe(60_000);
   });
 });
