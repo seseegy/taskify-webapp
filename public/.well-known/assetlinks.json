@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.get_login_creds",
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.rosyidputrar.taskify",
+      "sha256_cert_fingerprints": [
+        "72:AE:CB:5C:F4:8B:B0:48:12:CA:2D:CC:DD:F9:B0:2D:C6:47:D3:65:97:E3:A9:46:28:06:26:CB:1C:D7:6F:E9"
+      ]
+    }
+  }
+]
